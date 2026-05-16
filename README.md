@@ -135,13 +135,26 @@ The default cache/staging area is:
 /usr/local/var/pkg/cache
 ```
 
-After a successful `pkg install`, the staged install image under:
+After a successful `pkg build`, the download cache and unpacked build tree
+under:
+
+```text
+/usr/local/var/pkg/cache/sources/<name>
+/usr/local/var/pkg/cache/build/<name>
+```
+
+are removed automatically to save space.
+
+The staged install image under:
 
 ```text
 /usr/local/var/pkg/cache/pkg/<name>
 ```
 
-is removed automatically to save space and inodes.
+is kept so a later `pkg install` can reuse it without rebuilding.
+
+After a successful `pkg install`, that staged install image is also removed,
+so no per-package cache remains.
 
 This layout assumes `/usr/local` is writable by the installing user. That lets
 non-root users build and install packages into the shared `/usr/local` tree.

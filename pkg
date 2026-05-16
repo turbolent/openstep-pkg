@@ -437,6 +437,8 @@ run_build() {
         PKG_BUILD_HELPERS=$PKG_DIR/../build-helpers.sh \
         "$build_shell" $build_trace_flag "$PKG_DIR/build" "$IMAGE_DIR" "$PKG_VERSION"
     )
+
+    clean_work_cache
 }
 
 copy_tree() {
@@ -668,6 +670,25 @@ clean_image_cache() {
         log "cleaning staged image $IMAGE_DIR"
         rm -rf "$IMAGE_DIR"
     fi
+}
+
+clean_source_cache() {
+    if [ -d "$SRC_CACHE" ]; then
+        log "cleaning source cache $SRC_CACHE"
+        rm -rf "$SRC_CACHE"
+    fi
+}
+
+clean_build_cache() {
+    if [ -d "$BUILD_ROOT" ]; then
+        log "cleaning build root $BUILD_ROOT"
+        rm -rf "$BUILD_ROOT"
+    fi
+}
+
+clean_work_cache() {
+    clean_source_cache
+    clean_build_cache
 }
 
 install_pkg() {
