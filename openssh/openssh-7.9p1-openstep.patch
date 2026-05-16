@@ -1,0 +1,611 @@
+diff --git a/defines.h b/defines.h
+index 8f42130..334f282 100644
+--- a/defines.h
++++ b/defines.h
+@@ -56,7 +56,9 @@ enum
+  * Definitions for IP type of service (ip_tos)
+  */
+ #include <netinet/in_systm.h>
++#ifndef HAVE_NEXT
+ #include <netinet/ip.h>
++#endif
+ #ifndef IPTOS_LOWDELAY
+ # define IPTOS_LOWDELAY          0x10
+ # define IPTOS_THROUGHPUT        0x08
+@@ -115,6 +117,10 @@ enum
+ # endif /* PATH_MAX */
+ #endif /* MAXPATHLEN */
+ 
++#ifndef PATH_MAX
++# define PATH_MAX MAXPATHLEN
++#endif
++
+ #ifndef HOST_NAME_MAX
+ # include "netdb.h" /* for MAXHOSTNAMELEN */
+ # if defined(_POSIX_HOST_NAME_MAX)
+@@ -126,6 +132,30 @@ enum
+ # endif
+ #endif /* HOST_NAME_MAX */
+ 
++#ifndef FD_CLOEXEC
++# define FD_CLOEXEC 1
++#endif
++
++#ifndef O_NOCTTY
++# define O_NOCTTY 0
++#endif
++
++#ifndef O_ACCMODE
++# define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
++#endif
++
++#if defined(HAVE_NEXT) && !defined(dirfd)
++# define dirfd(d) ((d)->dd_fd)
++#endif
++
++#if defined(HAVE_NEXT) && defined(HAVE_TCSENDBREAK)
++# undef HAVE_TCSENDBREAK
++#endif
++
++#if defined(HAVE_NEXT) && !defined(RLIMIT_NOFILE) && defined(RLIMIT_OFILE)
++# define RLIMIT_NOFILE RLIMIT_OFILE
++#endif
++
+ #if defined(HAVE_DECL_MAXSYMLINKS) && HAVE_DECL_MAXSYMLINKS == 0
+ # define MAXSYMLINKS 5
+ #endif
+@@ -266,7 +296,7 @@ typedef unsigned long long int u_int64_t;
+ # endif
+ #endif
+ 
+-#ifndef HAVE_UINTXX_T
++#if !defined(HAVE_UINTXX_T) && !defined(HAVE_NEXT)
+ typedef u_int8_t uint8_t;
+ typedef u_int16_t uint16_t;
+ typedef u_int32_t uint32_t;
+@@ -367,7 +397,7 @@ struct	sockaddr_un {
+ };
+ #endif /* HAVE_SYS_UN_H */
+ 
+-#ifndef HAVE_IN_ADDR_T
++#if !defined(HAVE_IN_ADDR_T) && !defined(HAVE_NEXT)
+ typedef u_int32_t	in_addr_t;
+ #endif
+ #ifndef HAVE_IN_PORT_T
+@@ -506,13 +536,23 @@ struct winsize {
+ # define __P(x) x
+ #endif
+ 
++#ifndef ENOSYS
++# ifdef EOPNOTSUPP
++#  define ENOSYS EOPNOTSUPP
++# else
++#  define ENOSYS EINVAL
++# endif
++#endif
++
+ #if !defined(IN6_IS_ADDR_V4MAPPED)
+ # define IN6_IS_ADDR_V4MAPPED(a) \
+ 	((((u_int32_t *) (a))[0] == 0) && (((u_int32_t *) (a))[1] == 0) && \
+ 	 (((u_int32_t *) (a))[2] == htonl (0xffff)))
+ #endif /* !defined(IN6_IS_ADDR_V4MAPPED) */
+ 
+-#if !defined(__GNUC__) || (__GNUC__ < 2)
++#if defined(HAVE_NEXT) || !defined(__GNUC__) || (__GNUC__ < 2) || \
++    defined(NO_ATTRIBUTE_ON_PROTOTYPE_ARGS) || \
++    defined(NO_ATTRIBUTE_ON_RETURN_TYPE)
+ # define __attribute__(x)
+ #endif /* !defined(__GNUC__) || (__GNUC__ < 2) */
+ 
+@@ -635,7 +675,7 @@ struct winsize {
+ # define memmove(s1, s2, n) bcopy((s2), (s1), (n))
+ #endif /* !defined(HAVE_MEMMOVE) && defined(HAVE_BCOPY) */
+ 
+-#ifndef GETPGRP_VOID
++#if defined(HAVE_NEXT) || !defined(GETPGRP_VOID)
+ # include <unistd.h>
+ # define getpgrp() getpgrp(0)
+ #endif
+diff --git a/includes.h b/includes.h
+index 0fd7179..a0e9d90 100644
+--- a/includes.h
++++ b/includes.h
+@@ -110,7 +110,9 @@
+ #endif
+ 
+ #include <netinet/in.h>
++#ifndef HAVE_NEXT
+ #include <netinet/in_systm.h> /* For typedefs */
++#endif
+ #ifdef HAVE_RPC_TYPES_H
+ # include <rpc/types.h> /* For INADDR_LOOPBACK */
+ #endif
+@@ -166,6 +168,9 @@
+ 
+ #ifdef WITH_OPENSSL
+ #include <openssl/opensslv.h> /* For OPENSSL_VERSION_NUMBER */
++#ifdef HAVE_NEXT
++#include <openssl/e_os2.h>
++#endif
+ #endif
+ 
+ #include "defines.h"
+diff --git a/loginrec.c b/loginrec.c
+index 9a427de..1885fa9 100644
+--- a/loginrec.c
++++ b/loginrec.c
+@@ -458,10 +458,10 @@ login_write(struct logininfo *li)
+ #ifdef USE_WTMP
+ 	wtmp_write_entry(li);
+ #endif
+-#ifdef USE_UTMPX
++#if defined(USE_UTMPX) && defined(HAVE_UTMPX_H)
+ 	utmpx_write_entry(li);
+ #endif
+-#ifdef USE_WTMPX
++#if defined(USE_WTMPX) && defined(HAVE_UTMPX_H)
+ 	wtmpx_write_entry(li);
+ #endif
+ #ifdef CUSTOM_SYS_AUTH_RECORD_LOGIN
+@@ -491,10 +491,10 @@ login_utmp_only(struct logininfo *li)
+ # ifdef USE_WTMP
+ 	wtmp_write_entry(li);
+ # endif
+-# ifdef USE_UTMPX
++# if defined(USE_UTMPX) && defined(HAVE_UTMPX_H)
+ 	utmpx_write_entry(li);
+ # endif
+-# ifdef USE_WTMPX
++# if defined(USE_WTMPX) && defined(HAVE_UTMPX_H)
+ 	wtmpx_write_entry(li);
+ # endif
+ 	return (0);
+@@ -513,7 +513,7 @@ getlast_entry(struct logininfo *li)
+ #ifdef USE_LASTLOG
+ 	return(lastlog_get_entry(li));
+ #else /* !USE_LASTLOG */
+-#if defined(USE_UTMPX) && defined(HAVE_SETUTXDB) && \
++#if defined(HAVE_UTMPX_H) && defined(USE_UTMPX) && defined(HAVE_SETUTXDB) && \
+     defined(UTXDB_LASTLOGIN) && defined(HAVE_GETUTXUSER)
+ 	return (utmpx_get_entry(li));
+ #endif
+@@ -526,7 +526,7 @@ getlast_entry(struct logininfo *li)
+     (defined(HAVE_TIME_IN_UTMP) || defined(HAVE_TV_IN_UTMP))
+ 	/* retrieve last login time from utmp */
+ 	return (wtmp_get_entry(li));
+-# elif defined(USE_WTMPX) && \
++# elif defined(HAVE_UTMPX_H) && defined(USE_WTMPX) && \
+     (defined(HAVE_TIME_IN_UTMPX) || defined(HAVE_TV_IN_UTMPX))
+ 	/* If wtmp isn't available, try wtmpx */
+ 	return (wtmpx_get_entry(li));
+@@ -722,7 +722,7 @@ construct_utmp(struct logininfo *li,
+  ** variations.
+  **/
+ 
+-#if defined(USE_UTMPX) || defined (USE_WTMPX)
++#if defined(HAVE_UTMPX_H) && (defined(USE_UTMPX) || defined(USE_WTMPX))
+ /* build the utmpx structure */
+ void
+ set_utmpx_time(struct logininfo *li, struct utmpx *utx)
+@@ -799,7 +799,7 @@ construct_utmpx(struct logininfo *li, struct utmpx *utx)
+ 	utx->ut_syslen = MIN(strlen(li->hostname), sizeof(utx->ut_host));
+ # endif
+ }
+-#endif /* USE_UTMPX || USE_WTMPX */
++#endif /* HAVE_UTMPX_H && (USE_UTMPX || USE_WTMPX) */
+ 
+ /**
+  ** Low-level utmp functions
+@@ -981,7 +981,7 @@ utmp_write_entry(struct logininfo *li)
+  **/
+ 
+ /* not much point if we don't want utmpx entries */
+-#ifdef USE_UTMPX
++#if defined(USE_UTMPX) && defined(HAVE_UTMPX_H)
+ 
+ /* if we have the wherewithall, use pututxline etc. */
+ # if !defined(DISABLE_PUTUTXLINE) && defined(HAVE_SETUTXENT) && \
+@@ -1070,7 +1070,7 @@ utmpx_write_entry(struct logininfo *li)
+ 		return (0);
+ 	}
+ }
+-#endif /* USE_UTMPX */
++#endif /* USE_UTMPX && HAVE_UTMPX_H */
+ 
+ 
+ /**
+@@ -1249,7 +1249,7 @@ wtmp_get_entry(struct logininfo *li)
+  ** Low-level wtmpx functions
+  **/
+ 
+-#ifdef USE_WTMPX
++#if defined(USE_WTMPX) && defined(HAVE_UTMPX_H)
+ /*
+  * Write a wtmpx entry direct to the end of the file
+  * This is a slight modification of code in OpenBSD's logwtmp.c
+@@ -1401,7 +1401,7 @@ wtmpx_get_entry(struct logininfo *li)
+ 	close(fd);
+ 	return (1);
+ }
+-#endif /* USE_WTMPX */
++#endif /* USE_WTMPX && HAVE_UTMPX_H */
+ 
+ /**
+  ** Low-level libutil login() functions
+@@ -1618,7 +1618,7 @@ lastlog_get_entry(struct logininfo *li)
+ #endif /* HAVE_GETLASTLOGXBYNAME */
+ #endif /* USE_LASTLOG */
+ 
+-#if defined(USE_UTMPX) && defined(HAVE_SETUTXDB) && \
++#if defined(HAVE_UTMPX_H) && defined(USE_UTMPX) && defined(HAVE_SETUTXDB) && \
+     defined(UTXDB_LASTLOGIN) && defined(HAVE_GETUTXUSER)
+ int
+ utmpx_get_entry(struct logininfo *li)
+@@ -1642,7 +1642,7 @@ utmpx_get_entry(struct logininfo *li)
+ 	endutxent();
+ 	return (1);
+ }
+-#endif /* USE_UTMPX && HAVE_SETUTXDB && UTXDB_LASTLOGIN && HAVE_GETUTXUSER */
++#endif /* HAVE_UTMPX_H && USE_UTMPX && HAVE_SETUTXDB && UTXDB_LASTLOGIN && HAVE_GETUTXUSER */
+ 
+ #ifdef USE_BTMP
+   /*
+diff --git a/misc.c b/misc.c
+index bdc06fd..4ac627f 100644
+--- a/misc.c
++++ b/misc.c
+@@ -47,7 +47,9 @@
+ #include <unistd.h>
+ 
+ #include <netinet/in.h>
++#ifndef HAVE_NEXT
+ #include <netinet/in_systm.h>
++#endif
+ #include <netinet/ip.h>
+ #include <netinet/tcp.h>
+ #include <arpa/inet.h>
+@@ -94,7 +96,7 @@ set_nonblock(int fd)
+ {
+ 	int val;
+ 
+-	val = fcntl(fd, F_GETFL);
++	val = fcntl(fd, F_GETFL, 0);
+ 	if (val < 0) {
+ 		error("fcntl(%d, F_GETFL): %s", fd, strerror(errno));
+ 		return (-1);
+@@ -118,7 +120,7 @@ unset_nonblock(int fd)
+ {
+ 	int val;
+ 
+-	val = fcntl(fd, F_GETFL);
++	val = fcntl(fd, F_GETFL, 0);
+ 	if (val < 0) {
+ 		error("fcntl(%d, F_GETFL): %s", fd, strerror(errno));
+ 		return (-1);
+@@ -1118,7 +1120,7 @@ sanitise_stdfd(void)
+ 	}
+ 	while (++dupfd <= STDERR_FILENO) {
+ 		/* Only populate closed fds. */
+-		if (fcntl(dupfd, F_GETFL) == -1 && errno == EBADF) {
++		if (fcntl(dupfd, F_GETFL, 0) == -1 && errno == EBADF) {
+ 			if (dup2(nullfd, dupfd) == -1) {
+ 				fprintf(stderr, "dup2: %s\n", strerror(errno));
+ 				exit(1);
+@@ -2034,6 +2036,19 @@ format_absolute_time(uint64_t t, char *buf, size_t len)
+ 	time_t tt = t > INT_MAX ? INT_MAX : t; /* XXX revisit in 2038 :P */
+ 	struct tm tm;
+ 
++#ifdef HAVE_NEXT
++	{
++		struct tm *tmp;
++
++		tmp = localtime(&tt);
++		if (tmp == NULL) {
++			memset(&tm, 0, sizeof(tm));
++		} else {
++			tm = *tmp;
++		}
++	}
++#else
+ 	localtime_r(&tt, &tm);
++#endif
+ 	strftime(buf, len, "%Y-%m-%dT%H:%M:%S", &tm);
+ }
+diff --git a/openbsd-compat/bsd-misc.c b/openbsd-compat/bsd-misc.c
+index 5d7540a..9e712e6 100644
+--- a/openbsd-compat/bsd-misc.c
++++ b/openbsd-compat/bsd-misc.c
+@@ -32,10 +32,18 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
++#if defined(HAVE_NEXT) && defined(getpgrp)
++#undef getpgrp
++#endif
++
+ #ifndef HAVE___PROGNAME
+ char *__progname;
+ #endif
+ 
++#if defined(HAVE_NEXT) && !defined(HAVE_STRDUP)
++char *strdup(const char *);
++#endif
++
+ /*
+  * NB. duplicate __progname in case it is an alias for argv[0]
+  * Otherwise it may get clobbered by setproctitle()
+@@ -239,7 +247,9 @@ isblank(int c)
+ pid_t
+ getpgid(pid_t pid)
+ {
+-#if defined(HAVE_GETPGRP) && !defined(GETPGRP_VOID) && GETPGRP_VOID == 0
++#if defined(HAVE_NEXT) && defined(HAVE_GETPGRP)
++	return getpgrp(pid);
++#elif defined(HAVE_GETPGRP) && !defined(GETPGRP_VOID) && GETPGRP_VOID == 0
+ 	return getpgrp(pid);
+ #elif defined(HAVE_GETPGRP)
+ 	if (pid == 0)
+@@ -304,7 +314,11 @@ raise(int sig)
+ pid_t
+ getsid(pid_t pid)
+ {
++#ifdef ENOSYS
+ 	errno = ENOSYS;
++#else
++	errno = EOPNOTSUPP;
++#endif
+ 	return -1;
+ }
+ #endif
+diff --git a/openbsd-compat/bsd-misc.h b/openbsd-compat/bsd-misc.h
+index 52ec528..69d7b1a 100644
+--- a/openbsd-compat/bsd-misc.h
++++ b/openbsd-compat/bsd-misc.h
+@@ -154,6 +154,7 @@ int flock(int, int);
+ #endif
+ 
+ #ifdef FFLUSH_NULL_BUG
++int _ssh_compat_fflush(FILE *);
+ # define fflush(x)	(_ssh_compat_fflush(x))
+ #endif
+ 
+diff --git a/openbsd-compat/bsd-statvfs.c b/openbsd-compat/bsd-statvfs.c
+index e3bd87d..dc5dd95 100644
+--- a/openbsd-compat/bsd-statvfs.c
++++ b/openbsd-compat/bsd-statvfs.c
+@@ -19,7 +19,7 @@
+ #if !defined(HAVE_STATVFS) || !defined(HAVE_FSTATVFS)
+ 
+ #include <sys/param.h>
+-#ifdef HAVE_SYS_MOUNT_H
++#if defined(HAVE_SYS_MOUNT_H) && !defined(HAVE_NEXT)
+ # include <sys/mount.h>
+ #endif
+ 
+diff --git a/openbsd-compat/explicit_bzero.c b/openbsd-compat/explicit_bzero.c
+index 6ef9825..8dd7a60 100644
+--- a/openbsd-compat/explicit_bzero.c
++++ b/openbsd-compat/explicit_bzero.c
+@@ -27,6 +27,18 @@ explicit_bzero(void *p, size_t n)
+ 
+ #else /* HAVE_MEMSET_S */
+ 
++#if defined(HAVE_NEXT)
++
++void
++explicit_bzero(void *p, size_t n)
++{
++	if (n == 0)
++		return;
++	memset(p, 0, n);
++}
++
++#else
++
+ /*
+  * Indirect bzero through a volatile pointer to hopefully avoid
+  * dead-store optimisation eliminating the call.
+@@ -52,6 +64,8 @@ explicit_bzero(void *p, size_t n)
+ 	ssh_bzero(p, n);
+ }
+ 
++#endif /* HAVE_NEXT */
++
+ #endif /* HAVE_MEMSET_S */
+ 
+ #endif /* HAVE_EXPLICIT_BZERO */
+diff --git a/openbsd-compat/openbsd-compat.h b/openbsd-compat/openbsd-compat.h
+index f5c833b..028d03e 100644
+--- a/openbsd-compat/openbsd-compat.h
++++ b/openbsd-compat/openbsd-compat.h
+@@ -100,6 +100,10 @@ int rresvport_af(int *alport, sa_family_t af);
+ size_t strlcpy(char *dst, const char *src, size_t siz);
+ #endif
+ 
++#ifndef HAVE_STRDUP
++char *strdup(const char *str);
++#endif
++
+ #ifndef HAVE_STRLCAT
+ size_t strlcat(char *dst, const char *src, size_t siz);
+ #endif
+@@ -160,6 +164,10 @@ int inet_aton(const char *cp, struct in_addr *addr);
+ char *strsep(char **stringp, const char *delim);
+ #endif
+ 
++#ifndef HAVE_STRNLEN
++size_t strnlen(const char *str, size_t maxlen);
++#endif
++
+ #ifndef HAVE_SETPROCTITLE
+ void setproctitle(const char *fmt, ...);
+ void compat_init_setproctitle(int argc, char *argv[]);
+diff --git a/readconf.c b/readconf.c
+index 4338115..9ebcf2b 100644
+--- a/readconf.c
++++ b/readconf.c
+@@ -21,7 +21,9 @@
+ #include <sys/un.h>
+ 
+ #include <netinet/in.h>
++#ifndef HAVE_NEXT
+ #include <netinet/in_systm.h>
++#endif
+ #include <netinet/ip.h>
+ #include <arpa/inet.h>
+ 
+diff --git a/servconf.c b/servconf.c
+index 932d363..dda310a 100644
+--- a/servconf.c
++++ b/servconf.c
+@@ -20,7 +20,9 @@
+ #endif
+ 
+ #include <netinet/in.h>
++#ifndef HAVE_NEXT
+ #include <netinet/in_systm.h>
++#endif
+ #include <netinet/ip.h>
+ #ifdef HAVE_NET_ROUTE_H
+ #include <net/route.h>
+diff --git a/sftp-server.c b/sftp-server.c
+index ab1b063..0b4d10c 100644
+--- a/sftp-server.c
++++ b/sftp-server.c
+@@ -22,7 +22,7 @@
+ #ifdef HAVE_SYS_TIME_H
+ # include <sys/time.h>
+ #endif
+-#ifdef HAVE_SYS_MOUNT_H
++#if defined(HAVE_SYS_MOUNT_H) && !defined(HAVE_NEXT)
+ #include <sys/mount.h>
+ #endif
+ #ifdef HAVE_SYS_STATVFS_H
+diff --git a/ssh-agent.c b/ssh-agent.c
+index d8a8260..a906010 100644
+--- a/ssh-agent.c
++++ b/ssh-agent.c
+@@ -1071,6 +1071,7 @@ main(int ac, char **av)
+ #ifdef HAVE_SETRLIMIT
+ 	struct rlimit rlim;
+ #endif
++	long fdlim;
+ 	extern int optind;
+ 	extern char *optarg;
+ 	pid_t pid;
+@@ -1092,8 +1093,15 @@ main(int ac, char **av)
+ 
+ 	platform_disable_tracing(0);	/* strict=no */
+ 
++#ifdef RLIMIT_NOFILE
+ 	if (getrlimit(RLIMIT_NOFILE, &rlim) == -1)
+ 		fatal("%s: getrlimit: %s", __progname, strerror(errno));
++#else
++	fdlim = SSH_SYSFDMAX;
++	if (fdlim <= 0)
++		fatal("%s: invalid file descriptor limit %ld",
++		    __progname, fdlim);
++#endif
+ 
+ #ifdef WITH_OPENSSL
+ 	OpenSSL_add_all_algorithms();
+@@ -1198,10 +1206,17 @@ main(int ac, char **av)
+ 	 * a few spare for libc / stack protectors / sanitisers, etc.
+ 	 */
+ #define SSH_AGENT_MIN_FDS (3+1+1+1+4)
++#ifdef RLIMIT_NOFILE
+ 	if (rlim.rlim_cur < SSH_AGENT_MIN_FDS)
+ 		fatal("%s: file descriptior rlimit %lld too low (minimum %u)",
+ 		    __progname, (long long)rlim.rlim_cur, SSH_AGENT_MIN_FDS);
+ 	maxfds = rlim.rlim_cur - SSH_AGENT_MIN_FDS;
++#else
++	if ((u_int)fdlim < SSH_AGENT_MIN_FDS)
++		fatal("%s: file descriptor limit %ld too low (minimum %u)",
++		    __progname, fdlim, SSH_AGENT_MIN_FDS);
++	maxfds = (u_int)fdlim - SSH_AGENT_MIN_FDS;
++#endif
+ 
+ 	parent_pid = getpid();
+ 
+diff --git a/uidswap.c b/uidswap.c
+index 49f76d8..085d79c 100644
+--- a/uidswap.c
++++ b/uidswap.c
+@@ -53,6 +53,37 @@ static uid_t	user_groups_uid;
+ static gid_t	*saved_egroups = NULL, *user_groups = NULL;
+ static int	saved_egroupslen = -1, user_groupslen = -1;
+ 
++static void
++get_group_list(int *group_list_len, gid_t **group_list)
++{
++	int len;
++
++	len = getgroups(0, NULL);
++#ifdef HAVE_NEXT
++	if (len < 0 && errno == EINVAL) {
++		/*
++		 * OPENSTEP's getgroups(0, NULL) rejects the POSIX size probe.
++		 * Query with a bounded buffer and use the returned count.
++		 */
++		len = NGROUPS_MAX;
++		if (len <= 0)
++			len = 16;
++	}
++#endif
++	if (len < 0)
++		fatal("getgroups: %.100s", strerror(errno));
++	if (len > 0) {
++		*group_list = xreallocarray(*group_list, len, sizeof(gid_t));
++		len = getgroups(len, *group_list);
++		if (len < 0)
++			fatal("getgroups: %.100s", strerror(errno));
++	} else {
++		free(*group_list);
++		*group_list = NULL;
++	}
++	*group_list_len = len;
++}
++
+ /*
+  * Temporarily changes to the given uid.  If the effective user
+  * id is not root, this does nothing.  This call cannot be nested.
+@@ -83,18 +114,7 @@ temporarily_use_uid(struct passwd *pw)
+ 	privileged = 1;
+ 	temporarily_use_uid_effective = 1;
+ 
+-	saved_egroupslen = getgroups(0, NULL);
+-	if (saved_egroupslen < 0)
+-		fatal("getgroups: %.100s", strerror(errno));
+-	if (saved_egroupslen > 0) {
+-		saved_egroups = xreallocarray(saved_egroups,
+-		    saved_egroupslen, sizeof(gid_t));
+-		if (getgroups(saved_egroupslen, saved_egroups) < 0)
+-			fatal("getgroups: %.100s", strerror(errno));
+-	} else { /* saved_egroupslen == 0 */
+-		free(saved_egroups);
+-		saved_egroups = NULL;
+-	}
++	get_group_list(&saved_egroupslen, &saved_egroups);
+ 
+ 	/* set and save the user's groups */
+ 	if (user_groupslen == -1 || user_groups_uid != pw->pw_uid) {
+@@ -102,18 +122,7 @@ temporarily_use_uid(struct passwd *pw)
+ 			fatal("initgroups: %s: %.100s", pw->pw_name,
+ 			    strerror(errno));
+ 
+-		user_groupslen = getgroups(0, NULL);
+-		if (user_groupslen < 0)
+-			fatal("getgroups: %.100s", strerror(errno));
+-		if (user_groupslen > 0) {
+-			user_groups = xreallocarray(user_groups,
+-			    user_groupslen, sizeof(gid_t));
+-			if (getgroups(user_groupslen, user_groups) < 0)
+-				fatal("getgroups: %.100s", strerror(errno));
+-		} else { /* user_groupslen == 0 */
+-			free(user_groups);
+-			user_groups = NULL;
+-		}
++		get_group_list(&user_groupslen, &user_groups);
+ 		user_groups_uid = pw->pw_uid;
+ 	}
+ 	/* Set the effective uid to the given (unprivileged) uid. */

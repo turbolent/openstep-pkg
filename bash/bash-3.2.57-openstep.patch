@@ -1,0 +1,63 @@
+diff --git a/jobs.c b/jobs.c
+index d183394..4bfcd15 100644
+--- a/jobs.c
++++ b/jobs.c
+@@ -2248,6 +2248,7 @@ raw_job_exit_status (job)
+ {
+   register PROCESS *p;
+   int fail;
++  WAIT ret;
+ 
+   if (pipefail_opt)
+     {
+@@ -2255,11 +2256,13 @@ raw_job_exit_status (job)
+       p = jobs[job]->pipe;
+       do
+ 	{
+-	  if (p->status != EXECUTION_SUCCESS) fail = p->status;
++	  if (WSTATUS(p->status) != EXECUTION_SUCCESS)
++                 fail = WSTATUS(p->status);
+ 	  p = p->next;
+ 	}
+       while (p != jobs[job]->pipe);
+-      return fail;
++      WSTATUS(ret) = fail;
++      return ret;
+     }
+ 
+   for (p = jobs[job]->pipe; p->next != jobs[job]->pipe; p = p->next)
+@@ -2400,7 +2403,7 @@ wait_for (pid)
+ 	  if (r == -1 && errno == ECHILD)
+ 	    {
+ 	      child->running = PS_DONE;
+-	      child->status = 0;	/* XXX -- can't find true status */
++	      WSTATUS(child->status) = 0;	/* XXX -- can't find true status */
+ 	      js.c_living = 0;		/* no living child processes */
+ 	      if (job != NO_JOB)
+ 		{
+diff --git a/lib/readline/rltty.c b/lib/readline/rltty.c
+index 0a570f8..4bbfa05 100644
+--- a/lib/readline/rltty.c
++++ b/lib/readline/rltty.c
+@@ -862,7 +862,7 @@ set_special_char (kmap, tiop, sc, func)
+ }
+ 
+ #define RESET_SPECIAL(c) \
+-  if (c != -1 && kmap[(unsigned char)c].type == ISFUNC)
++  if (c != -1 && kmap[(unsigned char)c].type == ISFUNC) \
+     kmap[(unsigned char)c].function = rl_insert;
+ 
+ static void
+diff --git a/nojobs.c b/nojobs.c
+index a3d51f6..294ffad 100644
+--- a/nojobs.c
++++ b/nojobs.c
+@@ -232,7 +232,7 @@ find_termsig_by_pid (pid)
+     return (0);
+   if (pid_list[i].flags & PROC_RUNNING)
+     return (0);
+-  return (get_termsig (pid_list[i].status));
++  return (get_termsig ((WAIT)pid_list[i].status));
+ }
+ 
+ /* Set LAST_COMMAND_EXIT_SIGNAL depending on STATUS.  If STATUS is -1, look

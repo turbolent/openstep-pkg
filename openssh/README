@@ -1,0 +1,88 @@
+OpenSSH 7.9p1 for OPENSTEP
+
+This package installs the OpenSSH binaries and config files, but it does
+not create host keys or the privilege-separation account automatically.
+
+After installing the package, do the following on the OPENSTEP host.
+
+1. Generate host keys
+
+   /usr/local/bin/ssh-keygen -A
+
+2. Create the privilege-separation directory
+
+   mkdir -p /var/empty
+   chown root /var/empty
+   chmod 755 /var/empty
+
+   /var/empty must be owned by root and must not be group- or
+   world-writable.
+
+3. Create the sshd privilege-separation group and user
+
+   This host does not provide groupadd/useradd. Use NetInfo via niutil.
+   The example below uses gid 67 and uid 67.
+
+   niutil -create . /groups/sshd
+   niutil -createprop . /groups/sshd name sshd
+   niutil -createprop . /groups/sshd passwd '*'
+   niutil -createprop . /groups/sshd gid 67
+   niutil -createprop . /groups/sshd users sshd
+
+   niutil -create . /users/sshd
+   niutil -createprop . /users/sshd name sshd
+   niutil -createprop . /users/sshd passwd '*'
+   niutil -createprop . /users/sshd uid 67
+   niutil -createprop . /users/sshd gid 67
+   niutil -createprop . /users/sshd realname 'sshd privsep'
+   niutil -createprop . /users/sshd home /var/empty
+   niutil -createprop . /users/sshd shell /bin/false
+   niutil -createprop . /users/sshd _writers_passwd root
+
+4. Verify the setup
+
+   niutil -read . /groups/sshd
+   niutil -read . /users/sshd
+   chown root /var/empty
+   chmod 755 /var/empty
+   /usr/local/sbin/sshd -t
+
+5. Debug startup if needed
+
+   /usr/local/sbin/sshd -D -ddd
+
+6. Start sshd from inetd (/etc/inetd.conf)
+
+   OpenSSH supports inetd mode via sshd -i.
+
+   On this host, NetInfo is used for service lookup. Create the ssh service
+   entry in NetInfo as root:
+
+   niutil -create . /services/ssh
+   niutil -createprop . /services/ssh name ssh
+   niutil -createprop . /services/ssh port 22
+   niutil -createprop . /services/ssh protocol tcp
+
+   If you also want a matching flat-file entry, add this line to
+   /etc/services:
+
+   ssh        22/tcp
+
+   Add an inetd entry like this to /etc/inetd.conf:
+
+   ssh	stream	tcp	nowait	root	/usr/local/sbin/sshd	sshd -i
+
+   Then, as root, make inetd reread /etc/inetd.conf by sending it SIGHUP.
+   For example:
+
+   ps auxww | grep '(inetd)'
+   kill -HUP <inetd-pid>
+
+   If inetd is not already running, start it as root with:
+
+   /usr/etc/inetd
+
+   In inetd mode, you will not see a permanent sshd process after boot.
+   Instead, verify that inetd is listening on port 22:
+
+   netstat -an | grep '\.22 '

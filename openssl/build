@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+PATCHFILE="openssl-$VERSION-openstep.patch"
+SRCDIR="openssl-$VERSION"
+
+export DESTDIR VERSION PATH
+
+if [ -d "$SRCDIR" ]; then
+    cd "$SRCDIR"
+fi
+
+patch -p1 < "$PATCHFILE"
+/bin/gnumake
+/bin/gnumake install_sw DESTDIR="$DESTDIR"
+/bin/gnumake install_ssldirs DESTDIR="$DESTDIR"

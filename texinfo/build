@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+PATH=/usr/local/bin:$PATH
+export DESTDIR PATH
+. "$PKG_BUILD_HELPERS"
+
+run_configure --disable-nls --prefix=/usr/local
+/bin/gnumake
+/bin/gnumake install DESTDIR="$DESTDIR"

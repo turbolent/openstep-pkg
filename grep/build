@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:$PATH
+PATCHFILE="grep-$VERSION-openstep.patch"
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+
+export DESTDIR VERSION PATH GREP EGREP
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --prefix=/usr/local
+sed 's|^mkdir_p = $(top_builddir)/\./install-sh -c -d$|mkdir_p = .././install-sh -c -d|' po/Makefile > po/Makefile.tmp
+mv po/Makefile.tmp po/Makefile
+gnumake
+gnumake install DESTDIR="$DESTDIR"

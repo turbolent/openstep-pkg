@@ -1,0 +1,6 @@
+ca-certificates
+coreutils
+gawk
+grep
+openssl
+patch

@@ -1,0 +1,48 @@
+diff --git a/src/utils.c b/src/utils.c
+index d80abf7..8e7cee6 100644
+--- a/src/utils.c
++++ b/src/utils.c
+@@ -333,7 +333,11 @@ fork_to_background (void)
+     }
+ 
+   /* child: give up the privileges and keep running. */
++#ifdef NeXT
++  setpgrp (0, getpid ());
++#else
+   setsid ();
++#endif
+   freopen ("/dev/null", "r", stdin);
+   freopen ("/dev/null", "w", stdout);
+   freopen ("/dev/null", "w", stderr);
+@@ -1703,11 +1707,17 @@ static jmp_buf run_with_timeout_env;
+ static void
+ abort_run_with_timeout (int sig)
+ {
++  int mask;
++
+   assert (sig == SIGALRM);
+   /* We don't have siglongjmp to preserve the set of blocked signals;
+      if we longjumped out of the handler at this point, SIGALRM would
+      remain blocked.  We must unblock it manually. */
+-  int mask = siggetmask ();
++#ifdef NeXT
++  mask = sigblock (0);
++#else
++  mask = siggetmask ();
++#endif
+   mask &= ~sigmask (SIGALRM);
+   sigsetmask (mask);
+ 
+diff --git a/src/xmalloc.c b/src/xmalloc.c
+index a9c5e41..d05f579 100644
+--- a/src/xmalloc.c
++++ b/src/xmalloc.c
+@@ -142,7 +142,7 @@ checking_strdup (const char *s)
+ {
+   char *copy;
+ 
+-#ifndef HAVE_STRDUP
++#if !defined(HAVE_STRDUP) || defined(NeXT)
+   int l = strlen (s);
+   copy = malloc (l + 1);
+   if (!copy)

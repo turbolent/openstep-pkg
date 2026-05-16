@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/bin:/usr/bin:/usr/local/bin:$PATH
+CC=/bin/cc
+PATCHFILE="coreutils-$VERSION-openstep.patch"
+CPPFLAGS='-DMOUNTED=\"/etc/mtab\"'
+
+export DESTDIR VERSION PATH CC PATCHFILE CPPFLAGS
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+  --disable-nls --prefix=/usr/local
+gnumake
+gnumake install DESTDIR="$DESTDIR"

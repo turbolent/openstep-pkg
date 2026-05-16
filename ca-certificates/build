@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+
+if [ ! -d "$DESTDIR/usr" ]; then
+    mkdir "$DESTDIR/usr"
+fi
+if [ ! -d "$DESTDIR/usr/local" ]; then
+    mkdir "$DESTDIR/usr/local"
+fi
+if [ ! -d "$DESTDIR/usr/local/ssl" ]; then
+    mkdir "$DESTDIR/usr/local/ssl"
+fi
+if [ ! -d "$DESTDIR/usr/local/ssl/certs" ]; then
+    mkdir "$DESTDIR/usr/local/ssl/certs"
+fi
+
+cp cert.pem "$DESTDIR/usr/local/ssl/cert.pem"

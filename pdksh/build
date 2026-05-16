@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:$PATH
+export DESTDIR VERSION PATH
+
+/bin/sh ./configure --prefix=/usr/local
+gnumake
+gnumake install prefix="$DESTDIR/usr/local" exec_prefix="$DESTDIR/usr/local"

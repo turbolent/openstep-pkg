@@ -1,0 +1,272 @@
+diff --git patch-2.6.1/Makefile.openstep patch-2.6.1/Makefile.openstep
+new file mode 100644
+index 0000000..fd74711
+--- /dev/null
++++ patch-2.6.1/Makefile.openstep
+@@ -0,0 +1,60 @@
++CC = cc
++CFLAGS = -g -O2
++CPPFLAGS = -I. -I./src -I./gl/lib -DHAVE_CONFIG_H -DENABLE_MERGE -Ded_PROGRAM=\"/bin/ed\"
++
++LIBOBJS = \
++	gl/lib/argmatch.o \
++	gl/lib/backupfile.o \
++	gl/lib/basename.o \
++	gl/lib/dirname.o \
++	gl/lib/stripslash.o \
++	gl/lib/error.o \
++	gl/lib/exitfail.o \
++	gl/lib/strndup.o \
++	gl/lib/strnlen.o \
++	gl/lib/getopt.o \
++	gl/lib/getopt1.o \
++	gl/lib/hash.o \
++	gl/lib/quote.o \
++	gl/lib/quotearg.o \
++	gl/lib/safe-write.o \
++	gl/lib/xmalloc.o \
++	gl/lib/xstrndup.o \
++	gl/lib/full-write.o
++
++OBJS = \
++	$(LIBOBJS) \
++	src/inp.o \
++	src/maketime.o \
++	src/merge.o \
++	src/partime.o \
++	src/patch.o \
++	src/pch.o \
++	src/quotesys.o \
++	src/util.o \
++	src/version.o
++
++.SUFFIXES: .c .o
++
++all: getopt.h stdbool.h src/patch
++
++getopt.h: gl/lib/getopt.hin
++	rm -f $@ $@-t
++	{ echo '/* DO NOT EDIT! GENERATED AUTOMATICALLY! */'; cat gl/lib/getopt.hin; } > $@-t
++	mv $@-t $@
++
++stdbool.h: gl/lib/stdbool.hin
++	rm -f $@ $@-t
++	{ echo '/* DO NOT EDIT! GENERATED AUTOMATICALLY! */'; sed -e 's/@HAVE__BOOL@/0/g' < gl/lib/stdbool.hin; } > $@-t
++	mv $@-t $@
++
++src/patch: $(OBJS)
++	$(CC) -o $@ $(OBJS)
++
++$(OBJS): config.h getopt.h stdbool.h
++
++.c.o:
++	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
++
++clean:
++	rm -f $(OBJS) src/patch getopt.h stdbool.h
+diff --git patch-2.6.1/config.h patch-2.6.1/config.h
+new file mode 100644
+index 0000000..43b64f9
+--- /dev/null
++++ patch-2.6.1/config.h
+@@ -0,0 +1,94 @@
++/* OPENSTEP 4 configuration for GNU patch 2.6.1. */
++
++#ifndef PATCH_OPENSTEP_CONFIG_H
++#define PATCH_OPENSTEP_CONFIG_H
++
++#define PACKAGE_NAME "patch"
++#define PACKAGE_TARNAME "patch"
++#define PACKAGE_VERSION "2.6.1"
++#define PACKAGE_STRING "patch 2.6.1"
++#define PACKAGE_BUGREPORT "bug-patch@gnu.org"
++
++#define STDC_HEADERS 1
++
++#define HAVE_SYS_TYPES_H 1
++#define HAVE_SYS_STAT_H 1
++#define HAVE_STDLIB_H 1
++#define HAVE_STRING_H 1
++#define HAVE_MEMORY_H 1
++#define HAVE_STRINGS_H 1
++#define HAVE_UNISTD_H 1
++#define HAVE_FCNTL_H 1
++#define HAVE_UTIME_H 1
++#define HAVE_SYS_TIME_H 1
++#define HAVE_SYS_DIR_H 1
++#define HAVE_VPRINTF 1
++#define HAVE_DOPRNT 1
++#define HAVE_MKDIR 1
++#define HAVE_GETEUID 1
++#define HAVE_GETUID 1
++#define HAVE_MKTEMP 1
++#define HAVE_RAISE 1
++#define HAVE_SIGSETMASK 1
++#define HAVE_STRCASECMP 1
++#define HAVE_STRNCASECMP 1
++#define HAVE_MEMCHR 1
++#define HAVE_LONG_FILE_NAMES 1
++#define HAVE_INLINE 1
++#define HAVE_MALLOC_POSIX 1
++#define HAVE_REALLOC_POSIX 1
++#define HAVE_DECL_GETENV 1
++
++#define HAVE_INTTYPES_H 0
++#define HAVE_STDINT_H 0
++#define HAVE_STDBOOL_H 0
++#define HAVE_GETOPT_H 0
++#define HAVE_DIRENT_H 0
++#define HAVE_NDIR_H 0
++#define HAVE_SYS_NDIR_H 0
++#define HAVE_PATHCONF 0
++#define HAVE_FSEEKO 0
++#define HAVE_SIGACTION 0
++#define HAVE_SIGPROCMASK 0
++#define HAVE_STRUCT_UTIMBUF 0
++#define HAVE__BOOL 0
++#define HAVE_DECL_STRERROR_R 0
++#define STRERROR_R_CHAR_P 0
++#define HAVE_DECL_STRNDUP 0
++#define HAVE_STRNDUP 0
++#define HAVE_DECL_STRNLEN 0
++#define HAVE_DECL_MKTEMP 0
++#define HAVE_DECL_CLEARERR_UNLOCKED 0
++#define HAVE_DECL_FEOF_UNLOCKED 0
++#define HAVE_DECL_FERROR_UNLOCKED 0
++#define HAVE_DECL_FFLUSH_UNLOCKED 0
++#define HAVE_DECL_FGETS_UNLOCKED 0
++#define HAVE_DECL_FPUTC_UNLOCKED 0
++#define HAVE_DECL_FPUTS_UNLOCKED 0
++#define HAVE_DECL_FREAD_UNLOCKED 0
++#define HAVE_DECL_FWRITE_UNLOCKED 0
++#define HAVE_DECL_GETC_UNLOCKED 0
++#define HAVE_DECL_GETCHAR_UNLOCKED 0
++#define HAVE_DECL_PUTC_UNLOCKED 0
++#define HAVE_DECL_PUTCHAR_UNLOCKED 0
++
++#define FILE_SYSTEM_ACCEPTS_DRIVE_LETTER_PREFIX 0
++#define FILE_SYSTEM_BACKSLASH_IS_FILE_NAME_SEPARATOR 0
++#define FILE_SYSTEM_DRIVE_PREFIX_CAN_BE_RELATIVE 0
++#define DOUBLE_SLASH_IS_DISTINCT_ROOT 0
++#define D_INO_IN_DIRENT 0
++
++#define USE_UNLOCKED_IO 1
++#define __GETOPT_PREFIX rpl_
++#define strnlen rpl_strnlen
++
++#define __EXTENSIONS__ 1
++#define _ALL_SOURCE 1
++#define _GNU_SOURCE 1
++#define _POSIX_PTHREAD_SEMANTICS 1
++#define _TANDEM_SOURCE 1
++
++#define mode_t int
++#define ssize_t int
++
++#endif
+diff --git patch-2.6.1/gl/lib/backupfile.c patch-2.6.1/gl/lib/backupfile.c
+index 1420edd..b8dc099 100644
+--- patch-2.6.1/gl/lib/backupfile.c
++++ patch-2.6.1/gl/lib/backupfile.c
+@@ -37,7 +37,20 @@
+ 
+ #include <unistd.h>
+ 
+-#include <dirent.h>
++#if HAVE_DIRENT_H
++# include <dirent.h>
++#else
++# if HAVE_SYS_NDIR_H
++#  include <sys/ndir.h>
++# endif
++# if HAVE_SYS_DIR_H
++#  include <sys/dir.h>
++# endif
++# if HAVE_NDIR_H
++#  include <ndir.h>
++# endif
++# define dirent direct
++#endif
+ #ifndef _D_EXACT_NAMLEN
+ # define _D_EXACT_NAMLEN(dp) strlen ((dp)->d_name)
+ #endif
+diff --git patch-2.6.1/gl/lib/quotearg.c patch-2.6.1/gl/lib/quotearg.c
+index 339bf34..68cd463 100644
+--- patch-2.6.1/gl/lib/quotearg.c
++++ patch-2.6.1/gl/lib/quotearg.c
+@@ -30,8 +30,10 @@
+ #include <stdbool.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include <wchar.h>
+-#include <wctype.h>
++#ifndef NeXT
++# include <wchar.h>
++# include <wctype.h>
++#endif
+ 
+ #include "gettext.h"
+ #define _(msgid) gettext (msgid)
+@@ -447,6 +449,10 @@ quotearg_buffer_restyled (char *buffer, size_t buffersize,
+ 	      }
+ 	    else
+ 	      {
++#ifdef NeXT
++		m = 1;
++		printable = isprint (c) != 0;
++#else
+ 		mbstate_t mbstate;
+ 		memset (&mbstate, 0, sizeof mbstate);
+ 
+@@ -502,6 +508,7 @@ quotearg_buffer_restyled (char *buffer, size_t buffersize,
+ 		      }
+ 		  }
+ 		while (! mbsinit (&mbstate));
++#endif
+ 	      }
+ 
+ 	    if (1 < m || (backslash_escapes && ! printable))
+diff --git patch-2.6.1/gl/lib/strndup.c patch-2.6.1/gl/lib/strndup.c
+index 6548196..6fdc442 100644
+--- patch-2.6.1/gl/lib/strndup.c
++++ patch-2.6.1/gl/lib/strndup.c
+@@ -23,7 +23,7 @@
+ 
+ #include <stdlib.h>
+ 
+-#ifndef HAVE_DECL_STRNLEN
++#if !HAVE_DECL_STRNLEN
+ extern size_t strnlen (const char *, size_t);
+ #endif
+ 
+diff --git patch-2.6.1/gl/lib/strnlen.c patch-2.6.1/gl/lib/strnlen.c
+new file mode 100644
+index 0000000..1b107f1
+--- /dev/null
++++ patch-2.6.1/gl/lib/strnlen.c
+@@ -0,0 +1,12 @@
++/* Replacement strnlen for hosts that lack it. */
++
++#include <config.h>
++
++#include <string.h>
++
++size_t
++rpl_strnlen (const char *s, size_t maxlen)
++{
++  const void *end = memchr (s, '\0', maxlen);
++  return end ? (size_t) ((const char *) end - s) : maxlen;
++}
+diff --git patch-2.6.1/gl/lib/xstrndup.c patch-2.6.1/gl/lib/xstrndup.c
+index 6f16445..b0e5495 100644
+--- patch-2.6.1/gl/lib/xstrndup.c
++++ patch-2.6.1/gl/lib/xstrndup.c
+@@ -23,7 +23,7 @@
+ #include <string.h>
+ #include "xalloc.h"
+ 
+-#ifndef HAVE_DECL_STRNDUP
++#if !HAVE_DECL_STRNDUP
+ extern char *strndup (const char *, size_t);
+ #endif
+ 

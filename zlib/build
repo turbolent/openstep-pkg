@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+CFLAGS="-O3 -D_POSIX_SOURCE"
+
+export DESTDIR PATH CC CFLAGS
+
+/bin/sh ./configure --static --prefix=/usr/local
+gnumake teststatic
+gnumake install DESTDIR="$DESTDIR"

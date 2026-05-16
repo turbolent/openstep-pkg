@@ -1,0 +1,201 @@
+diff --git a/gcc/Makefile.in b/gcc/Makefile.in
+index 074e01e..ea0d402 100644
+--- a/gcc/Makefile.in
++++ b/gcc/Makefile.in
+@@ -197,6 +197,11 @@ GCC_FOR_TARGET = ./xgcc -B./ -B$(build_tooldir)/bin/ -isystem $(build_tooldir)/i
+ # It also specifies -isystem ./include to find, e.g., stddef.h.
+ GCC_CFLAGS=$(INTERNAL_CFLAGS) $(X_CFLAGS) $(T_CFLAGS) $(LOOSE_WARN) -isystem ./include $(TCFLAGS)
+ 
++CRTSTUFF_COMPILER=$(GCC_FOR_TARGET) $(GCC_CFLAGS)
++ifneq (,$(findstring -next-,@target@))
++CRTSTUFF_COMPILER=$(HOST_CC) $(HOST_CFLAGS) $(HOST_CPPFLAGS)
++endif
++
+ # Sed command to transform gcc to installed name.  Overwritten by configure.
+ program_transform_name = @program_transform_name@
+ program_transform_cross_name = s,^,$(target_alias)-,
+@@ -420,6 +425,10 @@ TARGET_LIBGCC2_CFLAGS =
+ LIB2ADDEH = $(srcdir)/unwind-dw2.c $(srcdir)/unwind-dw2-fde.c \
+   $(srcdir)/unwind-sjlj.c
+ LIB2ADDEHDEP = unwind.inc unwind-dw2-fde.h
++ifneq (,$(findstring -next-,@target@))
++LIB2ADDEH = $(srcdir)/unwind-sjlj.c
++LIB2ADDEHDEP =
++endif
+ 
+ # libgcc1-test target (must also be overridable for a target)
+ LIBGCC1_TEST = libgcc1-test
+@@ -851,6 +860,9 @@ LIB2FUNCS = _muldi3 _divdi3 _moddi3 _udivdi3 _umoddi3 _negdi2 \
+ 
+ # Defined in libgcc2.c, included only in the static library.
+ LIB2FUNCS_ST = _eprintf _bb __gcc_bcmp 
++ifneq (,$(findstring -next-,@target@))
++LIB2FUNCS_ST = _eprintf __gcc_bcmp
++endif
+ 
+ FPBIT_FUNCS = _pack_sf _unpack_sf _addsub_sf _mul_sf _div_sf \
+     _fpcmp_parts_sf _compare_sf _eq_sf _ne_sf _gt_sf _ge_sf \
+@@ -1165,14 +1177,14 @@ stmp-multilib: $(LIBGCC_DEPS)
+ # constructors.
+ $(T)crtbegin.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+   gbl-ctors.h stmp-int-hdrs tsystem.h
+-	$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
++	$(CRTSTUFF_COMPILER) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
+ 	  -finhibit-size-directive -fno-inline-functions \
+ 	  -fno-exceptions $(CRTSTUFF_T_CFLAGS) @inhibit_libc@ \
+ 	  -c $(srcdir)/crtstuff.c -DCRT_BEGIN -o $(T)crtbegin$(objext)
+ 
+ $(T)crtend.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+   gbl-ctors.h stmp-int-hdrs tsystem.h
+-	$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
++	$(CRTSTUFF_COMPILER) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
+ 	  -finhibit-size-directive -fno-inline-functions \
+ 	  -fno-exceptions $(CRTSTUFF_T_CFLAGS) @inhibit_libc@ \
+ 	  -c $(srcdir)/crtstuff.c -DCRT_END -o $(T)crtend$(objext)
+@@ -1180,7 +1192,7 @@ $(T)crtend.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+ # These are versions of crtbegin and crtend for shared libraries.
+ $(T)crtbeginS.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+   gbl-ctors.h stmp-int-hdrs tsystem.h
+-	$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
++	$(CRTSTUFF_COMPILER) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
+ 	  -finhibit-size-directive -fno-inline-functions \
+ 	  -fno-exceptions $(CRTSTUFF_T_CFLAGS_S) @inhibit_libc@ \
+ 	  -c $(srcdir)/crtstuff.c -DCRT_BEGIN -DCRTSTUFFS_O \
+@@ -1188,7 +1200,7 @@ $(T)crtbeginS.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+ 
+ $(T)crtendS.o: crtstuff.c $(GCC_PASSES) $(TCONFIG_H) \
+   gbl-ctors.h stmp-int-hdrs tsystem.h
+-	$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
++	$(CRTSTUFF_COMPILER) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
+ 	  -finhibit-size-directive -fno-inline-functions \
+ 	  -fno-exceptions $(CRTSTUFF_T_CFLAGS_S) @inhibit_libc@ \
+ 	  -c $(srcdir)/crtstuff.c -DCRT_END -DCRTSTUFFS_O \
+@@ -2212,7 +2224,12 @@ stmp-fixinc: fixinc.sh gsyslimits.h
+ deduced.h: $(GCC_PASSES) $(srcdir)/scan-types.sh stmp-int-hdrs
+ 	if [ -d $(SYSTEM_HEADER_DIR) ]; \
+ 	then \
+-	  CC="$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(ALL_CPPFLAGS) -I. -I$(srcdir) -isystem include -isystem ${SYSTEM_HEADER_DIR}"; \
++	  case "$(target)" in \
++	    *-next-*) \
++	      CC="$(HOST_CC) $(HOST_CFLAGS) $(HOST_CPPFLAGS) -I. -I$(srcdir) -isystem include -isystem ${SYSTEM_HEADER_DIR}" ;; \
++	    *) \
++	      CC="$(GCC_FOR_TARGET) $(GCC_CFLAGS) $(ALL_CPPFLAGS) -I. -I$(srcdir) -isystem include -isystem ${SYSTEM_HEADER_DIR}" ;; \
++	  esac; \
+ 	  export CC; \
+ 	  $(SHELL) $(srcdir)/scan-types.sh "$(srcdir)" >tmp-deduced.h; \
+ 	  mv tmp-deduced.h deduced.h; \
+diff --git a/gcc/config/nextstep.h b/gcc/config/nextstep.h
+index 76e1a35..d1841b1 100644
+--- a/gcc/config/nextstep.h
++++ b/gcc/config/nextstep.h
+@@ -234,6 +234,17 @@ Boston, MA 02111-1307, USA.  */
+ 
+ #define EH_FRAME_SECTION_ASM_OP "\t.section __TEXT,__eh_frame,regular"
+ 
++/* GCC 2.95.3 is used to bootstrap this target, and it does not provide
++   the DWARF2 unwinder builtins needed by GCC 3's unwind-dw2 runtime.  */
++#undef DWARF2_UNWIND_INFO
++#define DWARF2_UNWIND_INFO 0
++
++/* GCC 3's Mach-O crtstuff unconditionally references frame-registration
++   helpers whenever EH_FRAME_SECTION_ASM_OP is defined.  OPENSTEP uses the
++   stock libc and a reduced libgcc runtime here, so disable .eh_frame
++   registration on this target entirely.  */
++#undef EH_FRAME_SECTION_ASM_OP
++
+ /* Don't output a .file directive.  That is only used by the assembler for
+    error reporting.  */
+ #undef	ASM_FILE_START
+diff --git a/gcc/crtstuff.c b/gcc/crtstuff.c
+index 8259f69..1d175a2 100644
+--- a/gcc/crtstuff.c
++++ b/gcc/crtstuff.c
+@@ -562,6 +562,7 @@ STATIC ui32 __FRAME_END__[] __attribute__ ((__unused__)) = { 0 };
+    but this method avoids creating any global symbols, which seems
+    cleaner. */
+ 
++#ifdef EH_FRAME_SECTION_ASM_OP
+ #include <mach-o/ldsyms.h>
+ extern const struct section *
+   getsectbynamefromheader (const struct mach_header *,
+@@ -608,6 +609,6 @@ asm (EH_FRAME_SECTION_ASM_OP);
+ static ui32 __FRAME_END__[] __attribute__ ((__unused__)) = { 0 };
+ 
+ #endif /* CRT_END */
++#endif /* EH_FRAME_SECTION_ASM_OP */
+ 
+ #endif /* OBJECT_FORMAT_MACHO */
+-
+diff --git a/gcc/gcc.c b/gcc/gcc.c
+index 5c73af4..2fa3102 100644
+--- a/gcc/gcc.c
++++ b/gcc/gcc.c
+@@ -759,7 +759,7 @@ static struct compiler default_compilers[] =
+ 		tradcpp0 -lang-c %{ansi:-std=c89} %(cpp_options) %{!pipe:%g.i} |\n\
+ 		    cc1 -fpreprocessed %{!pipe:%g.i} %(cc1_options)}\
+ 	    %{!traditional:%{!ftraditional:%{!traditional-cpp:\
+-		cc1 -lang-c %{ansi:-std=c89} %(cpp_options) %(cc1_options)}}}}\
++		cc1 %{ansi:-std=c89} %(cpp_options) %(cc1_options)}}}}\
+         %{!fsyntax-only:%(invoke_as)}}}}", 0},
+   {"-",
+    "%{!E:%e-E required when input is from standard input}\
+diff --git a/gcc/mklibgcc.in b/gcc/mklibgcc.in
+index 8a16945..b0999ba 100644
+--- a/gcc/mklibgcc.in
++++ b/gcc/mklibgcc.in
+@@ -67,6 +67,11 @@ fi
+ # Build lines.
+ 
+ gcc_compile='$(GCC_FOR_TARGET) $(LIBGCC2_CFLAGS) $(INCLUDES)'
++case "@target@" in
++  *-next-*)
++    gcc_compile='$(CC) -O2 -DIN_GCC -W -Wall -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -g1 -DIN_LIBGCC2 -D__GCC_FLOAT_NOT_NEEDED $(INCLUDES)'
++    ;;
++esac
+ oldcc_compile='$(OLDCC) -DIN_LIBGCC1 $(CCLIBFLAGS) $(INCLUDES)'
+ make_compile='$(MAKE) GCC_FOR_TARGET="$(GCC_FOR_TARGET)" \
+ 	  AR_FOR_TARGET="$(AR_FOR_TARGET)" \
+diff --git a/gcc/unwind-dw2-fde.h b/gcc/unwind-dw2-fde.h
+index 3d7df40..5d56c7a 100644
+--- a/gcc/unwind-dw2-fde.h
++++ b/gcc/unwind-dw2-fde.h
+@@ -33,7 +33,7 @@ struct fde_vector
+ {
+   void *orig_data;
+   size_t count;
+-  struct dwarf_fde *array[];
++  struct dwarf_fde *array[0];
+ };
+ 
+ struct object
+@@ -131,7 +131,7 @@ struct dwarf_cie
+   uword length;
+   sword CIE_id;
+   ubyte version;
+-  unsigned char augmentation[];
++  unsigned char augmentation[0];
+ } __attribute__ ((packed, aligned (__alignof__ (void *))));
+ 
+ /* The first few fields of an FDE.  */
+@@ -139,7 +139,7 @@ struct dwarf_fde
+ {
+   uword length;
+   sword CIE_delta;
+-  unsigned char pc_begin[];
++  unsigned char pc_begin[0];
+ } __attribute__ ((packed, aligned (__alignof__ (void *))));
+ 
+ typedef struct dwarf_fde fde;
+diff --git a/gcc/unwind-sjlj.c b/gcc/unwind-sjlj.c
+index a6360a1..65e52ac 100644
+--- a/gcc/unwind-sjlj.c
++++ b/gcc/unwind-sjlj.c
+@@ -61,7 +61,7 @@ struct SjLj_Function_Context
+      restrictive requirements.  */
+   jmp_buf jbuf __attribute__((aligned));
+ #else
+-  void *jbuf[];
++  void *jbuf[0];
+ #endif
+ };
+ 

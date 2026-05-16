@@ -1,0 +1,42 @@
+diff --git a/intl/plural-exp.c b/intl/plural-exp.c
+index ce180ca..b369f33 100644
+--- a/intl/plural-exp.c
++++ b/intl/plural-exp.c
+@@ -27,7 +27,7 @@
+ 
+ #include "plural-exp.h"
+ 
+-#if (defined __GNUC__ && !defined __APPLE_CC__) \
++#if (defined __GNUC__ && !defined __APPLE_CC__ && !defined NeXT) \
+     || (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L)
+ 
+ /* These structs are the constant expression for the germanic plural
+diff --git a/src/system.h b/src/system.h
+index f4875ab..8fcc7b4 100644
+--- a/src/system.h
++++ b/src/system.h
+@@ -108,6 +108,24 @@ int isdir PARAMS ((char const *));
+ #if !defined(S_ISREG) && defined(S_IFREG)
+ # define S_ISREG(Mode) (((Mode) & S_IFMT) == S_IFREG)
+ #endif
++#if !defined(S_ISCHR) && defined(S_IFCHR)
++# define S_ISCHR(Mode) (((Mode) & S_IFMT) == S_IFCHR)
++#endif
++#if !defined(S_ISBLK) && defined(S_IFBLK)
++# define S_ISBLK(Mode) (((Mode) & S_IFMT) == S_IFBLK)
++#endif
++#if !defined(S_ISFIFO) && defined(S_IFIFO)
++# define S_ISFIFO(Mode) (((Mode) & S_IFMT) == S_IFIFO)
++#endif
++#if !defined(S_ISSOCK) && defined(S_IFSOCK)
++# define S_ISSOCK(Mode) (((Mode) & S_IFMT) == S_IFSOCK)
++#endif
++#if !defined(S_ISFIFO)
++# define S_ISFIFO(Mode) 0
++#endif
++#if !defined(S_ISSOCK)
++# define S_ISSOCK(Mode) 0
++#endif
+ 
+ #ifdef STDC_HEADERS
+ # include <stdlib.h>

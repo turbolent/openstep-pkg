@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:$PATH
+export DESTDIR VERSION PATH
+. "$PKG_BUILD_HELPERS"
+
+PATCHFILE="top-$VERSION-openstep.patch"
+
+patch -p1 < "$PATCHFILE"
+run_configure --with-module=next40 --prefix=/usr/local
+gnumake
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/man" || mkdir "$DESTDIR/usr/local/man"
+test -d "$DESTDIR/usr/local/man/man1" || mkdir "$DESTDIR/usr/local/man/man1"
+
+cp top "$DESTDIR/usr/local/bin/top"
+cp top.1 "$DESTDIR/usr/local/man/man1/top.1"
+
+chmod 2755 "$DESTDIR/usr/local/bin/top" 2>/dev/null || chmod 755 "$DESTDIR/usr/local/bin/top"

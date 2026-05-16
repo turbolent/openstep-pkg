@@ -1,0 +1,23 @@
+--- specs
++++ specs.new
+@@ -17,16 +17,16 @@
+ -lcrtend.o
+ 
+ *link:
+-%{Z} %{M} %{execute*} %{preload*} %{fvmlib*} %{segalign*} %{seg1addr*} %{segaddr*} %{segprot*} %{pagezero_size*} %{seglinkedit*} %{noseglinkedit*} %{sectcreate*} %{sectalign*} %{sectobjectsymbols}%{segcreate*} %{Mach*} %{whyload} %{w} %{sectorder*} %{whatsloaded} %{ObjC} %{all_load} %{object}
++%{Z} %{M} %{F*} %{execute*} %{preload*} %{fvmlib*} %{segalign*} %{seg1addr*} %{segaddr*} %{segprot*} %{pagezero_size*} %{undefined*} %{dylib_file*} %{seglinkedit*} %{noseglinkedit*} %{read_only_relocs} %{sectcreate*} %{sectalign*} %{sectobjectsymbols}%{segcreate*} %{Mach*} %{whyload} %{w} %{sectorder*} %{whatsloaded} %{ObjC} %{all_load} %{object} %{dylinker} %{dylinker_install_name*} %{output_for_dyld} %{keep_private_externs} %{prebind} %{noprebind}
+ 
+ *lib:
+-%{!posix*:-lsys_s} %{posix*:-lposix}
++%{static:%{!dynamiclib:%{!pg:-lsys_s}%{pg:-lsys_p}}}       %{!static:%{!pg:-framework System}%{pg:-framework System,_profile}}
+ 
+ *libgcc:
+--lgcc
++-lgcc %{!shared:%{static:%{!dynamiclib:-lcc}} 			      %{!static:-lcc_dynamic}}
+ 
+ *startfile:
+-%{!posix*:%{pg:-lgcrt0.o}%{!pg:      %{p:%e-p profiling is no longer supported.  Use -pg instead.}      %{!p:-lcrt0.o}}}     %{posix*:%{pg:-lgposixcrt0.o}%{!pg:      %{p:%e-p profiling is no longer supported.  Use -pg instead.}      %{!p:-lposixcrt0.o}}}      -lcrtbegin.o
++%{!dynamiclib:%{bundle:%{!static:-lbundle1.o}}    %{!bundle:%{pg:%{static:-lgcrt0.o} 		  %{!static:%{object:-lgcrt0.o} 			    %{!object:%{preload:-lgcrt0.o} 				      %{!preload:-lgcrt1.o}}}} 	    %{!pg:%{static:-lcrt0.o} 		  %{!static:%{object:-lcrt0.o} 			    %{!object:%{preload:-lcrt0.o} 				      %{!preload:-lcrt1.o}}}}}} -lcrtbegin.o
+ 
+ *switches_need_spaces:
+ 

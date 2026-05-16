@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+PATH=/usr/local/bin:$PATH
+export DESTDIR PATH
+
+gnumake -f Makefile.openstep
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+cp src/patch "$DESTDIR/usr/local/bin/patch"

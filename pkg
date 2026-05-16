@@ -1,0 +1,824 @@
+#!/bin/sh
+# shellcheck disable=SC2006
+
+set -e
+
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+log() {
+    echo "==> $*"
+}
+
+trace_enabled() {
+    case $PKG_XTRACE in
+        1|yes|true|on)
+            return 0
+        ;;
+    esac
+
+    return 1
+}
+
+usage() {
+    cat <<'EOF'
+usage:
+  pkg download <package-dir>
+  pkg build <package-dir>
+  pkg install <package-dir>...
+  pkg list
+  pkg remove <name>
+
+package layout:
+  build         required build script
+  version       required, contains version
+  depends       optional, one package name per line
+  sources       optional, one source per line
+  post-install  optional shell hook
+  pre-remove    optional shell hook
+EOF
+}
+
+dep_name() {
+    case $1 in
+        !*)
+            echo "$1" | sed 's/^!//'
+        ;;
+        *)
+            echo "$1"
+        ;;
+    esac
+}
+
+dep_is_negative() {
+    case $1 in
+        !*)
+            return 0
+        ;;
+    esac
+
+    return 1
+}
+
+require_file() {
+    [ -f "$1" ] || die "missing file: $1"
+}
+
+default_value() {
+    if [ "x$1" = x ]; then
+        echo "$2"
+    else
+        echo "$1"
+    fi
+}
+
+path_leaf() {
+    echo "$1" | sed 's#/$##; s#.*/##'
+}
+
+path_parent() {
+    case $1 in
+        */*)
+            echo "$1" | sed 's#/$##; s#/[^/]*$##'
+        ;;
+        *)
+            echo .
+        ;;
+    esac
+}
+
+strip_leading_slash() {
+    echo "$1" | sed 's#^/##'
+}
+
+ensure_dir() {
+    dir=$1
+
+    [ -d "$dir" ] && return 0
+
+    case $dir in
+        /*) current=/ ;;
+         *) current=. ;;
+    esac
+
+    old_ifs=$IFS
+    IFS=/
+    set -- $dir
+    IFS=$old_ifs
+
+    for part
+    do
+        [ -n "$part" ] || continue
+
+        if [ "$current" = / ]; then
+            current=/$part
+        else
+            current=$current/$part
+        fi
+
+        [ -d "$current" ] || mkdir "$current" 2>/dev/null || [ -d "$current" ]
+    done
+}
+
+trim_slash() {
+    case $1 in
+        /) echo / ;;
+        */) echo "$1" | sed 's#/$##' ;;
+        *) echo "$1" ;;
+    esac
+}
+
+root_join() {
+    rel=`strip_leading_slash "$1"`
+
+    if [ "$ROOT_DIR" = / ]; then
+        echo "/$rel"
+    else
+        echo "$ROOT_DIR/$rel"
+    fi
+}
+
+find_tool() {
+    tool=$1
+
+    old_ifs=$IFS
+    IFS=:
+    set -- $PATH
+    IFS=$old_ifs
+
+    for dir
+    do
+        [ -n "$dir" ] || dir=.
+
+        if [ -x "$dir/$tool" ]; then
+            echo "$dir/$tool"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+is_bootstrap_pkg() {
+    case $1 in
+        pdksh)
+            return 0
+        ;;
+    esac
+
+    return 1
+}
+
+requires_pdksh_sh() {
+    is_bootstrap_pkg "$1" && return 1
+
+    return 0
+}
+
+build_shell_path() {
+    if requires_pdksh_sh "$1"; then
+        echo /usr/local/bin/ksh
+    else
+        echo /bin/sh
+    fi
+}
+
+check_build_shell() {
+    build_shell=`build_shell_path "$PKG_NAME"`
+
+    if [ -x "$build_shell" ]; then
+        return 0
+    fi
+
+    if [ "$build_shell" = /usr/local/bin/ksh ]; then
+        parent_pkg_dir=$PKG_DIR
+        parent_pkg_name=$PKG_NAME
+
+        case :$PKG_INSTALL_STACK: in
+            *:pdksh:*)
+                die "required build shell pdksh is unavailable while already in the install stack for $parent_pkg_name"
+            ;;
+        esac
+
+        pdksh_pkg_dir=`resolve_dep_pkg_dir pdksh` ||
+            die "missing required build shell for $parent_pkg_name: $build_shell (and could not locate local pdksh package)"
+
+        log "installing required build shell pdksh for $parent_pkg_name"
+        install_pkg "$pdksh_pkg_dir"
+        load_pkg "$parent_pkg_dir"
+
+        build_shell=`build_shell_path "$PKG_NAME"`
+    fi
+
+    [ -x "$build_shell" ] || die "missing required build shell for $PKG_NAME: $build_shell"
+}
+
+load_pkg() {
+    PKG_DIR=$1
+    [ -d "$PKG_DIR" ] || die "package directory not found: $PKG_DIR"
+
+    PKG_DIR=`cd "$PKG_DIR" && pwd`
+    PKG_NAME=`path_leaf "$PKG_DIR"`
+
+    require_file "$PKG_DIR/build"
+    require_file "$PKG_DIR/version"
+
+    read PKG_VERSION PKG_VERSION_EXTRA < "$PKG_DIR/version" ||
+        die "failed to read version file"
+
+    [ -n "$PKG_VERSION" ] || die "version file did not contain a version"
+    [ -z "$PKG_VERSION_EXTRA" ] || die "version file must contain exactly one field"
+
+    ROOT_DIR=`default_value "$PKG_ROOT" "/"`
+    ROOT_DIR=`trim_slash "$ROOT_DIR"`
+    LOCAL_ROOT=$ROOT_DIR/usr/local
+    CACHE_ROOT=`default_value "$PKG_CACHE" "$LOCAL_ROOT/var/pkg/cache"`
+    DB_ROOT=`default_value "$PKG_DB" "$LOCAL_ROOT/var/pkg/db"`
+
+    SRC_CACHE=$CACHE_ROOT/sources/$PKG_NAME
+    BUILD_ROOT=$CACHE_ROOT/build/$PKG_NAME
+    IMAGE_DIR=$CACHE_ROOT/pkg/$PKG_NAME
+    INST_DIR=$DB_ROOT/installed/$PKG_NAME
+}
+
+download_one() {
+    src=$1
+    dest=$2
+
+    case $src in
+        \#*|'')
+            return 0
+        ;;
+    esac
+
+    case $src in
+        *://*)
+            src_name=`path_leaf "$src"`
+            dest_name=`default_value "$dest" "$src_name"`
+            ensure_dir "$SRC_CACHE/`path_parent "$dest_name"`"
+            out=$SRC_CACHE/$dest_name
+
+            if [ -f "$out" ]; then
+                log "using cached $src_name"
+                return 0
+            fi
+
+            log "downloading $src"
+
+            curl_path=`find_tool curl 2>/dev/null`
+            if [ -n "$curl_path" ]; then
+                "$curl_path" -L -o "$out" "$src"
+                return 0
+            fi
+
+            wget_path=`find_tool wget 2>/dev/null`
+            if [ -n "$wget_path" ]; then
+                "$wget_path" -O "$out" "$src"
+                return 0
+            fi
+
+            die "need curl or wget to download sources"
+        ;;
+    esac
+}
+
+download_pkg() {
+    ensure_dir "$SRC_CACHE"
+
+    [ -f "$PKG_DIR/sources" ] || return 0
+
+    log "resolving sources for $PKG_NAME"
+
+    while read src dest || [ -n "$src" ]; do
+        download_one "$src" "$dest"
+    done < "$PKG_DIR/sources"
+}
+
+copy_local_source() {
+    src=$1
+    dest=$2
+
+    case $src in
+        /*) path=$src ;;
+        *) path=$PKG_DIR/$src ;;
+    esac
+
+    [ -f "$path" ] || [ -d "$path" ] || die "local source not found: $src"
+
+    build_dest=`default_value "$dest" ""`
+    target_dir=$BUILD_ROOT
+
+    if [ -n "$build_dest" ]; then
+        target_dir=$BUILD_ROOT/$build_dest
+    fi
+
+    ensure_dir "$target_dir"
+
+    if [ -d "$path" ]; then
+        (
+            cd "$path"
+            tar cf - .
+        ) | (
+            cd "$target_dir"
+            tar xpf -
+        )
+    else
+        case $path in
+            *.tar.gz|*.tgz|*.tar|*.tar.bz2|*.tbz2|*.tar.xz|*.txz)
+                extract_archive "$path" "$dest"
+            ;;
+            *)
+                cp "$path" "$target_dir/"
+            ;;
+        esac
+    fi
+}
+
+extract_archive() {
+    archive=$1
+    dest=$2
+
+    build_dest=`default_value "$dest" ""`
+    target_dir=$BUILD_ROOT
+
+    if [ -n "$build_dest" ]; then
+        target_dir=$BUILD_ROOT/$build_dest
+    fi
+
+    ensure_dir "$target_dir"
+
+    case $archive in
+        *.tar.gz|*.tgz)
+            gnutar -xzf "$archive" -C "$target_dir"
+        ;;
+        *.tar)
+            gnutar -xf "$archive" -C "$target_dir"
+        ;;
+        *.tar.bz2|*.tbz2|*.tar.xz|*.txz)
+            die "unsupported archive format on this system: $archive"
+        ;;
+        *)
+            cp "$archive" "$target_dir/"
+        ;;
+    esac
+}
+
+stage_source() {
+    src=$1
+    dest=$2
+
+    case $src in
+        \#*|'')
+            return 0
+        ;;
+        *://*)
+            src_name=`path_leaf "$src"`
+            dest_name=`default_value "$dest" "$src_name"`
+            extract_archive "$SRC_CACHE/$dest_name" "$dest"
+        ;;
+        *)
+            copy_local_source "$src" "$dest"
+        ;;
+    esac
+}
+
+prepare_build_root() {
+    log "preparing build root $BUILD_ROOT"
+    rm -rf "$BUILD_ROOT" "$IMAGE_DIR"
+    ensure_dir "$BUILD_ROOT"
+    ensure_dir "$IMAGE_DIR"
+
+    if [ -f "$PKG_DIR/sources" ]; then
+        while read src dest || [ -n "$src" ]; do
+            case $src in
+                ''|\#*)
+                    :
+                ;;
+                *)
+                    log "staging source $src"
+                ;;
+            esac
+            stage_source "$src" "$dest"
+        done < "$PKG_DIR/sources"
+    fi
+
+    set -- $BUILD_ROOT/*
+
+    if [ "$1" != "$BUILD_ROOT/*" ] && [ $# -eq 1 ] && [ -d "$1" ]; then
+        BUILD_CWD=$1
+    else
+        BUILD_CWD=$BUILD_ROOT
+    fi
+}
+
+run_build() {
+    build_shell=`build_shell_path "$PKG_NAME"`
+    build_trace_flag=
+    check_build_shell
+    check_depends
+    download_pkg
+    prepare_build_root
+
+    log "building $PKG_NAME $PKG_VERSION"
+    log "build directory $BUILD_CWD"
+    log "image directory $IMAGE_DIR"
+    log "build shell $build_shell"
+
+    if trace_enabled; then
+        log "running build script with shell trace"
+        build_trace_flag=-x
+    fi
+
+    (
+        cd "$BUILD_CWD"
+        DESTDIR=$IMAGE_DIR \
+        PKG_BUILD_HELPERS=$PKG_DIR/../build-helpers.sh \
+        "$build_shell" $build_trace_flag "$PKG_DIR/build" "$IMAGE_DIR" "$PKG_VERSION"
+    )
+}
+
+copy_tree() {
+    src=$1
+    dst=$2
+
+    ensure_dir "$dst"
+
+    (
+        cd "$src"
+        tar cf - .
+    ) | (
+        cd "$dst"
+        tar xpf -
+    )
+}
+
+dir_writable() {
+    probe=$1/.pkg-write-test-$$
+
+    if mkdir "$probe" 2>/dev/null; then
+        rmdir "$probe" 2>/dev/null || :
+        return 0
+    fi
+
+    return 1
+}
+
+find_existing_dir() {
+    dir=$1
+
+    while :
+    do
+        if [ -d "$dir" ]; then
+            echo "$dir"
+            return 0
+        fi
+
+        parent=`path_parent "$dir"`
+
+        if [ "$parent" = "$dir" ]; then
+            break
+        fi
+
+        dir=$parent
+    done
+
+    return 1
+}
+
+check_depends() {
+    dep_file=$PKG_DIR/depends
+
+    [ -f "$dep_file" ] || return 0
+
+    if is_bootstrap_pkg "$PKG_NAME"; then
+        die "$PKG_NAME is a bootstrap package and must not declare dependencies"
+    fi
+
+    missing=
+    conflicts=
+
+    while read dep extra || [ -n "$dep" ]; do
+        case $dep in
+            ''|\#*)
+                continue
+            ;;
+        esac
+
+        dep_pkg=`dep_name "$dep"`
+        [ -n "$dep_pkg" ] || die "invalid dependency entry for $PKG_NAME: $dep"
+
+        if dep_is_negative "$dep"; then
+            if [ -d "$DB_ROOT/installed/$dep_pkg" ]; then
+                if [ -n "$conflicts" ]; then
+                    conflicts="$conflicts $dep_pkg"
+                else
+                    conflicts=$dep_pkg
+                fi
+            fi
+        else
+            if [ ! -d "$DB_ROOT/installed/$dep_pkg" ]; then
+                if [ -n "$missing" ]; then
+                    missing="$missing $dep_pkg"
+                else
+                    missing=$dep_pkg
+                fi
+            fi
+        fi
+    done < "$dep_file"
+
+    if [ -n "$missing" ]; then
+        die "missing dependencies for $PKG_NAME:$missing"
+    fi
+
+    if [ -n "$conflicts" ]; then
+        die "conflicting installed packages for $PKG_NAME:$conflicts"
+    fi
+}
+
+resolve_dep_pkg_dir() {
+    dep=$1
+    pkg_root=`path_parent "$PKG_DIR"`
+
+    for candidate in "$pkg_root/$dep" "$dep"
+    do
+        if [ -d "$candidate" ]; then
+            (
+                cd "$candidate"
+                pwd
+            )
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+install_depends() {
+    dep_file=$PKG_DIR/depends
+
+    [ -f "$dep_file" ] || return 0
+
+    if is_bootstrap_pkg "$PKG_NAME"; then
+        die "$PKG_NAME is a bootstrap package and must not declare dependencies"
+    fi
+
+    parent_pkg_dir=$PKG_DIR
+    parent_pkg_name=$PKG_NAME
+
+    while read dep extra || [ -n "$dep" ]; do
+        case $dep in
+            ''|\#*)
+                continue
+            ;;
+        esac
+
+        dep_pkg=`dep_name "$dep"`
+        [ -n "$dep_pkg" ] || die "invalid dependency entry for $parent_pkg_name: $dep"
+
+        if dep_is_negative "$dep"; then
+            if [ -d "$DB_ROOT/installed/$dep_pkg" ]; then
+                die "conflicting installed package for $parent_pkg_name: $dep_pkg"
+            fi
+            continue
+        fi
+
+        if [ -d "$DB_ROOT/installed/$dep_pkg" ]; then
+            log "dependency already installed: $dep_pkg"
+            continue
+        fi
+
+        dep_dir=`resolve_dep_pkg_dir "$dep_pkg"` ||
+            die "could not locate dependency package directory for $parent_pkg_name: $dep_pkg"
+
+        case :$PKG_INSTALL_STACK: in
+            *:$dep_pkg:*)
+                die "dependency cycle detected while installing $parent_pkg_name: $dep_pkg"
+            ;;
+        esac
+
+        log "installing dependency $dep_pkg for $parent_pkg_name"
+        install_pkg "$dep_dir"
+        load_pkg "$parent_pkg_dir"
+    done < "$dep_file"
+}
+
+install_preflight() {
+    (
+        cd "$IMAGE_DIR"
+        find . ! -name . -print | sed 's#^\./##' | sort
+    ) | while read rel; do
+        [ -n "$rel" ] || continue
+
+        staged=$IMAGE_DIR/$rel
+        target=`root_join "$rel"`
+
+        if [ -d "$staged" ]; then
+            if [ -d "$target" ]; then
+                :
+            else
+                parent=`path_parent "$target"`
+                existing=`find_existing_dir "$parent"` ||
+                    die "could not find existing parent directory for: $target"
+                dir_writable "$existing" || die "install target parent not writable: $existing"
+            fi
+        else
+            parent=`path_parent "$target"`
+            existing=`find_existing_dir "$parent"` ||
+                die "could not find existing parent directory for: $target"
+            dir_writable "$existing" || die "install target parent not writable: $existing"
+        fi
+    done
+}
+
+log_install_contents() {
+    log "staged install contents:"
+
+    (
+        cd "$IMAGE_DIR"
+        find . ! -name . -print | sed 's#^\./#/#' | sort
+    ) | while read rel; do
+        echo "  $rel"
+    done
+}
+
+write_manifest() {
+    ensure_dir "$INST_DIR"
+
+    (
+        cd "$IMAGE_DIR"
+        find . ! -name . -print | sed 's#^\./#/#' | sort
+    ) > "$INST_DIR/manifest"
+
+    echo "$PKG_VERSION" > "$INST_DIR/version"
+
+    for hook in pre-remove post-install; do
+        if [ -f "$PKG_DIR/$hook" ]; then
+            cp "$PKG_DIR/$hook" "$INST_DIR/$hook"
+            chmod +x "$INST_DIR/$hook" 2>/dev/null || :
+        else
+            rm -f "$INST_DIR/$hook"
+        fi
+    done
+}
+
+clean_image_cache() {
+    if [ -d "$IMAGE_DIR" ]; then
+        log "cleaning staged image $IMAGE_DIR"
+        rm -rf "$IMAGE_DIR"
+    fi
+}
+
+install_pkg() {
+    pkg_arg=$1
+    saved_install_stack=$PKG_INSTALL_STACK
+
+    load_pkg "$pkg_arg"
+
+    case :$PKG_INSTALL_STACK: in
+        *:$PKG_NAME:*)
+            die "dependency cycle detected while installing $PKG_NAME"
+        ;;
+    esac
+
+    PKG_INSTALL_STACK=$PKG_INSTALL_STACK:$PKG_NAME
+    export PKG_INSTALL_STACK
+
+    log "starting install for $PKG_NAME"
+    install_depends
+    check_depends
+    check_build_shell
+
+    if [ ! -d "$IMAGE_DIR" ] || [ -z "`find "$IMAGE_DIR" -print 2>/dev/null | sed 1d`" ]; then
+        run_build
+    else
+        log "using existing staged image $IMAGE_DIR"
+    fi
+
+    if [ -d "$INST_DIR" ]; then
+        log "replacing installed package $PKG_NAME"
+        remove_name "$PKG_NAME"
+        load_pkg "$pkg_arg"
+    fi
+
+    log_install_contents
+    log "installing $PKG_NAME into $ROOT_DIR"
+    install_preflight
+    copy_tree "$IMAGE_DIR" "$ROOT_DIR"
+    write_manifest
+    log "recorded package database in $INST_DIR"
+
+    if [ -f "$INST_DIR/post-install" ]; then
+        log "running post-install"
+        PKG_NAME=$PKG_NAME PKG_VERSION=$PKG_VERSION ROOT_DIR=$ROOT_DIR \
+            sh "$INST_DIR/post-install"
+    fi
+
+    clean_image_cache
+    log "installed $PKG_NAME $PKG_VERSION"
+
+    PKG_INSTALL_STACK=$saved_install_stack
+    export PKG_INSTALL_STACK
+}
+
+install_pkgs() {
+    [ $# -ge 1 ] || die "install requires at least one <package-dir>"
+
+    for pkg_arg
+    do
+        install_pkg "$pkg_arg"
+    done
+}
+
+list_pkgs() {
+    ROOT_DIR=`default_value "$PKG_ROOT" "/"`
+    ROOT_DIR=`trim_slash "$ROOT_DIR"`
+    LOCAL_ROOT=$ROOT_DIR/usr/local
+    DB_ROOT=`default_value "$PKG_DB" "$LOCAL_ROOT/var/pkg/db"`
+
+    if [ ! -d "$DB_ROOT/installed" ]; then
+        log "no installed packages"
+        return 0
+    fi
+
+    for dir in $DB_ROOT/installed/*; do
+        [ -d "$dir" ] || continue
+        name=`path_leaf "$dir"`
+        read version extra < "$dir/version" || version=unknown
+        echo "$name $version"
+    done
+}
+
+remove_name() {
+    name=$1
+    ROOT_DIR=`default_value "$PKG_ROOT" "/"`
+    ROOT_DIR=`trim_slash "$ROOT_DIR"`
+    LOCAL_ROOT=$ROOT_DIR/usr/local
+    DB_ROOT=`default_value "$PKG_DB" "$LOCAL_ROOT/var/pkg/db"`
+    INST_DIR=$DB_ROOT/installed/$name
+
+    require_file "$INST_DIR/manifest"
+
+    if [ -f "$INST_DIR/pre-remove" ]; then
+        log "running pre-remove"
+        PKG_NAME=$name ROOT_DIR=$ROOT_DIR sh "$INST_DIR/pre-remove"
+    fi
+
+    log "removing $name"
+
+    sort -r "$INST_DIR/manifest" | while read rel; do
+        rel_path=`strip_leading_slash "$rel"`
+        path=$ROOT_DIR/$rel_path
+
+        if [ -h "$path" ] || [ -f "$path" ]; then
+            rm -f "$path"
+            continue
+        fi
+
+        if [ -d "$path" ]; then
+            rmdir "$path" 2>/dev/null || :
+        fi
+    done
+
+    rm -rf "$INST_DIR"
+}
+
+ACTION=$1
+
+case $ACTION in
+    download)
+        [ $# -eq 2 ] || die "download requires <package-dir>"
+        load_pkg "$2"
+        download_pkg
+    ;;
+
+    build)
+        [ $# -eq 2 ] || die "build requires <package-dir>"
+        load_pkg "$2"
+        run_build
+    ;;
+
+    install)
+        shift
+        install_pkgs "$@"
+    ;;
+
+    list)
+        [ $# -eq 1 ] || die "list takes no arguments"
+        list_pkgs
+    ;;
+
+    remove)
+        [ $# -eq 2 ] || die "remove requires <name>"
+        remove_name "$2"
+    ;;
+
+    ""|-h|--help|help)
+        usage
+    ;;
+
+    *)
+        die "unknown action: $ACTION"
+    ;;
+esac

@@ -1,0 +1,89 @@
+diff --git a/gcc/config/i386/i386.c b/gcc/config/i386/i386.c
+index 0333b19..4189e0a 100644
+--- a/gcc/config/i386/i386.c
++++ b/gcc/config/i386/i386.c
+@@ -3360,7 +3360,7 @@ print_operand (file, x, code)
+ 	  if (GET_CODE (x) == CONST_INT || ! SHIFT_DOUBLE_OMITS_COUNT)
+ 	    {
+ 	      PRINT_OPERAND (file, x, 0);
+-	      fputs (AS2C (,) + 1, file);
++	      fputs (AS2C (" "," ") + 1, file);
+ 	    }
+
+ 	  return;
+diff --git a/gcc/f/global.c b/gcc/f/global.c
+index 85311f1..2f379ea 100644
+--- a/gcc/f/global.c
++++ b/gcc/f/global.c
+@@ -62,14 +62,14 @@ the Free Software Foundation, 59 Temple Place - Suite 330, Boston, MA
+ static ffenameSpace ffeglobal_filewide_ = NULL;
+ static const char *ffeglobal_type_string_[] =
+ {
+-  [FFEGLOBAL_typeNONE] "??",
+-  [FFEGLOBAL_typeMAIN] "main program",
+-  [FFEGLOBAL_typeEXT] "external",
+-  [FFEGLOBAL_typeSUBR] "subroutine",
+-  [FFEGLOBAL_typeFUNC] "function",
+-  [FFEGLOBAL_typeBDATA] "block data",
+-  [FFEGLOBAL_typeCOMMON] "common block",
+-  [FFEGLOBAL_typeANY] "?any?"
++  "??",
++  "main program",
++  "external",
++  "subroutine",
++  "function",
++  "block data",
++  "common block",
++  "?any?"
+ };
+ #endif
+
+diff --git a/gcc/gansidecl.h b/gcc/gansidecl.h
+index cf7762f..d0fe08b 100644
+--- a/gcc/gansidecl.h
++++ b/gcc/gansidecl.h
+@@ -47,7 +47,7 @@ Boston, MA 02111-1307, USA.  */
+ # define inline __inline__  /* Modern gcc can use `__inline__' freely. */
+ #endif /* GCC >= 2.7 */
+
+-#if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
++#if defined(NeXT) || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
+ # define __attribute__(x)
+ #endif
+
+diff --git a/gcc/fixinc/fixincl.c b/gcc/fixinc/fixincl.c
+index c1dfcbc..15a34f7 100644
+--- a/gcc/fixinc/fixincl.c
++++ b/gcc/fixinc/fixincl.c
+@@ -49,6 +49,31 @@ static const char program_id[] = "fixincl version 1.0";
+ # define EXIT_FAILURE 1
+ #endif
+
++#ifndef S_IRUSR
++# define S_IRUSR 0400
++#endif
++#ifndef S_IWUSR
++# define S_IWUSR 0200
++#endif
++#ifndef S_IXUSR
++# define S_IXUSR 0100
++#endif
++#ifndef S_IRGRP
++# define S_IRGRP 0040
++#endif
++#ifndef S_IXGRP
++# define S_IXGRP 0010
++#endif
++#ifndef S_IROTH
++# define S_IROTH 0004
++#endif
++#ifndef S_IXOTH
++# define S_IXOTH 0001
++#endif
++#ifndef S_IRWXU
++# define S_IRWXU (S_IRUSR | S_IWUSR | S_IXUSR)
++#endif
++
+ char *file_name_buf;
+
+ #define tSCC static const char

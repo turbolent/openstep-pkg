@@ -1,0 +1,174 @@
+diff --git a/include/curl/system.h b/include/curl/system.h
+index 62ed2b0..5deb8a3 100644
+--- a/include/curl/system.h
++++ b/include/curl/system.h
+@@ -323,6 +323,15 @@
+ /*    KEEP GENERIC GCC THE LAST ENTRY    */
+ /* ===================================== */
+ 
++#elif (defined(NeXT) || defined(__NeXT__) || defined(__NeXT)) && \
++      defined(__GNUC__) && !defined(_SCO_DS)
++#  define CURL_TYPEOF_CURL_OFF_T     long long
++#  define CURL_FORMAT_CURL_OFF_T     "lld"
++#  define CURL_FORMAT_CURL_OFF_TU    "llu"
++#  define CURL_SUFFIX_CURL_OFF_T     LL
++#  define CURL_SUFFIX_CURL_OFF_TU    ULL
++#  define CURL_TYPEOF_CURL_SOCKLEN_T int
++
+ #elif defined(__GNUC__) && !defined(_SCO_DS)
+ #  if !defined(__LP64__) &&                                             \
+   (defined(__ILP32__) || defined(__i386__) || defined(__hppa__) ||      \
+diff --git a/lib/curl_setup.h b/lib/curl_setup.h
+index 7c03362..0b5a821 100644
+--- a/lib/curl_setup.h
++++ b/lib/curl_setup.h
+@@ -477,10 +477,76 @@
+ 
+ #if defined(HAVE_STDINT_H) || defined(USE_WOLFSSL)
+ #include <stdint.h>
++#elif defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++#include <sys/types.h>
++#ifdef USE_OPENSSL
++#include <openssl/e_os2.h>
++#else
++typedef u_int8_t uint8_t;
++typedef u_int16_t uint16_t;
++typedef u_int32_t uint32_t;
++typedef u_int64_t uint64_t;
++#endif
++#ifndef UINT8_MAX
++#define UINT8_MAX ((uint8_t)~0U)
++#endif
++#ifndef UINT16_MAX
++#define UINT16_MAX ((uint16_t)~0U)
++#endif
++#ifndef UINT32_MAX
++#define UINT32_MAX ((uint32_t)~0U)
++#endif
++#ifndef UINT64_MAX
++#define UINT64_MAX ((uint64_t)~0ULL)
++#endif
++#ifndef INT32_MAX
++#define INT32_MAX ((int32_t)(UINT32_MAX >> 1))
++#endif
++#ifndef INT64_MAX
++#define INT64_MAX ((int64_t)(UINT64_MAX >> 1))
++#endif
++#ifndef INT64_MIN
++#define INT64_MIN (-INT64_MAX - 1)
++#endif
+ #endif
+ 
+ #include <limits.h>
+ 
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++#undef HAVE_STRDUP
++#undef HAVE_SNPRINTF
++#ifndef FD_CLOEXEC
++#define FD_CLOEXEC 1
++#endif
++#ifndef S_IRUSR
++#define S_IRUSR S_IREAD
++#endif
++#ifndef S_IWUSR
++#define S_IWUSR S_IWRITE
++#endif
++#ifndef S_IXUSR
++#define S_IXUSR S_IEXEC
++#endif
++#ifndef S_IRGRP
++#define S_IRGRP S_IRUSR
++#endif
++#ifndef S_IWGRP
++#define S_IWGRP S_IWUSR
++#endif
++#ifndef S_IXGRP
++#define S_IXGRP S_IXUSR
++#endif
++#ifndef S_IROTH
++#define S_IROTH S_IRUSR
++#endif
++#ifndef S_IWOTH
++#define S_IWOTH S_IWUSR
++#endif
++#ifndef S_IXOTH
++#define S_IXOTH S_IXUSR
++#endif
++#endif
++
+ #ifdef _WIN32
+ #  ifdef HAVE_IO_H
+ #  include <io.h>
+diff --git a/lib/file.c b/lib/file.c
+index f45a487..56aa44e 100644
+--- a/lib/file.c
++++ b/lib/file.c
+@@ -54,6 +54,11 @@
+ #include <dirent.h>
+ #endif
+ 
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++#include <sys/dir.h>
++#include <sys/dirent.h>
++#endif
++
+ #include "urldata.h"
+ #include <curl/curl.h>
+ #include "progress.h"
+diff --git a/src/tool_dirhie.c b/src/tool_dirhie.c
+index 91cc1b6..27d3b66 100644
+--- a/src/tool_dirhie.c
++++ b/src/tool_dirhie.c
+@@ -126,7 +126,7 @@ CURLcode create_dir_hierarchy(const char *outfile)
+ 
+     /* Create directory. Ignore access denied error to allow traversal. */
+     /* !checksrc! disable ERRNOVAR 1 */
+-    if(!skip && (mkdir(curlx_dyn_ptr(&dirbuf), (mode_t)0000750) == -1) &&
++    if(!skip && (mkdir(curlx_dyn_ptr(&dirbuf), 0750) == -1) &&
+        (errno != EACCES) && (errno != EEXIST)) {
+       show_dir_errno(curlx_dyn_ptr(&dirbuf));
+       result = CURLE_WRITE_ERROR;
+diff --git a/src/tool_getpass.c b/src/tool_getpass.c
+index a92fb75..2ef99f3 100644
+--- a/src/tool_getpass.c
++++ b/src/tool_getpass.c
+@@ -32,6 +32,9 @@
+ 
+ #ifdef HAVE_TERMIOS_H
+ #  include <termios.h>
++#  if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++#    include <sys/ioctl.h>
++#  endif
+ #elif defined(HAVE_TERMIO_H)
+ #  include <termio.h>
+ #endif
+@@ -140,10 +143,17 @@ static bool ttyecho(bool enable, int fd)
+     /* disable echo by extracting the current 'withecho' mode and remove the
+        ECHO bit and set back the struct */
+ #ifdef HAVE_TERMIOS_H
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    ioctl(fd, TIOCGETA, &withecho);
++    noecho = withecho;
++    noecho.c_lflag &= ~(tcflag_t)ECHO;
++    ioctl(fd, TIOCSETA, &noecho);
++#else
+     tcgetattr(fd, &withecho);
+     noecho = withecho;
+     noecho.c_lflag &= ~(tcflag_t)ECHO;
+     tcsetattr(fd, TCSANOW, &noecho);
++#endif
+ #elif defined(HAVE_TERMIO_H)
+     ioctl(fd, TCGETA, &withecho);
+     noecho = withecho;
+@@ -159,7 +169,11 @@ static bool ttyecho(bool enable, int fd)
+   /* re-enable echo, assumes we disabled it before (and set the structs we
+      now use to reset the terminal status) */
+ #ifdef HAVE_TERMIOS_H
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++  ioctl(fd, TIOCSETAF, &withecho);
++#else
+   tcsetattr(fd, TCSAFLUSH, &withecho);
++#endif
+ #elif defined(HAVE_TERMIO_H)
+   ioctl(fd, TCSETA, &withecho);
+ #else

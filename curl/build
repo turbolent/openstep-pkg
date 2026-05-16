@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+AWK=/usr/local/bin/gawk
+CPPFLAGS=-I/usr/local/include
+LDFLAGS=-L/usr/local/lib
+
+PATCHFILE="curl-$VERSION-openstep.patch"
+
+export DESTDIR VERSION PATH CC GREP EGREP AWK CPPFLAGS LDFLAGS
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure \
+  --disable-docs --disable-ipv6 --disable-ldap --disable-shared \
+  --disable-threaded-resolver --without-libpsl --with-openssl=/usr/local \
+  --with-ca-bundle=/usr/local/ssl/cert.pem --with-ca-path=/usr/local/ssl/certs \
+  --without-zlib \
+  --prefix=/usr/local
+
+for mf in Makefile lib/Makefile src/Makefile; do
+  if [ -f "$mf" ]; then
+    sed 's/-isystem \/usr\/local\/include/-I\/usr\/local\/include/g' "$mf" > "$mf.tmp"
+    mv "$mf.tmp" "$mf"
+  fi
+done
+
+gnumake
+gnumake install DESTDIR="$DESTDIR"

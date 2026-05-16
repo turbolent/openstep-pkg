@@ -1,0 +1,3 @@
+grep-2.5.4.tar.gz
+grep-2.5.4-openstep.patch grep-2.5.4
+mkinstalldirs grep-2.5.4

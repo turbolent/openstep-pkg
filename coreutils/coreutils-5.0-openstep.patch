@@ -1,0 +1,608 @@
+diff --git a/config.hin b/config.hin
+index 312b40f..a52d71c 100644
+--- a/config.hin
++++ b/config.hin
+@@ -1226,7 +1226,7 @@
+ #undef STATFS_TRUNCATES_BLOCK_COUNTS
+ 
+ /* Define to 1 if the `S_IS*' macros in <sys/stat.h> do not work properly. */
+-#undef STAT_MACROS_BROKEN
++#define STAT_MACROS_BROKEN 1
+ 
+ /* Define if there is no specific function for reading filesystems usage
+    information and you have the <sys/filsys.h> header file. (SVR2) */
+diff --git a/lib/error.h b/lib/error.h
+index 177b2dc..f2e6a24 100644
+--- a/lib/error.h
++++ b/lib/error.h
+@@ -25,12 +25,12 @@
+ 
+ #ifndef __attribute__
+ /* This feature is available in gcc versions 2.5 and later.  */
+-# if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
++# if defined NeXT || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
+ #  define __attribute__(Spec) /* empty */
+ # endif
+ /* The __-protected variants of `format' and `printf' attributes
+    are accepted by gcc versions 2.6.4 (effectively 2.7) and later.  */
+-# if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
++# if defined NeXT || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
+ #  define __format__ format
+ #  define __printf__ printf
+ # endif
+diff --git a/lib/fchdir-stub.c b/lib/fchdir-stub.c
+index 9222362..bc63893 100644
+--- a/lib/fchdir-stub.c
++++ b/lib/fchdir-stub.c
+@@ -2,6 +2,14 @@
+ #include <sys/types.h>
+ #include <errno.h>
+ 
++#ifndef ENOSYS
++# ifdef ENOTSUP
++#  define ENOSYS ENOTSUP
++# else
++#  define ENOSYS EINVAL
++# endif
++#endif
++
+ /* A trivial substitute for `fchdir'.
+ 
+    DJGPP 2.03 and earlier don't have `fchdir'. */
+diff --git a/lib/ftw.c b/lib/ftw.c
+index 39c5f62..50fdd67 100644
+--- a/lib/ftw.c
++++ b/lib/ftw.c
+@@ -61,6 +61,13 @@ char *alloca ();
+ #endif
+ 
+ #include <errno.h>
++#ifndef ENOSYS
++# ifdef ENOTSUP
++#  define ENOSYS ENOTSUP
++# else
++#  define ENOSYS EINVAL
++# endif
++#endif
+ #include <ftw.h>
+ #include <limits.h>
+ #include <search.h>
+@@ -162,9 +169,18 @@ int rpl_lstat (const char *, struct stat *);
+ #endif
+ 
+ #if STAT_MACROS_BROKEN
++# undef S_ISDIR
+ # undef S_ISLNK
+ #endif
+ 
++#ifndef S_ISDIR
++# ifdef S_IFDIR
++#  define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
++# else
++#  define S_ISDIR(m) 0
++# endif
++#endif
++
+ #ifndef S_ISLNK
+ # ifdef S_IFLNK
+ #  define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+@@ -487,7 +494,7 @@ ftw_dir (struct ftw_data *data, struct FTW_STAT *st)
+   struct dir_data dir;
+   struct dirent64 *d;
+   int previous_base = data->ftw.base;
+-  int result;
++  int result = 0;
+   char *startp;
+ 
+   /* Open the stream for this directory.  This might require that
+@@ -516,10 +523,12 @@ ftw_dir (struct ftw_data *data, struct FTW_STAT *st)
+       if (__fchdir (dirfd (dir.stream)) < 0)
+ 	{
+ 	  if (errno == ENOSYS)
+ 	    {
+-	      if (__chdir (data->dirbuf) < 0)
++	      /* When FTW_CHDIR is in effect we're already in the parent
++		 directory, so switch using the basename-relative path.  */
++	      if (__chdir (data->dirbuf + data->ftw.base) < 0)
+ 		result = -1;
+ 	    }
+ 	  else
+ 	    result = -1;
+ 	}
+diff --git a/lib/makepath.c b/lib/makepath.c
+index 70038be..4600e1b 100644
+--- a/lib/makepath.c
++++ b/lib/makepath.c
+@@ -97,6 +97,31 @@ extern int errno;
+ # define S_IRWXU (S_IRUSR | S_IWUSR | S_IXUSR)
+ #endif
+ 
++#ifndef S_IRGRP
++# define S_IRGRP (S_IRUSR >> 3)
++#endif
++#ifndef S_IWGRP
++# define S_IWGRP (S_IWUSR >> 3)
++#endif
++#ifndef S_IXGRP
++# define S_IXGRP (S_IXUSR >> 3)
++#endif
++#ifndef S_IROTH
++# define S_IROTH (S_IRUSR >> 6)
++#endif
++#ifndef S_IWOTH
++# define S_IWOTH (S_IWUSR >> 6)
++#endif
++#ifndef S_IXOTH
++# define S_IXOTH (S_IXUSR >> 6)
++#endif
++#ifndef S_IRWXG
++# define S_IRWXG (S_IRGRP | S_IWGRP | S_IXGRP)
++#endif
++#ifndef S_IRWXO
++# define S_IRWXO (S_IROTH | S_IWOTH | S_IXOTH)
++#endif
++
+ #define WX_USR (S_IWUSR | S_IXUSR)
+ 
+ /* Include this before libintl.h so we get our definition of PARAMS. */
+diff --git a/lib/mbswidth.c b/lib/mbswidth.c
+index a2ef5b3..4a3bf9e 100644
+--- a/lib/mbswidth.c
++++ b/lib/mbswidth.c
+@@ -104,7 +104,7 @@ mbsnwidth (const char *string, size_t nbytes, int flags)
+   int width;
+ 
+   width = 0;
+-#if HAVE_MBRTOWC
++#if HAVE_MBRTOWC && !defined NeXT
+   if (MB_CUR_MAX > 1)
+     {
+       while (p < plimit)
+diff --git a/lib/fnmatch.c b/lib/fnmatch.c
+--- a/lib/fnmatch.c
++++ b/lib/fnmatch.c
+@@ -225,7 +225,11 @@
+ #  endif
+ # endif
+ # define MEMCHR(S, C, N) memchr (S, C, N)
+-# define STRCOLL(S1, S2) strcoll (S1, S2)
++# ifdef NeXT
++#  define STRCOLL(S1, S2) strcmp (S1, S2)
++# else
++#  define STRCOLL(S1, S2) strcoll (S1, S2)
++# endif
+ # include "fnmatch_loop.c"
+ 
+ 
+diff --git a/lib/memcoll.c b/lib/memcoll.c
+index a2decfe..bbe8052 100644
+--- a/lib/memcoll.c
++++ b/lib/memcoll.c
+@@ -29,7 +29,12 @@ extern int errno;
+ #include <sys/types.h>
+ 
+ #if HAVE_STRING_H
+ # include <string.h>
++# ifdef NeXT
++#  define memcoll_strcmp strcmp
++# else
++#  define memcoll_strcmp strcoll
++# endif
+ #endif
+ 
+ /* Compare S1 (with length S1LEN) and S2 (with length S2LEN) according
+@@ -47,7 +52,7 @@ memcoll (char *s1, size_t s1len, char *s2, size_t s2len)
+   s1[s1len++] = '\0';
+   s2[s2len++] = '\0';
+ 
+-  while (! (errno = 0, (diff = strcoll (s1, s2)) || errno))
++  while (! (errno = 0, (diff = memcoll_strcmp (s1, s2)) || errno))
+     {
+       /* strcoll found no difference, but perhaps it was fooled by NUL
+ 	 characters in the data.  Work around this problem by advancing
+diff --git a/lib/obstack.c b/lib/obstack.c
+index 17eb986..a7b575c 100644
+--- a/lib/obstack.c
++++ b/lib/obstack.c
+@@ -468,7 +468,7 @@ _obstack_memory_used (h)
+ 
+ # ifndef __attribute__
+ /* This feature is available in gcc versions 2.5 and later.  */
+-#  if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
++#  if defined NeXT || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
+ #   define __attribute__(Spec) /* empty */
+ #  endif
+ # endif
+diff --git a/lib/regex.c b/lib/regex.c
+index 7d7a979..e7479a6 100644
+--- a/lib/regex.c
++++ b/lib/regex.c
+@@ -5809,7 +5809,7 @@ byte_re_match_2_internal (bufp, string1, size1,string2, size2, pos,
+ #endif
+ 
+   /* Definitions for state transitions.  More efficiently for gcc.  */
+-#ifdef __GNUC__
++#if defined __GNUC__ && !defined NeXT
+ # if defined HAVE_SUBTRACT_LOCAL_LABELS && defined SHARED
+ #  define NEXT \
+       do								      \
+@@ -6112,13 +6112,13 @@ byte_re_match_2_internal (bufp, string1, size1,string2, size2, pos,
+       DEBUG_PRINT2 ("\n0x%x: ", p);
+ #endif
+ 
+-#ifdef __GNUC__
++#if defined __GNUC__ && !defined NeXT
+       NEXT;
+ #else
+       if (p == pend)
+ #endif
+ 	{
+-#ifdef __GNUC__
++#if defined __GNUC__ && !defined NeXT
+ 	end_of_pattern:
+ #endif
+ 	  /* End of pattern means we might have succeeded.  */
+@@ -6300,7 +6300,7 @@ byte_re_match_2_internal (bufp, string1, size1,string2, size2, pos,
+ 	  return mcnt;
+ 	}
+ 
+-#ifndef __GNUC__
++#if !defined __GNUC__ || defined NeXT
+       /* Otherwise match next pattern command.  */
+       switch (SWITCH_ENUM_CAST ((re_opcode_t) *p++))
+ 	{
+@@ -7624,7 +7624,7 @@ byte_re_match_2_internal (bufp, string1, size1,string2, size2, pos,
+ 	  NEXT;
+ #endif /* not emacs */
+ 
+-#ifndef __GNUC__
++#if !defined __GNUC__ || defined NeXT
+         default:
+           abort ();
+ 	}
+diff --git a/lib/xalloc.h b/lib/xalloc.h
+index 098a6c2..c7f907f 100644
+--- a/lib/xalloc.h
++++ b/lib/xalloc.h
+@@ -27,7 +27,7 @@
+ # endif
+ 
+ # ifndef __attribute__
+-#  if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 8) || __STRICT_ANSI__
++#  if defined NeXT || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 8) || __STRICT_ANSI__
+ #   define __attribute__(x)
+ #  endif
+ # endif
+diff --git a/lib/xgetcwd.c b/lib/xgetcwd.c
+index ed42520..e3064f3 100644
+--- a/lib/xgetcwd.c
++++ b/lib/xgetcwd.c
+@@ -42,6 +42,7 @@ char *getcwd ();
+ # include "pathmax.h"
+ # define INITIAL_BUFFER_SIZE (PATH_MAX + 1)
+ char *getwd ();
++# undef getcwd
+ # define getcwd(Buf, Max) getwd (Buf)
+ #endif
+ 
+diff --git a/src/chown-core.c b/src/chown-core.c
+index b38efaa..e4ef89e 100644
+--- a/src/chown-core.c
++++ b/src/chown-core.c
+@@ -30,6 +30,18 @@
+ #include "savedir.h"
+ #include "chown-core.h"
+ 
++#if !defined O_NDELAY
++# define O_NDELAY 0
++#endif
++
++#if !defined O_NONBLOCK
++# define O_NONBLOCK O_NDELAY
++#endif
++
++#if !defined O_NOCTTY
++# define O_NOCTTY 0
++#endif
++
+ /* The number of decimal digits required to represent the largest value of
+    type `unsigned int'.  This is enough for an 8-byte unsigned int type.  */
+ #define UINT_MAX_DECIMAL_DIGITS 20
+diff --git a/src/fs.h b/src/fs.h
+index 1c420aa..7a7cc32 100644
+--- a/src/fs.h
++++ b/src/fs.h
+@@ -31,6 +31,6 @@
+ # define S_MAGIC_REISERFS	0x52654973
+ # define S_MAGIC_CRAMFS		0x28cd3d45
+ # define S_MAGIC_ROMFS		0x7275
+-#elif defined __GNU__
++#elif defined __GNU__ && !defined NeXT
+ # include <hurd/hurd_types.h>
+ #endif
+diff --git a/src/expr.c b/src/expr.c
+index 28490a9..ca8d3b8 100644
+--- a/src/expr.c
++++ b/src/expr.c
+@@ -70,6 +70,12 @@ static VALUE *eval (void);
+ static int nomoreargs (void);
+ static int null (VALUE *v);
+ static void printv (VALUE *v);
++
++#ifdef NeXT
++# define exprcmp openstep_strcmp
++#else
++# define exprcmp strcoll
++#endif
+ 
+ void
+ usage (int status)
+@@ -332,7 +338,7 @@ nextarg (char *str)
+     return 0;
+   else
+     {
+-      int r = strcoll (*args, str) == 0;
++      int r = exprcmp (*args, str) == 0;
+       args += r;
+       return r;
+     }
+@@ -668,7 +674,7 @@ eval2 (void)
+       r = eval3 ();
+       tostring (l);
+       tostring (r);
+-      lval = strcoll (l->u.s, r->u.s);
++      lval = exprcmp (l->u.s, r->u.s);
+       rval = 0;
+       if (toarith (l) && toarith (r))
+ 	{
+diff --git a/src/kill.c b/src/kill.c
+index 6595647..e5dc88a 100644
+--- a/src/kill.c
++++ b/src/kill.c
+@@ -134,9 +134,16 @@ operand2sig (char const *operand, char *signame)
+       char *endp;
+       long int l = (errno = 0, strtol (operand, &endp, 10));
+       int i = l;
++#ifdef NeXT
++      int termsig = i & 0x7f;
++      signum = (operand == endp || *endp || errno || i != l ? -1
++		: (termsig != 0 && termsig != 0x7f) ? termsig
++		: i);
++#else
+       signum = (operand == endp || *endp || errno || i != l ? -1
+ 		: WIFSIGNALED (i) ? WTERMSIG (i)
+ 		: i);
++#endif
+     }
+   else
+     {
+diff --git a/src/ls.c b/src/ls.c
+index fb97314..8e26b48 100644
+--- a/src/ls.c
++++ b/src/ls.c
+@@ -2592,9 +2592,18 @@ extract_dirs_from_files (const char *dirname, int ignore_dot_and_dot_dot)
+ 
+ static jmp_buf failed_strcoll;
+ 
++#ifdef NeXT
++# define filenamecmp openstep_strcmp
++#else
++# define filenamecmp strcmp
++#endif
++
+ static int
+ xstrcoll (char const *a, char const *b)
+ {
++#ifdef NeXT
++  return filenamecmp (a, b);
++#else
+   int diff;
+   errno = 0;
+   diff = strcoll (a, b);
+@@ -2606,6 +2615,7 @@ xstrcoll (char const *a, char const *b)
+       longjmp (failed_strcoll, 1);
+     }
+   return diff;
++#endif
+ }
+ 
+ /* Comparison routines for sorting the files. */
+@@ -2620,7 +2629,7 @@ cmp_ctime (struct fileinfo const *a, struct fileinfo const *b,
+   return diff ? diff : cmp (a->name, b->name);
+ }
+ static int compare_ctime (V a, V b) { return cmp_ctime (a, b, xstrcoll); }
+-static int compstr_ctime (V a, V b) { return cmp_ctime (a, b, strcmp); }
++static int compstr_ctime (V a, V b) { return cmp_ctime (a, b, filenamecmp); }
+ static int rev_cmp_ctime (V a, V b) { return compare_ctime (b, a); }
+ static int rev_str_ctime (V a, V b) { return compstr_ctime (b, a); }
+ 
+@@ -2632,7 +2641,7 @@ cmp_mtime (struct fileinfo const *a, struct fileinfo const *b,
+   return diff ? diff : cmp (a->name, b->name);
+ }
+ static int compare_mtime (V a, V b) { return cmp_mtime (a, b, xstrcoll); }
+-static int compstr_mtime (V a, V b) { return cmp_mtime (a, b, strcmp); }
++static int compstr_mtime (V a, V b) { return cmp_mtime (a, b, filenamecmp); }
+ static int rev_cmp_mtime (V a, V b) { return compare_mtime (b, a); }
+ static int rev_str_mtime (V a, V b) { return compstr_mtime (b, a); }
+ 
+@@ -2644,7 +2653,7 @@ cmp_atime (struct fileinfo const *a, struct fileinfo const *b,
+   return diff ? diff : cmp (a->name, b->name);
+ }
+ static int compare_atime (V a, V b) { return cmp_atime (a, b, xstrcoll); }
+-static int compstr_atime (V a, V b) { return cmp_atime (a, b, strcmp); }
++static int compstr_atime (V a, V b) { return cmp_atime (a, b, filenamecmp); }
+ static int rev_cmp_atime (V a, V b) { return compare_atime (b, a); }
+ static int rev_str_atime (V a, V b) { return compstr_atime (b, a); }
+ 
+@@ -2656,7 +2665,7 @@ cmp_size (struct fileinfo const *a, struct fileinfo const *b,
+   return diff ? diff : cmp (a->name, b->name);
+ }
+ static int compare_size (V a, V b) { return cmp_size (a, b, xstrcoll); }
+-static int compstr_size (V a, V b) { return cmp_size (a, b, strcmp); }
++static int compstr_size (V a, V b) { return cmp_size (a, b, filenamecmp); }
+ static int rev_cmp_size (V a, V b) { return compare_size (b, a); }
+ static int rev_str_size (V a, V b) { return compstr_size (b, a); }
+ 
+@@ -2675,7 +2684,7 @@ cmp_name (struct fileinfo const *a, struct fileinfo const *b,
+   return cmp (a->name, b->name);
+ }
+ static int compare_name (V a, V b) { return cmp_name (a, b, xstrcoll); }
+-static int compstr_name (V a, V b) { return cmp_name (a, b, strcmp); }
++static int compstr_name (V a, V b) { return cmp_name (a, b, filenamecmp); }
+ static int rev_cmp_name (V a, V b) { return compare_name (b, a); }
+ static int rev_str_name (V a, V b) { return compstr_name (b, a); }
+ 
+@@ -2692,7 +2701,7 @@ cmp_extension (struct fileinfo const *a, struct fileinfo const *b,
+   return diff ? diff : cmp (a->name, b->name);
+ }
+ static int compare_extension (V a, V b) { return cmp_extension (a, b, xstrcoll); }
+-static int compstr_extension (V a, V b) { return cmp_extension (a, b, strcmp); }
++static int compstr_extension (V a, V b) { return cmp_extension (a, b, filenamecmp); }
+ static int rev_cmp_extension (V a, V b) { return compare_extension (b, a); }
+ static int rev_str_extension (V a, V b) { return compstr_extension (b, a); }
+ 
+@@ -3127,7 +3136,7 @@ quote_name (FILE *out, const char *name, struct quoting_options const *options,
+ 
+   if (qmark_funny_chars)
+     {
+-#if HAVE_MBRTOWC
++#if HAVE_MBRTOWC && !defined NeXT
+       if (MB_CUR_MAX > 1)
+ 	{
+ 	  char const *p = buf;
+@@ -3247,7 +3256,7 @@ quote_name (FILE *out, const char *name, struct quoting_options const *options,
+     }
+   else if (width != NULL)
+     {
+-#if HAVE_MBRTOWC
++#if HAVE_MBRTOWC && !defined NeXT
+       if (MB_CUR_MAX > 1)
+ 	displayed_width = mbsnwidth (buf, len, 0);
+       else
+diff --git a/src/shred.c b/src/shred.c
+index 305023b..ada40fc 100644
+--- a/src/shred.c
++++ b/src/shred.c
+@@ -111,6 +111,14 @@
+ #include "quotearg.h"		/* For quotearg_colon */
+ #include "quote.h"		/* For quotearg_colon */
+ 
++#ifndef O_NDELAY
++# define O_NDELAY 0
++#endif
++
++#ifndef O_NONBLOCK
++# define O_NONBLOCK O_NDELAY
++#endif
++
+ #ifndef O_NOCTTY
+ # define O_NOCTTY 0  /* This is a very optional frill */
+ #endif
+@@ -519,7 +527,7 @@ isaac_seed_finish (struct isaac_state *s)
+ #define ISAAC_SEED(s,x) isaac_seed_data (s, &(x), sizeof (x))
+ 
+ 
+-#if __GNUC__ >= 2 && (__i386__ || __alpha__)
++#if __GNUC__ >= 2 && (__i386__ || __alpha__) && !defined NeXT
+ /*
+  * Many processors have very-high-resolution timer registers,
+  * The timer registers can be made inaccessible, so we have to deal with the
+diff --git a/src/stat.c b/src/stat.c
+index ec286ab..9424145 100644
+--- a/src/stat.c
++++ b/src/stat.c
+@@ -206,7 +206,7 @@ human_fstype (STRUCT_STATVFS const *statfsbuf)
+     case S_MAGIC_ROMFS:
+       type = "romfs";
+       break;
+-# elif __GNU__
++# elif __GNU__ && !defined NeXT
+     case FSTYPE_UFS:
+       type = "ufs";
+       break;
+diff --git a/src/touch.c b/src/touch.c
+--- a/src/touch.c
++++ b/src/touch.c
+@@ -172,8 +172,18 @@ touch (const char *file)
+ 
+   if (amtime_now)
+     {
++#ifdef NeXT
++      time_t now;
++      struct utimbuf utb;
++
++      time (&now);
++      utb.actime = now;
++      utb.modtime = now;
++      status = utime (file, &utb);
++#else
+       /* Pass NULL to utime so it will not fail if we just have
+ 	 write access to the file, but don't own it.  */
+       status = utime (file, NULL);
++#endif
+     }
+   else
+     {
+diff --git a/src/system.h b/src/system.h
+index 9654672..56cdeaf 100644
+--- a/src/system.h
++++ b/src/system.h
+@@ -112,15 +112,39 @@ struct utimbuf
+ # if !STDC_HEADERS && HAVE_MEMORY_H
+ #  include <memory.h>
+ # endif
++# ifdef NeXT
++#  define strcoll openstep_broken_strcoll_decl
++# endif
+ # include <string.h>
++# ifdef NeXT
++#  undef strcoll
++extern int strcoll (const char *, const char *);
++# endif
+ #else
+ # include <strings.h>
+ #endif
+ #if ! HAVE_DECL_MEMRCHR
+ void *memrchr (const void *, int, size_t);
+ #endif
+ 
++#if defined NeXT
++static int
++openstep_strcmp (char const *a, char const *b)
++{
++  unsigned char const *ua = (unsigned char const *) a;
++  unsigned char const *ub = (unsigned char const *) b;
++
++  while (*ua && *ua == *ub)
++    {
++      ++ua;
++      ++ub;
++    }
++
++  return *ua < *ub ? -1 : *ua > *ub;
++}
++#endif
++
+ #include <errno.h>
+ #ifndef errno
+ extern int errno;
+ #endif
+@@ -155,6 +179,18 @@ typedef enum {false = 0, true = 1} bool;
+ # include <sys/file.h>
+ #endif
+ 
++#if !defined O_NDELAY
++# define O_NDELAY 0
++#endif
++
++#if !defined O_NONBLOCK
++# define O_NONBLOCK O_NDELAY
++#endif
++
++#if !defined O_NOCTTY
++# define O_NOCTTY 0
++#endif
++
+ #if !defined SEEK_SET
+ # define SEEK_SET 0
+ # define SEEK_CUR 1

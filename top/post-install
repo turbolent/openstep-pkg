@@ -1,0 +1,8 @@
+#!/bin/sh
+
+TOPBIN="$ROOT_DIR/usr/local/bin/top"
+
+if [ -f "$TOPBIN" ]; then
+    chgrp kmem "$TOPBIN" 2>/dev/null || :
+    chmod 2755 "$TOPBIN" 2>/dev/null || :
+fi

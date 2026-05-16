@@ -1,0 +1,103 @@
+diff --git a/glob/glob.h b/glob/glob.h
+index c3ab64a..a1366a3 100644
+--- a/glob/glob.h
++++ b/glob/glob.h
+@@ -50,7 +50,7 @@ extern "C" {
+ # if defined __FreeBSD__
+ #  define __size_t size_t
+ # else
+-#  if defined __GNUC__ && __GNUC__ >= 2
++#  if defined __GNUC__ && __GNUC__ >= 2 && defined __SIZE_TYPE__
+ typedef __SIZE_TYPE__ __size_t;
+ #  else
+ /* This is a guess.  */
+diff --git a/make.h b/make.h
+index 994f4f2..8faf636 100644
+--- a/make.h
++++ b/make.h
+@@ -198,7 +198,7 @@ extern unsigned int get_path_max PARAMS ((void));
+ 
+ #ifndef __attribute__
+ /* This feature is available in gcc versions 2.5 and later.  */
+-# if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5) || __STRICT_ANSI__
++# if defined (NeXT) || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5) || __STRICT_ANSI__
+ #  define __attribute__(x)
+ # endif
+ /* The __-protected variants of `format' and `printf' attributes
+@@ -608,4 +608,3 @@ extern int handling_fatal_signal;
+ 
+ #define ENULLLOOP(_v,_c)   do{ errno = 0; \
+                                while (((_v)=_c)==0 && errno==EINTR); }while(0)
+-
+diff --git a/misc.c b/misc.c
+index 07f3c01..4482b12 100644
+--- a/misc.c
++++ b/misc.c
+@@ -20,6 +20,67 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.  */
+ #include "dep.h"
+ #include "debug.h"
+ 
++#ifdef NeXT
++extern char **environ;
++
++int
++putenv (const char *string)
++{
++  char **ep;
++  char **new_environ;
++  size_t name_len;
++  char *entry;
++  const char *name_end;
++  int count;
++  int i;
++
++  name_end = strchr (string, '=');
++  name_len = name_end == 0 ? strlen (string) : (size_t) (name_end - string);
++
++  for (ep = environ; ep != 0 && *ep != 0; ++ep)
++    if (strncmp (*ep, string, name_len) == 0 && (*ep)[name_len] == '=')
++      break;
++
++  if (name_end == 0)
++    {
++      if (ep == 0 || *ep == 0)
++        return 0;
++
++      do
++        {
++          ep[0] = ep[1];
++          ++ep;
++        }
++      while (ep[0] != 0);
++
++      return 0;
++    }
++
++  entry = xmalloc (strlen (string) + 1);
++  strcpy (entry, string);
++
++  if (ep != 0 && *ep != 0)
++    {
++      *ep = entry;
++      return 0;
++    }
++
++  count = 0;
++  if (environ != 0)
++    while (environ[count] != 0)
++      ++count;
++
++  new_environ = xmalloc ((count + 2) * sizeof (char *));
++  for (i = 0; i < count; ++i)
++    new_environ[i] = environ[i];
++  new_environ[count] = entry;
++  new_environ[count + 1] = 0;
++  environ = new_environ;
++
++  return 0;
++}
++#endif
++
+ /* Variadic functions.  We go through contortions to allow proper function
+    prototypes for both ANSI and pre-ANSI C compilers, and also for those
+    which support stdarg.h vs. varargs.h, and finally those which have

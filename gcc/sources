@@ -1,0 +1,3 @@
+gcc-2.95.3.tar.gz
+gcc-2.95.3.next.patch gcc-2.95.3
+gcc.2.95.3.i386.specs.patch gcc-2.95.3
