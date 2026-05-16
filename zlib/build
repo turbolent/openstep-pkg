@@ -9,6 +9,30 @@ CFLAGS="-O3 -D_POSIX_SOURCE"
 
 export DESTDIR PATH CC CFLAGS
 
+cat > dirname <<'EOF'
+#!/bin/sh
+
+case $1 in
+    */*)
+        echo "$1" | sed 's#/[^/]*$##'
+    ;;
+    *)
+        echo .
+    ;;
+esac
+EOF
+chmod +x dirname
+PATH=.:$PATH
+export PATH
+
 /bin/sh ./configure --static --prefix=/usr/local
 gnumake teststatic
-gnumake install DESTDIR="$DESTDIR"
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/include" || mkdir "$DESTDIR/usr/local/include"
+test -d "$DESTDIR/usr/local/lib" || mkdir "$DESTDIR/usr/local/lib"
+
+cp zlib.h "$DESTDIR/usr/local/include/zlib.h"
+cp zconf.h "$DESTDIR/usr/local/include/zconf.h"
+cp libz.a "$DESTDIR/usr/local/lib/libz.a"
