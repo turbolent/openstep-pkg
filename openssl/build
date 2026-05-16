@@ -17,4 +17,10 @@ fi
 patch -p1 < "$PATCHFILE"
 /bin/gnumake
 /bin/gnumake install_sw DESTDIR="$DESTDIR"
-/bin/gnumake install_ssldirs DESTDIR="$DESTDIR"
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/ssl" || mkdir "$DESTDIR/usr/local/ssl"
+test -d "$DESTDIR/usr/local/ssl/certs" || mkdir "$DESTDIR/usr/local/ssl/certs"
+test -d "$DESTDIR/usr/local/ssl/private" || mkdir "$DESTDIR/usr/local/ssl/private"
+test -d "$DESTDIR/usr/local/ssl/misc" || mkdir "$DESTDIR/usr/local/ssl/misc"
