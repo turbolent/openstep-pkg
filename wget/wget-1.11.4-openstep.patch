@@ -1,3 +1,38 @@
+diff --git a/src/sysdep.h b/src/sysdep.h
+index 16bbfe2..e62619f 100644
+--- a/src/sysdep.h
++++ b/src/sysdep.h
+@@ -198,4 +198,26 @@ typedef unsigned long uintptr_t;
+ #ifndef HAVE_INTPTR_T
+ typedef long intptr_t;
+ #endif
++
++#ifdef NeXT
++# include <unistd.h>
++# include <sys/ioctl.h>
++# include <utime.h>
++# ifndef RAND_MAX
++#  define RAND_MAX 2147483647
++# endif
++extern char *getenv ();
++extern int getuid ();
++extern int isatty ();
++extern int unlink ();
++extern int fork ();
++extern int setpgrp ();
++extern int getpid ();
++extern int mkdir ();
++extern int open ();
++extern int read ();
++extern int close ();
++extern int ioctl ();
++extern unsigned sleep ();
++extern int usleep ();
++extern void srand ();
++extern int rand ();
++#endif
+ 
+ #endif /* SYSDEP_H */
 diff --git a/src/utils.c b/src/utils.c
 index d80abf7..8e7cee6 100644
 --- a/src/utils.c
