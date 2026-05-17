@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+CLASS_DUMP="$ROOT_DIR/usr/local/bin/class-dump"
+
+[ -x "$CLASS_DUMP" ]
+output=`"$CLASS_DUMP" 2>&1 || true`
+
+case "$output" in
+    "class-dump $PKG_VERSION"*)
+        ;;
+    *)
+        exit 1
+        ;;
+esac

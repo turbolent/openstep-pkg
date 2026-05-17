@@ -1,0 +1,71 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+
+export DESTDIR VERSION PATH
+
+cd src
+
+test -d derived_src || mkdir derived_src
+test -d obj-i386-opt || mkdir obj-i386-opt
+
+(
+    cd derived_src
+    /usr/local/bin/bison -d --yacc ../gram.y
+)
+cp derived_src/y.tab.h gram.h
+cp derived_src/y.tab.c gram.c
+
+OBJDIR=obj-i386-opt
+OBJCFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe -ObjC"
+CFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe"
+
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/MappedFile.o" MappedFile.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcCategory.o" ObjcCategory.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcClass.o" ObjcClass.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcIvar.o" ObjcIvar.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcMethod.o" ObjcMethod.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcProtocol.o" ObjcProtocol.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcThing.o" ObjcThing.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/class-dump.o" class-dump.m
+/bin/cc $OBJCFLAGS -c -o "$OBJDIR/datatypes.o" datatypes.m
+/bin/cc $CFLAGS -c -o "$OBJDIR/lexer.o" lexer.c
+/bin/cc $CFLAGS -c -o "$OBJDIR/my_regex.o" my_regex.c
+/bin/cc $CFLAGS -c -o "$OBJDIR/gram.o" gram.c
+
+/bin/cc -o class-dump \
+    -L"`pwd`/$OBJDIR" \
+    -arch i386 \
+    "$OBJDIR/MappedFile.o" \
+    "$OBJDIR/ObjcCategory.o" \
+    "$OBJDIR/ObjcClass.o" \
+    "$OBJDIR/ObjcIvar.o" \
+    "$OBJDIR/ObjcMethod.o" \
+    "$OBJDIR/ObjcProtocol.o" \
+    "$OBJDIR/ObjcThing.o" \
+    "$OBJDIR/class-dump.o" \
+    "$OBJDIR/datatypes.o" \
+    "$OBJDIR/lexer.o" \
+    "$OBJDIR/my_regex.o" \
+    "$OBJDIR/gram.o" \
+    -framework Foundation
+
+if [ -x class-dump ]; then
+    BINARY=class-dump
+elif [ -x OPENSTEP-GEN/class-dump ]; then
+    BINARY=OPENSTEP-GEN/class-dump
+else
+    echo "Could not find built class-dump binary." >&2
+    exit 1
+fi
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+
+cp "$BINARY" "$DESTDIR/usr/local/bin/class-dump"
+chmod 755 "$DESTDIR/usr/local/bin/class-dump"
