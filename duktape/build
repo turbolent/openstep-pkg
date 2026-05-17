@@ -1,0 +1,50 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+PATCHFILE="duktape-$VERSION-openstep.patch"
+PREFIX=/usr/local
+CC=/bin/cc
+AR=/bin/ar
+RANLIB=/bin/ranlib
+CFLAGS="-O2"
+CPPFLAGS="-I./src -I./examples/cmdline -I./extras/print-alert -I./extras/console -I./extras/logging -I./extras/module-duktape"
+CMDLINE_DEFINES="-DDUK_CMDLINE_PRINTALERT_SUPPORT -DDUK_CMDLINE_CONSOLE_SUPPORT -DDUK_CMDLINE_LOGGING_SUPPORT -DDUK_CMDLINE_MODULE_SUPPORT"
+LIBS="-lm"
+
+export DESTDIR VERSION PATH PREFIX CC AR RANLIB CFLAGS CPPFLAGS CMDLINE_DEFINES LIBS
+
+if [ -f "$PATCHFILE" ]; then
+    patch -p1 < "$PATCHFILE"
+fi
+
+rm -f duktape.o duk_console.o duk_logging.o duk_module_duktape.o duk_print_alert.o libduktape.a duk
+
+"$CC" $CFLAGS $CPPFLAGS -c src/duktape.c -o duktape.o
+"$AR" cr libduktape.a duktape.o
+"$RANLIB" libduktape.a
+
+"$CC" $CFLAGS $CPPFLAGS -c extras/print-alert/duk_print_alert.c -o duk_print_alert.o
+"$CC" $CFLAGS $CPPFLAGS -c extras/console/duk_console.c -o duk_console.o
+"$CC" $CFLAGS $CPPFLAGS -c extras/logging/duk_logging.c -o duk_logging.o
+"$CC" $CFLAGS $CPPFLAGS -c extras/module-duktape/duk_module_duktape.c -o duk_module_duktape.o
+
+"$CC" $CFLAGS $CPPFLAGS $CMDLINE_DEFINES \
+    examples/cmdline/duk_cmdline.c \
+    duk_print_alert.o duk_console.o duk_logging.o duk_module_duktape.o \
+    libduktape.a $LIBS \
+    -o duk
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/include" || mkdir "$DESTDIR/usr/local/include"
+test -d "$DESTDIR/usr/local/lib" || mkdir "$DESTDIR/usr/local/lib"
+
+cp duk "$DESTDIR/usr/local/bin/duk"
+cp src/duktape.h "$DESTDIR/usr/local/include/duktape.h"
+cp src/duk_config.h "$DESTDIR/usr/local/include/duk_config.h"
+cp libduktape.a "$DESTDIR/usr/local/lib/libduktape.a"

@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -e
+
+DUK="$ROOT_DIR/usr/local/bin/duk"
+INCLUDEDIR="$ROOT_DIR/usr/local/include"
+LIB="$ROOT_DIR/usr/local/lib/libduktape.a"
+SRC=/tmp/pkg-duktape-$$.c
+BIN=/tmp/pkg-duktape-$$
+
+[ -x "$DUK" ]
+[ -f "$INCLUDEDIR/duktape.h" ]
+[ -f "$INCLUDEDIR/duk_config.h" ]
+[ -f "$LIB" ]
+
+value=`"$DUK" -e 'print(6 * 7)'`
+[ "$value" = 42 ]
+
+/bin/rm -f "$SRC" "$BIN"
+cat > "$SRC" <<'EOF'
+#include <stdio.h>
+#include "duktape.h"
+
+int main(void) {
+    duk_context *ctx = duk_create_heap_default();
+    if (ctx == 0) return 1;
+    duk_eval_string(ctx, "1 + 2");
+    printf("%ld\n", (long) duk_get_int(ctx, -1));
+    duk_destroy_heap(ctx);
+    return 0;
+}
+EOF
+
+/bin/cc -I"$INCLUDEDIR" "$SRC" "$LIB" -lm -o "$BIN"
+value=`"$BIN"`
+[ "$value" = 3 ]
+
+/bin/rm -f "$SRC" "$BIN"
