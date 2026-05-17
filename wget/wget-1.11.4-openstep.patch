@@ -2,7 +2,7 @@ diff --git a/src/sysdep.h b/src/sysdep.h
 index 16bbfe2..e62619f 100644
 --- a/src/sysdep.h
 +++ b/src/sysdep.h
-@@ -198,4 +198,26 @@ typedef unsigned long uintptr_t;
+@@ -198,5 +198,30 @@ typedef unsigned long uintptr_t;
  #ifndef HAVE_INTPTR_T
  typedef long intptr_t;
  #endif

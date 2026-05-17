@@ -5,7 +5,8 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
-export DESTDIR VERSION PATH
+CC=/bin/cc
+export DESTDIR VERSION PATH CC
 . "$PKG_BUILD_HELPERS"
 
 PATCHFILE="wget-$VERSION-openstep.patch"
@@ -13,4 +14,17 @@ PATCHFILE="wget-$VERSION-openstep.patch"
 patch -p1 < "$PATCHFILE"
 run_configure --disable-nls --without-ssl --prefix=/usr/local
 gnumake
-gnumake install DESTDIR="$DESTDIR"
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/etc" || mkdir "$DESTDIR/usr/local/etc"
+test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
+test -d "$DESTDIR/usr/local/share/info" || mkdir "$DESTDIR/usr/local/share/info"
+test -d "$DESTDIR/usr/local/share/man" || mkdir "$DESTDIR/usr/local/share/man"
+test -d "$DESTDIR/usr/local/share/man/man1" || mkdir "$DESTDIR/usr/local/share/man/man1"
+
+cp src/wget "$DESTDIR/usr/local/bin/wget"
+cp doc/sample.wgetrc "$DESTDIR/usr/local/etc/wgetrc"
+cp doc/wget.info "$DESTDIR/usr/local/share/info/wget.info"
+cp doc/wget.1 "$DESTDIR/usr/local/share/man/man1/wget.1"
