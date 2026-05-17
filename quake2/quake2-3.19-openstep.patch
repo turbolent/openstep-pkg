@@ -1,0 +1,388 @@
+diff --git a/null/in_null.c b/null/in_null.c
+index 79a927588fe5d458ecde7bebb1026e1a9771dca0..7371451ce68532d892c788011d9318b442638108 100644
+--- a/null/in_null.c
++++ b/null/in_null.c
+@@ -2,8 +2,13 @@
+ 
+ #include "../client/client.h"
+ 
++cvar_t	*in_mouse;
++cvar_t	*in_joystick;
++
+ void IN_Init (void)
+ {
++	in_mouse = Cvar_Get ("in_mouse", "1", CVAR_ARCHIVE);
++	in_joystick = Cvar_Get ("in_joystick", "0", CVAR_ARCHIVE);
+ }
+ 
+ void IN_Shutdown (void)
+@@ -33,4 +38,3 @@ void IN_ActivateMouse (void)
+ void IN_DeactivateMouse (void)
+ {
+ }
+-
+diff --git a/null/vid_null.c b/null/vid_null.c
+index 10bb7a8e2790232bd47d57ae64dac0a2d1feb345..81304eb2633395a0df8b5d439af65a24afb66907 100644
+--- a/null/vid_null.c
++++ b/null/vid_null.c
+@@ -6,9 +6,26 @@
+ viddef_t	viddef;				// global video state
+ 
+ refexport_t	re;
++cvar_t		*sw_mode_cvar;
++cvar_t		*vid_mode_cvar;
+ 
+ refexport_t GetRefAPI (refimport_t rimp);
+ 
++static void VID_SyncModeCvars (void)
++{
++	if (!sw_mode_cvar || !vid_mode_cvar)
++		return;
++
++	if (vid_mode_cvar->modified && (int)vid_mode_cvar->value != (int)sw_mode_cvar->value)
++	{
++		Cvar_SetValue ("sw_mode", vid_mode_cvar->value);
++	}
++	else if (sw_mode_cvar->modified && (int)sw_mode_cvar->value != (int)vid_mode_cvar->value)
++	{
++		Cvar_SetValue ("vid_mode", sw_mode_cvar->value);
++	}
++}
++
+ /*
+ ==========================================================================
+ 
+@@ -95,6 +112,10 @@ void	VID_Init (void)
+     viddef.width = 320;
+     viddef.height = 240;
+ 
++	vid_mode_cvar = Cvar_Get ("vid_mode", "0", CVAR_ARCHIVE);
++	sw_mode_cvar = Cvar_Get ("sw_mode", vid_mode_cvar->string, CVAR_ARCHIVE);
++	VID_SyncModeCvars ();
++
+     ri.Cmd_AddCommand = Cmd_AddCommand;
+     ri.Cmd_RemoveCommand = Cmd_RemoveCommand;
+     ri.Cmd_Argc = Cmd_Argc;
+@@ -129,6 +150,7 @@ void	VID_Shutdown (void)
+ 
+ void	VID_CheckChanges (void)
+ {
++	VID_SyncModeCvars ();
+ }
+ 
+ void	VID_MenuInit (void)
+diff --git a/rhapsody/Makefile.openstep b/rhapsody/Makefile.openstep
+new file mode 100644
+index 0000000000000000000000000000000000000000..72e3f7ee7b4ac4031b23c5f009a6c64b18b94480
+--- /dev/null
++++ b/rhapsody/Makefile.openstep
+@@ -0,0 +1,50 @@
++CC = cc
++CFLAGS = -O2 -g -DC_ONLY -Dstricmp=strcasecmp -DGAME_HARD_LINKED -DREF_HARD_LINKED
++LDFLAGS = -sectcreate __ICON __header quake2.iconheader -segprot __ICON r r -sectcreate __ICON app quake2.tiff -framework AppKit -framework Foundation
++ODIR = output
++EXE = $(ODIR)/quake2
++
++SERVERFILES = $(ODIR)/sv_ccmds.o $(ODIR)/sv_ents.o $(ODIR)/sv_game.o $(ODIR)/sv_init.o $(ODIR)/sv_main.o $(ODIR)/sv_send.o $(ODIR)/sv_user.o $(ODIR)/sv_world.o
++GAMEFILES = $(ODIR)/g_ai.o $(ODIR)/g_chase.o $(ODIR)/g_cmds.o $(ODIR)/g_combat.o $(ODIR)/g_func.o $(ODIR)/g_items.o $(ODIR)/g_main.o $(ODIR)/g_misc.o $(ODIR)/g_monster.o $(ODIR)/g_phys.o $(ODIR)/g_save.o $(ODIR)/g_spawn.o $(ODIR)/g_svcmds.o $(ODIR)/g_target.o $(ODIR)/g_trigger.o $(ODIR)/g_utils.o $(ODIR)/g_weapon.o $(ODIR)/g_turret.o $(ODIR)/m_actor.o $(ODIR)/m_berserk.o $(ODIR)/m_boss2.o $(ODIR)/m_boss3.o $(ODIR)/m_boss31.o $(ODIR)/m_boss32.o $(ODIR)/m_brain.o $(ODIR)/m_chick.o $(ODIR)/m_flipper.o $(ODIR)/m_float.o $(ODIR)/m_flyer.o $(ODIR)/m_gladiator.o $(ODIR)/m_gunner.o $(ODIR)/m_hover.o $(ODIR)/m_infantry.o $(ODIR)/m_insane.o $(ODIR)/m_medic.o $(ODIR)/m_move.o $(ODIR)/m_mutant.o $(ODIR)/m_parasite.o $(ODIR)/m_soldier.o $(ODIR)/m_supertank.o $(ODIR)/m_tank.o $(ODIR)/p_client.o $(ODIR)/p_hud.o $(ODIR)/p_trail.o $(ODIR)/p_view.o $(ODIR)/p_weapon.o
++CLIENTFILES = $(ODIR)/cl_ents.o $(ODIR)/cl_fx.o $(ODIR)/cl_input.o $(ODIR)/cl_inv.o $(ODIR)/cl_main.o $(ODIR)/cl_newfx.o $(ODIR)/cl_parse.o $(ODIR)/cl_pred.o $(ODIR)/cl_scrn.o $(ODIR)/cl_cin.o $(ODIR)/cl_tent.o $(ODIR)/cl_view.o $(ODIR)/console.o $(ODIR)/keys.o $(ODIR)/menu.o $(ODIR)/qmenu.o $(ODIR)/snd_dma.o $(ODIR)/snd_mem.o $(ODIR)/snd_mix.o
++COMMONFILES = $(ODIR)/m_flash.o $(ODIR)/cmd.o $(ODIR)/cmodel.o $(ODIR)/common.o $(ODIR)/crc.o $(ODIR)/cvar.o $(ODIR)/files.o $(ODIR)/md4.o $(ODIR)/net_chan.o $(ODIR)/net_udp.o $(ODIR)/pmove.o
++REFSOFTFILES = $(ODIR)/r_aclip.o $(ODIR)/r_alias.o $(ODIR)/r_bsp.o $(ODIR)/r_draw.o $(ODIR)/r_edge.o $(ODIR)/r_image.o $(ODIR)/r_light.o $(ODIR)/r_main.o $(ODIR)/r_misc.o $(ODIR)/r_model.o $(ODIR)/r_part.o $(ODIR)/r_polyse.o $(ODIR)/r_poly.o $(ODIR)/r_rast.o $(ODIR)/r_scan.o $(ODIR)/r_sprite.o $(ODIR)/r_surf.o
++SHAREDFILES = $(ODIR)/q_shared.o
++RHAPFILES = $(ODIR)/cd_null.o $(ODIR)/in_null.o $(ODIR)/snddma_null.o $(ODIR)/sys_rhap.o $(ODIR)/vid_null.o $(ODIR)/swimp_rhap.o
++
++FILES = $(SERVERFILES) $(GAMEFILES) $(COMMONFILES) $(CLIENTFILES) $(REFSOFTFILES) $(SHAREDFILES) $(RHAPFILES)
++
++all: $(ODIR) $(EXE)
++
++$(ODIR):
++	test -d $(ODIR) || mkdir $(ODIR)
++
++$(EXE): $(FILES)
++	$(CC) -o $(EXE) $(FILES) $(LDFLAGS)
++
++clean:
++	rm -f $(EXE) $(FILES)
++
++$(ODIR)/%.o: ../game/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: ../qcommon/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: ../client/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: ../server/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: ../ref_soft/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: ../null/%.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/%.o: %.m
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(ODIR)/net_udp.o: ../linux/net_udp.c
++	$(CC) $(CFLAGS) -c -o $@ $<
+diff --git a/rhapsody/swimp_rhap.m b/rhapsody/swimp_rhap.m
+index aeb77dc46dd4eeb9811465701d52285be8e6e6a0..17306f375a86ab9af64c7a0c393baec35ca7013d 100644
+--- a/rhapsody/swimp_rhap.m
++++ b/rhapsody/swimp_rhap.m
+@@ -1,5 +1,4 @@
+ #import <AppKit/AppKit.h>
+-#import <Interceptor/NSDirectScreen.h>
+ #import <AppKit/NSColor.h>
+ #include "../ref_soft/r_local.h"
+ 
+@@ -8,10 +7,6 @@
+ 
+ NSWindow	*vid_window_i;
+ QuakeView	*vid_view_i;
+-NSDirectScreen *vid_screen;
+-byte		*vid_buffer;		// real framebuffer
+-int			vid_rowbytes;		// framebuffer rowbytes
+-
+ unsigned	*buffernative;		// 24 bit off-screen back buffer for window
+ unsigned	swimp_palette[256];
+ 
+@@ -36,101 +31,21 @@ FULLSCREEN
+ */
+ rserr_t InitFullscreen (int width, int height)
+ {
+-    NSDictionary *mode, *bestMode;
+-    int			modeWidth, bestWidth;
+-    int			modeHeight, bestHeight;
+-	NSArray		*modes;
+-    int			i;
+-	NSString	*string;
+-
+-    
+-    vid_screen = [[NSDirectScreen alloc] initWithScreen:[NSScreen mainScreen]];
+-
+-    // search for an apropriate mode
+-    modes = [vid_screen availableDisplayModes];
+-    bestMode = NULL;
+-    bestWidth = 99999;
+-    bestHeight = 99999;
+-   	for (i=0 ; i<[modes count] ; i++) {
+-        mode = [modes objectAtIndex: i];
+-        string = [mode objectForKey: @"NSDirectScreenPixelEncoding"];
+-        if ( ![string isEqualToString: @"PPPPPPPP"] )
+-            continue;	// only look at paletted modes
+-        modeWidth = [[mode objectForKey: @"NSDirectScreenWidth"] intValue];
+-        modeHeight = [[mode objectForKey: @"NSDirectScreenHeight"] intValue];
+-        if (modeWidth < width || modeHeight < height)
+-            continue;
+-        if (modeWidth < bestWidth) {
+-            bestWidth = modeWidth;
+-            bestHeight = modeHeight;
+-            bestMode = mode;
+-        }
+-    } 
+-
+-    // if there wasn't any paletted mode of that res or greater, fail
+-    if (!bestMode)
+-        return rserr_invalid_fullscreen;
+-
+-	ri.Con_Printf (PRINT_ALL, "SheildDisplay\n");
+-    [vid_screen shieldDisplay];
+-
+-    // hide the cursor in all fullscreen modes
+-    [NSCursor hide];
+-    
+-    vid_window_i = [vid_screen shieldingWindow];
+-
+-    ri.Con_Printf (PRINT_ALL, "switchToDisplayMode\n");
+-    [vid_screen switchToDisplayMode:bestMode];
+-//    [vid_screen fadeDisplayOutToColor:[NSColor blackColor]];
+-//    [vid_screen fadeDisplayInFromColor:[NSColor blackColor]];
+-
+-	vid_buffer = [vid_screen data];
+-	vid_rowbytes = [vid_screen bytesPerRow];
+-
+-    return rserr_ok;
++    ri.Con_Printf (PRINT_ALL, "fullscreen mode unavailable on OPENSTEP\n");
++    return rserr_invalid_fullscreen;
+ }
+ 
+ void ShutdownFullscreen (void)
+ {
+-	[vid_screen dealloc];
+-	[NSCursor unhide];
+ }
+ 
+ void SetPaletteFullscreen (const unsigned char *palette) {
+-#if 0
+-    byte	*p;
+-    int		i;
+-	NSDirectPalette		*pal;
+-
+-    pal = [NSDirectPalette init];
+-    for (i=0 ; i<256 ; i++)
+-        [pal setRed: palette[0]*(1.0/255)
+-              green:  palette[1]*(1.0/255)
+-               blue:  palette[2]*(1.0/255)
+-            atIndex: i];
+-	[vid_screen setPalette: pal];
+-    [pal release];
+-#endif
+ }
+ 
+ 
+ 
+ void BlitFullscreen (void)
+ {
+-	int		i, j;
+-	int		w;
+-	int		*dest, *source;
+-
+-	w = vid.width>>2;
+-
+-    source = (int *)vid.buffer;		// off-screen buffer
+-    dest = (int *)vid_buffer;		// directly on screen
+-    for (j=0 ; j<vid.height ; j++
+-         , source += (vid.rowbytes>>2), dest += (vid_rowbytes>>2)  ) {
+-        for (i=0 ; i<w ; i++ ) {
+-            dest[i] = source[i];            
+-        }
+- 	}
+ }
+ 
+ /*
+@@ -332,6 +247,7 @@ rserr_t SWimp_SetMode( int *pwidth, int *pheight, int mode, qboolean fullscreen)
+     [NSApp activateIgnoringOtherApps: YES];
+     [vid_window_i makeKeyAndOrderFront: nil];
+     [vid_window_i display];
++    ri.Vid_NewWindow (*pwidth, *pheight);
+ 
+ 	return ret;
+ }
+@@ -576,5 +492,3 @@ keymap_t flagmaps[] =
+ }
+ 
+ @end
+-
+-
+diff --git a/rhapsody/sys_rhap.m b/rhapsody/sys_rhap.m
+index ad0507d95dfb912e47400f4da4537de6b6254ce9..c2f75ff0adaf50f615cc9d9cb21917ffe973cd73 100644
+--- a/rhapsody/sys_rhap.m
++++ b/rhapsody/sys_rhap.m
+@@ -4,6 +4,7 @@
+ 
+ int		curtime;
+ int		sys_frame_time;
++qboolean stdin_active = true;
+ 
+ void	Sys_UnloadGame (void)
+ {
+@@ -26,6 +27,90 @@ char *Sys_GetClipboardData( void )
+     return NULL;
+ }
+ 
++#ifdef NeXT
++extern char **environ;
++
++char *strdup (const char *string)
++{
++    char *copy;
++    size_t length;
++
++    length = strlen (string) + 1;
++    copy = malloc (length);
++    if (!copy)
++        return NULL;
++
++    memcpy (copy, string, length);
++    return copy;
++}
++
++int putenv (const char *string)
++{
++    char **ep;
++    char **new_environ;
++    char *entry_copy;
++    const char *name_end;
++    size_t name_len;
++    int env_count;
++
++    name_end = strchr (string, '=');
++    if (name_end)
++        name_len = (size_t)(name_end - string);
++    else
++        name_len = strlen (string);
++
++    ep = environ;
++    while (ep && *ep)
++    {
++        if (strncmp (*ep, string, name_len) == 0 && (*ep)[name_len] == '=')
++            break;
++        ep++;
++    }
++
++    if (!name_end)
++    {
++        if (!ep || !*ep)
++            return 0;
++
++        do
++        {
++            ep[0] = ep[1];
++            ep++;
++        } while (ep[0]);
++        return 0;
++    }
++
++    entry_copy = strdup (string);
++    if (!entry_copy)
++        return -1;
++
++    if (ep && *ep)
++    {
++        *ep = entry_copy;
++        return 0;
++    }
++
++    env_count = 0;
++    if (environ)
++    {
++        while (environ[env_count])
++            env_count++;
++    }
++
++    new_environ = malloc ((env_count + 2) * sizeof(*new_environ));
++    if (!new_environ)
++        return -1;
++
++    if (environ && env_count)
++        memcpy (new_environ, environ, env_count * sizeof(*new_environ));
++
++    new_environ[env_count] = entry_copy;
++    new_environ[env_count + 1] = NULL;
++    environ = new_environ;
++    return 0;
++}
++#endif
++
+ 
+ //===========================================================================
+ 
+@@ -294,6 +379,11 @@ char *Sys_ConsoleInput (void)
+ 	int		len;
+ 
+ 	len = read (0, text, sizeof(text));
++	if (len == 0)
++	{
++		stdin_active = false;
++		return NULL;
++	}
+ 	if (len < 1)
+ 		return NULL;
+ 	text[len-1] = 0;	// rip off the /n and terminate
+@@ -335,4 +425,3 @@ void main (int argc, char **argv)
+         [pool release];
+     }
+ }
+-

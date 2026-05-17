@@ -1,0 +1,39 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATCHFILE="quake2-$VERSION-openstep.patch"
+
+PATH=/usr/local/bin:$PATH
+export PATH
+
+cd Quake-2-master
+
+patch -p1 < "$PATCHFILE"
+
+cd rhapsody
+/usr/local/bin/gnumake -f Makefile.openstep clean all
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
+test -d "$DESTDIR/usr/local/share/games" || mkdir "$DESTDIR/usr/local/share/games"
+test -d "$DESTDIR/usr/local/share/games/quake2" || mkdir "$DESTDIR/usr/local/share/games/quake2"
+test -d "$DESTDIR/usr/local/share/games/quake2/baseq2" || mkdir "$DESTDIR/usr/local/share/games/quake2/baseq2"
+
+cp output/quake2 "$DESTDIR/usr/local/share/games/quake2/quake2.bin"
+cp ../baseq2/config.cfg "$DESTDIR/usr/local/share/games/quake2/baseq2/config.cfg"
+
+cat > "$DESTDIR/usr/local/bin/quake2" <<'EOF'
+#!/bin/sh
+
+GAME_HOME=/usr/local/share/games/quake2
+
+cd "$GAME_HOME" || exit 1
+exec "$GAME_HOME/quake2.bin" "$@"
+EOF
+
+chmod 755 "$DESTDIR/usr/local/bin/quake2" "$DESTDIR/usr/local/share/games/quake2/quake2.bin"

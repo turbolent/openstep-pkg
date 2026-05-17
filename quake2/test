@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -e
+
+/usr/local/bin/quake2 +set vid_fullscreen 0 +set dedicated 1 +quit >/tmp/quake2-test.log 2>&1
