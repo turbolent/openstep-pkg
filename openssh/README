@@ -11,7 +11,8 @@ After installing the package, do the following on the OPENSTEP host.
 
 2. Create the privilege-separation directory
 
-   mkdir -p /var/empty
+   mkdir /var
+   mkdir /var/empty
    chown root /var/empty
    chmod 755 /var/empty
 
@@ -43,8 +44,6 @@ After installing the package, do the following on the OPENSTEP host.
 
    niutil -read . /groups/sshd
    niutil -read . /users/sshd
-   chown root /var/empty
-   chmod 755 /var/empty
    /usr/local/sbin/sshd -t
 
 5. Debug startup if needed
