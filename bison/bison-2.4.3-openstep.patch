@@ -1,0 +1,100 @@
+diff --git a/lib/mbrtowc.c b/lib/mbrtowc.c
+index 5c2650e..68051f0 100644
+--- a/lib/mbrtowc.c
++++ b/lib/mbrtowc.c
+@@ -30,6 +30,9 @@
+ # include "streq.h"
+ # include "verify.h"
+ 
++#ifdef __NeXT__
++# define EILSEQ 92
++#endif
+ 
+ verify (sizeof (mbstate_t) >= 4);
+ 
+diff --git a/lib/sigaction.c b/lib/sigaction.c
+index e14bd96..96fb44f 100644
+--- a/lib/sigaction.c
++++ b/lib/sigaction.c
+@@ -52,7 +52,7 @@
+ 
+ /* Check some of our assumptions.  */
+ #if defined SIGCHLD || defined HAVE_SIGALTSTACK || defined HAVE_SIGINTERRUPT
+-# error "Revisit the assumptions made in the sigaction module"
++# warning "Revisit the assumptions made in the sigaction module"
+ #endif
+ 
+ /* Out-of-range substitutes make a good fallback for uncatchable
+diff --git a/lib/spawni.c b/lib/spawni.c
+index 048d9cf..b2ed165 100644
+--- a/lib/spawni.c
++++ b/lib/spawni.c
+@@ -80,6 +80,10 @@
+ # define internal_function /* empty */
+ #endif
+ 
++#ifdef __NeXT__
++# define setpgid setpgrp
++#endif
++
+ 
+ /* The Unix standard contains a long explanation of the way to signal
+    an error after the fork() was successful.  Since no new wait status
+diff --git a/lib/wait-process.c b/lib/wait-process.c
+index 987b043..ff8eaba 100644
+--- a/lib/wait-process.c
++++ b/lib/wait-process.c
+@@ -27,6 +27,15 @@
+ #include <signal.h>
+ 
+ #include <sys/types.h>
++
++#ifdef __NeXT__
++# define WIFSTOPPED(x) ((x).w_stopval == WSTOPPED)
++# define WIFSIGNALED(x) ((x).w_stopval != WSTOPPED && (x).w_termsig != 0)
++# define WIFEXITED(x) ((x).w_stopval != WSTOPPED && (x).w_termsig == 0)
++# define WTERMSIG(s) ((s).w_termsig)
++# define WEXITSTATUS(s) ((s).w_retcode)
++#endif
++
+ #include <sys/wait.h>
+ 
+ #include "error.h"
+@@ -288,14 +297,24 @@ wait_subprocess (pid_t child, const char *progname,
+     }
+ #else
+   /* waitpid() is just as portable as wait() nowadays.  */
++#ifdef __NeXT__
++  union wait status;
++#else
+   int status;
++#endif
+ 
+   if (termsigp != NULL)
+     *termsigp = 0;
++#ifndef __NeXT__
+   status = 0;
++#endif
+   for (;;)
+     {
++#ifdef __NeXT__
++      int result = wait4 ((child) == -1 ? 0 : child, &status, 0, 0);
++#else
+       int result = waitpid (child, &status, 0);
++#endif
+ 
+       if (result != child)
+         {
+diff --git a/src/files.c b/src/files.c
+index 242a165..d650f8f 100644
+--- a/src/files.c
++++ b/src/files.c
+@@ -374,7 +374,7 @@ output_file_name_check (char **file_name)
+   if (conflict)
+     {
+       free (*file_name);
+-      *file_name = strdup ("/dev/null");
++      *file_name = xstrdup ("/dev/null");
+     }
+   else
+     {

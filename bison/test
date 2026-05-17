@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+BISON="$ROOT_DIR/usr/local/bin/bison"
+TMPDIR=/tmp/pkg-bison-$$
+SRC="$TMPDIR/test.y"
+OUT="$TMPDIR/test.c"
+
+[ -x "$BISON" ]
+/bin/rm -rf "$TMPDIR"
+mkdir "$TMPDIR"
+/bin/cat > "$SRC" <<'EOF'
+%token NUM
+%%
+input:
+    NUM
+;
+%%
+int yylex(void) { return 0; }
+void yyerror(const char *s) { (void)s; }
+EOF
+
+"$BISON" -o "$OUT" "$SRC"
+[ -s "$OUT" ]
+
+/bin/rm -rf "$TMPDIR"

@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+AWK=/usr/local/bin/gawk
+M4=/usr/local/bin/m4
+PATCHFILE="bison-$VERSION-openstep.patch"
+gl_cv_next_fcntl_h='"/NextDeveloper/Headers/bsd/fcntl.h"'
+gl_cv_next_errno_h='"/NextDeveloper/Headers/ansi/errno.h"'
+gl_cv_next_signal_h='"/NextDeveloper/Headers/ansi/signal.h"'
+gl_cv_next_stddef_h='"/NextDeveloper/Headers/ansi/stddef.h"'
+gl_cv_next_stdio_h='"/NextDeveloper/Headers/ansi/stdio.h"'
+gl_cv_next_stdlib_h='"/NextDeveloper/Headers/ansi/stdlib.h"'
+gl_cv_next_string_h='"/NextDeveloper/Headers/ansi/string.h"'
+gl_cv_next_sys_wait_h='"/NextDeveloper/Headers/bsd/sys/wait.h"'
+gl_cv_next_time_h='"/NextDeveloper/Headers/ansi/time.h"'
+gl_cv_next_unistd_h='"/NextDeveloper/Headers/bsd/unistd.h"'
+gl_cv_next_sys_stat_h='"/NextDeveloper/Headers/bsd/sys/stat.h"'
+
+export DESTDIR VERSION PATH CC GREP EGREP AWK M4 \
+  gl_cv_next_fcntl_h gl_cv_next_errno_h gl_cv_next_signal_h \
+  gl_cv_next_stddef_h gl_cv_next_stdio_h gl_cv_next_stdlib_h \
+  gl_cv_next_string_h gl_cv_next_sys_wait_h gl_cv_next_time_h \
+  gl_cv_next_unistd_h gl_cv_next_sys_stat_h
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --disable-nls --prefix=/usr/local
+gnumake
+gnumake install DESTDIR="$DESTDIR"
