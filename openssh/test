@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -e
+
+SSH="$ROOT_DIR/usr/local/bin/ssh"
+SSHKEYGEN="$ROOT_DIR/usr/local/bin/ssh-keygen"
+KEYBASE=/tmp/pkg-openssh-key-$$
+SSHOUT=/tmp/pkg-openssh-ssh-$$
+
+[ -x "$SSH" ]
+[ -x "$SSHKEYGEN" ]
+
+/bin/rm -f "$KEYBASE" "$KEYBASE.pub" "$SSHOUT"
+
+"$SSH" >"$SSHOUT" 2>&1 || true
+case "`cat "$SSHOUT"`" in
+    usage:*)
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+
+"$SSHKEYGEN" -q -t rsa -N '' -f "$KEYBASE" >/dev/null 2>&1
+[ -f "$KEYBASE" ]
+[ -f "$KEYBASE.pub" ]
+
+/bin/rm -f "$KEYBASE" "$KEYBASE.pub" "$SSHOUT"

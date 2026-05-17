@@ -30,6 +30,7 @@ usage:
   pkg install <package-dir>...
   pkg list
   pkg remove <name>
+  pkg test <name>...
 
 package layout:
   build         required build script
@@ -38,6 +39,7 @@ package layout:
   sources       optional, one source per line
   post-install  optional shell hook
   pre-remove    optional shell hook
+  test          optional installed-package test hook
 EOF
 }
 
@@ -655,7 +657,7 @@ write_manifest() {
 
     echo "$PKG_VERSION" > "$INST_DIR/version"
 
-    for hook in pre-remove post-install; do
+    for hook in pre-remove post-install test; do
         if [ -f "$PKG_DIR/$hook" ]; then
             cp "$PKG_DIR/$hook" "$INST_DIR/$hook"
             chmod +x "$INST_DIR/$hook" 2>/dev/null || :
@@ -752,6 +754,54 @@ install_pkgs() {
     done
 }
 
+read_installed_version() {
+    require_file "$INST_DIR/version"
+
+    read PKG_VERSION PKG_VERSION_EXTRA < "$INST_DIR/version" ||
+        die "failed to read installed version file for $PKG_NAME"
+
+    [ -n "$PKG_VERSION" ] || die "installed version file did not contain a version for $PKG_NAME"
+    [ -z "$PKG_VERSION_EXTRA" ] || die "installed version file must contain exactly one field for $PKG_NAME"
+}
+
+test_name() {
+    PKG_NAME=`path_leaf "$1"`
+
+    ROOT_DIR=`default_value "$PKG_ROOT" "/"`
+    ROOT_DIR=`trim_slash "$ROOT_DIR"`
+    LOCAL_ROOT=$ROOT_DIR/usr/local
+    DB_ROOT=`default_value "$PKG_DB" "$LOCAL_ROOT/var/pkg/db"`
+    INST_DIR=$DB_ROOT/installed/$PKG_NAME
+
+    [ -d "$INST_DIR" ] || die "package is not installed: $PKG_NAME"
+
+    read_installed_version
+    require_file "$INST_DIR/test"
+
+    log "testing $PKG_NAME $PKG_VERSION"
+
+    if trace_enabled; then
+        PKG_NAME=$PKG_NAME PKG_VERSION=$PKG_VERSION ROOT_DIR=$ROOT_DIR LOCAL_ROOT=$LOCAL_ROOT \
+            PATH=$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin:$PATH \
+            sh -x "$INST_DIR/test"
+    else
+        PKG_NAME=$PKG_NAME PKG_VERSION=$PKG_VERSION ROOT_DIR=$ROOT_DIR LOCAL_ROOT=$LOCAL_ROOT \
+            PATH=$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin:$PATH \
+            sh "$INST_DIR/test"
+    fi
+
+    log "test passed for $PKG_NAME $PKG_VERSION"
+}
+
+test_pkgs() {
+    [ $# -ge 1 ] || die "test requires at least one <name>"
+
+    for pkg_name
+    do
+        test_name "$pkg_name"
+    done
+}
+
 list_pkgs() {
     ROOT_DIR=`default_value "$PKG_ROOT" "/"`
     ROOT_DIR=`trim_slash "$ROOT_DIR"`
@@ -833,6 +883,11 @@ case $ACTION in
     remove)
         [ $# -eq 2 ] || die "remove requires <name>"
         remove_name "$2"
+    ;;
+
+    test)
+        shift
+        test_pkgs "$@"
     ;;
 
     ""|-h|--help|help)

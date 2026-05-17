@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+MAKEINFO="$ROOT_DIR/usr/local/bin/makeinfo"
+TMPBASE=/tmp/pkg-texinfo-$$
+SRC="$TMPBASE.texi"
+OUT="$TMPBASE.info"
+
+[ -x "$MAKEINFO" ]
+/bin/rm -f "$SRC" "$OUT"
+
+cat > "$SRC" <<'EOF'
+\input texinfo
+@setfilename test.info
+@settitle Test
+@node Top
+@top Test
+Hello.
+@bye
+EOF
+
+"$MAKEINFO" -o "$OUT" "$SRC"
+[ -s "$OUT" ]
+
+/bin/rm -f "$SRC" "$OUT"

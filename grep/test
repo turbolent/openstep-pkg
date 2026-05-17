@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+GREP="$ROOT_DIR/usr/local/bin/grep"
+
+[ -x "$GREP" ]
+
+/bin/echo needle | "$GREP" needle >/dev/null

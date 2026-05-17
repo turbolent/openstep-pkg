@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+OPENSSL="$ROOT_DIR/usr/local/bin/openssl"
+
+[ -x "$OPENSSL" ]
+"$OPENSSL" version >/dev/null

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+GAWK="$ROOT_DIR/usr/local/bin/gawk"
+
+[ -x "$GAWK" ]
+
+value=`/bin/echo 41 | "$GAWK" '{ print $1 + 1 }'`
+[ "$value" = 42 ]

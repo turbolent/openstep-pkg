@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -e
+
+PATCH="$ROOT_DIR/usr/local/bin/patch"
+TMPDIR=/tmp/pkg-patch-$$
+INPUT="$TMPDIR/sample.txt"
+PATCHFILE="$TMPDIR/sample.patch"
+
+[ -x "$PATCH" ]
+/bin/rm -rf "$TMPDIR"
+/bin/mkdir "$TMPDIR"
+
+/bin/echo old > "$INPUT"
+cat > "$PATCHFILE" <<'EOF'
+--- sample.txt
++++ sample.txt
+@@ -1 +1 @@
+-old
++new
+EOF
+
+(
+    cd "$TMPDIR"
+    "$PATCH" < "$PATCHFILE"
+)
+
+value=`/bin/cat "$INPUT"`
+[ "$value" = new ]
+
+/bin/rm -rf "$TMPDIR"

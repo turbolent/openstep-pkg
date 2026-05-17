@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+HEADER="$ROOT_DIR/usr/local/include/zlib.h"
+LIBRARY="$ROOT_DIR/usr/local/lib/libz.a"
+
+[ -s "$HEADER" ]
+[ -s "$LIBRARY" ]

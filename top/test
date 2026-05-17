@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+TOP="$ROOT_DIR/usr/local/bin/top"
+
+[ -x "$TOP" ]
+output=`"$TOP" -v 2>&1 || true`
+
+case "$output" in
+    *"version $PKG_VERSION"*)
+        ;;
+    *)
+        exit 1
+        ;;
+esac

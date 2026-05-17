@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+EXPR="$ROOT_DIR/usr/local/bin/expr"
+LS="$ROOT_DIR/usr/local/bin/ls"
+
+[ -x "$EXPR" ]
+[ -x "$LS" ]
+
+value=`"$EXPR" 21 + 21`
+[ "$value" = 42 ]
+"$LS" -d "$LOCAL_ROOT/bin" >/dev/null

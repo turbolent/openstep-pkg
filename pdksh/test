@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+KSH="$ROOT_DIR/usr/local/bin/ksh"
+
+[ -x "$KSH" ]
+
+value=`"$KSH" -c 'test -n "$KSH_VERSION"; print -r -- ok'`
+[ "$value" = ok ]

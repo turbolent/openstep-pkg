@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+MAKE="$ROOT_DIR/usr/local/bin/gnumake"
+TMPDIR=/tmp/pkg-make-$$
+MAKEFILE="$TMPDIR/Makefile"
+RESULT="$TMPDIR/result"
+
+[ -x "$MAKE" ]
+/bin/rm -rf "$TMPDIR"
+/bin/mkdir "$TMPDIR"
+
+cat > "$MAKEFILE" <<'EOF'
+all:
+	/bin/echo ok > result
+EOF
+
+(
+    cd "$TMPDIR"
+    "$MAKE" -f "$MAKEFILE"
+)
+
+value=`/bin/cat "$RESULT"`
+[ "$value" = ok ]
+
+/bin/rm -rf "$TMPDIR"

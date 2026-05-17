@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+BASH="$ROOT_DIR/usr/local/bin/bash"
+
+[ -x "$BASH" ]
+"$BASH" -c 'test -n "$BASH_VERSION"; test "`echo ok`" = ok'

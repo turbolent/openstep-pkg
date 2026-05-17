@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+CURL="$ROOT_DIR/usr/local/bin/curl"
+TMPFILE=/tmp/pkg-curl-$$.txt
+
+[ -x "$CURL" ]
+/bin/rm -f "$TMPFILE"
+/bin/echo hello > "$TMPFILE"
+
+value=`"$CURL" -fsS "file://$TMPFILE"`
+[ "$value" = hello ]
+
+/bin/rm -f "$TMPFILE"

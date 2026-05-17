@@ -9,6 +9,7 @@ sh ./pkg download bash
 sh ./pkg build bash
 sh ./pkg install bash
 sh ./pkg install bash grep
+sh ./pkg test bash
 sh ./pkg list
 sh ./pkg remove bash
 ```
@@ -25,6 +26,7 @@ bash/
   sources
   post-install
   pre-remove
+  test
 ```
 
 Required:
@@ -38,6 +40,7 @@ Optional:
 - `sources`
 - `post-install`
 - `pre-remove`
+- `test`
 
 ## `version`
 
@@ -121,6 +124,15 @@ gnumake
 gnumake install DESTDIR="$DESTDIR"
 ```
 
+## `test`
+
+`test` is an optional `/bin/sh` script that validates the installed package.
+
+- `sh ./pkg test <name>` runs the installed copy from `/usr/local/var/pkg/db/installed/<name>/test`
+- the package must already be installed
+- `PKG_NAME`, `PKG_VERSION`, `ROOT_DIR`, and `LOCAL_ROOT` are exported for the script
+- `PATH` is prefixed with `$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin`
+
 ## Install database
 
 Installed packages are tracked under:
@@ -155,6 +167,9 @@ is kept so a later `pkg install` can reuse it without rebuilding.
 
 After a successful `pkg install`, that staged install image is also removed,
 so no per-package cache remains.
+
+If a package ships a `test` script, `pkg install` copies it into the installed
+package database so `pkg test <name>` can validate the installed files later.
 
 This layout assumes `/usr/local` is writable by the installing user. That lets
 non-root users build and install packages into the shared `/usr/local` tree.
