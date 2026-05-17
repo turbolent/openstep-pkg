@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+AWK=/usr/local/bin/gawk
+PATCHFILE="m4-$VERSION-openstep.patch"
+gl_cv_absolute_sys_stat_h=/NextDeveloper/Headers/bsd/sys/stat.h
+
+export DESTDIR VERSION PATH CC GREP EGREP AWK gl_cv_absolute_sys_stat_h
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --disable-nls --prefix=/usr/local
+gnumake
+gnumake install DESTDIR="$DESTDIR"

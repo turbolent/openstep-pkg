@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+M4="$ROOT_DIR/usr/local/bin/m4"
+TMPFILE=/tmp/pkg-m4-$$.m4
+
+[ -x "$M4" ]
+/bin/rm -f "$TMPFILE"
+/bin/cat > "$TMPFILE" <<'EOF'
+define(`x', `ok')
+x
+EOF
+
+output=`"$M4" "$TMPFILE"`
+[ "$output" = ok ]
+
+/bin/rm -f "$TMPFILE"
