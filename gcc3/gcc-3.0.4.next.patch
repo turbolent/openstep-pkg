@@ -199,3 +199,21 @@ index a6360a1..65e52ac 100644
  #endif
  };
  
+diff --git a/libiberty/mkstemps.c b/libiberty/mkstemps.c
+index b3a9e40..13ed5cc 100644
+--- a/libiberty/mkstemps.c
++++ b/libiberty/mkstemps.c
+@@ -35,8 +35,11 @@
+ #endif
+ #include "ansidecl.h"
+ 
+-/* We need to provide a type for gcc_uint64_t.  */
+-#ifdef __GNUC__
++/* We need to provide a type for gcc_uint64_t.
++   On OPENSTEP, the GCC driver and collect2 are linked by the bootstrap
++   compiler.  Its libgcc has broken 64-bit division helpers, so keep temp
++   name generation to 32-bit arithmetic on this host.  */
++#if defined(__GNUC__) && !defined(NeXT)
+ __extension__ typedef unsigned long long gcc_uint64_t;
+ #else
+ typedef unsigned long gcc_uint64_t;

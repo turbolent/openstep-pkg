@@ -23,4 +23,15 @@ EOF
 value=`"$BIN"`
 [ "$value" = ok ]
 
+if /bin/nm "$CC" | grep '___umoddi3' >/dev/null 2>&1; then
+    echo "gcc driver still contains 64-bit modulo helper"
+    exit 1
+fi
+
+COLLECT2="$ROOT_DIR/usr/local/lib/gcc-lib/i386-next-openstep4/3.0.4/collect2"
+if /bin/nm "$COLLECT2" | grep '___umoddi3' >/dev/null 2>&1; then
+    echo "collect2 still contains 64-bit modulo helper"
+    exit 1
+fi
+
 /bin/rm -f "$SRC" "$BIN"
