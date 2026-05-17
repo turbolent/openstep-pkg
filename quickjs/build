@@ -1,0 +1,77 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+PREFIX=/usr/local
+PATCHFILE="quickjs-$VERSION-openstep.patch"
+CC=/usr/local/bin/gcc
+AR=/bin/ar
+RANLIB=/bin/ranlib
+QJS_VERSION=`cat VERSION`
+OBJDIR=.obj
+CFLAGS='-pipe -O2 -std=gnu9x -Wall -D_GNU_SOURCE -DNeXT -D__ARCHITECTURE__="i386" -I. -I/NextDeveloper/Headers -I/NextDeveloper/Headers/bsd'
+LIBS="-lm"
+
+export DESTDIR VERSION PATH PREFIX CC AR RANLIB QJS_VERSION OBJDIR CFLAGS LIBS
+
+if [ -f "$PATCHFILE" ]; then
+    patch -p1 < "$PATCHFILE"
+fi
+
+run_gcc()
+{
+    tries=0
+
+    while :; do
+        if "$CC" "$@"; then
+            return 0
+        fi
+        tries=`expr "$tries" + 1`
+        if [ "$tries" -ge 3 ]; then
+            return 1
+        fi
+        echo "retrying gcc $* after compiler driver failure"
+        sleep 1
+    done
+}
+
+rm -f qjs qjsc repl.c libquickjs.a
+rm -f "$OBJDIR"/*.o
+test -d "$OBJDIR" || mkdir "$OBJDIR"
+
+run_gcc $CFLAGS -c quickjs.c -o "$OBJDIR/quickjs.o"
+run_gcc $CFLAGS -c dtoa.c -o "$OBJDIR/dtoa.o"
+run_gcc $CFLAGS -c libregexp.c -o "$OBJDIR/libregexp.o"
+run_gcc $CFLAGS -c libunicode.c -o "$OBJDIR/libunicode.o"
+run_gcc $CFLAGS -c cutils.c -o "$OBJDIR/cutils.o"
+run_gcc $CFLAGS -c quickjs-libc.c -o "$OBJDIR/quickjs-libc.o"
+
+"$AR" cr libquickjs.a \
+    "$OBJDIR/quickjs.o" "$OBJDIR/dtoa.o" "$OBJDIR/libregexp.o" \
+    "$OBJDIR/libunicode.o" "$OBJDIR/cutils.o" "$OBJDIR/quickjs-libc.o"
+"$RANLIB" libquickjs.a
+
+run_gcc $CFLAGS -c qjsc.c -o "$OBJDIR/qjsc.o"
+run_gcc -o qjsc "$OBJDIR/qjsc.o" libquickjs.a $LIBS
+
+./qjsc -s -c -o repl.c -m repl.js
+run_gcc $CFLAGS -c repl.c -o "$OBJDIR/repl.o"
+run_gcc $CFLAGS -c qjs.c -o "$OBJDIR/qjs.o"
+run_gcc -o qjs "$OBJDIR/qjs.o" "$OBJDIR/repl.o" libquickjs.a $LIBS
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/lib" || mkdir "$DESTDIR/usr/local/lib"
+test -d "$DESTDIR/usr/local/lib/quickjs" || mkdir "$DESTDIR/usr/local/lib/quickjs"
+test -d "$DESTDIR/usr/local/include" || mkdir "$DESTDIR/usr/local/include"
+test -d "$DESTDIR/usr/local/include/quickjs" || mkdir "$DESTDIR/usr/local/include/quickjs"
+
+cp qjs "$DESTDIR/usr/local/bin/qjs"
+cp qjsc "$DESTDIR/usr/local/bin/qjsc"
+cp libquickjs.a "$DESTDIR/usr/local/lib/quickjs/libquickjs.a"
+cp quickjs.h "$DESTDIR/usr/local/include/quickjs/quickjs.h"
+cp quickjs-libc.h "$DESTDIR/usr/local/include/quickjs/quickjs-libc.h"

@@ -1,0 +1,949 @@
+diff --git b/architecture/byte_order.h b/architecture/byte_order.h
+new file mode 100644
+index 0000000..de5b172
+--- /dev/null
++++ b/architecture/byte_order.h
+@@ -0,0 +1,28 @@
++#ifndef QUICKJS_OPENSTEP_ARCHITECTURE_BYTE_ORDER_H
++#define QUICKJS_OPENSTEP_ARCHITECTURE_BYTE_ORDER_H
++
++typedef unsigned long NXSwappedFloat;
++typedef unsigned long long NXSwappedDouble;
++
++static inline unsigned short NXSwapShort(unsigned short x)
++{
++    return (unsigned short)((x << 8) | (x >> 8));
++}
++
++static inline unsigned long NXSwapLong(unsigned long x)
++{
++    return ((x & 0x000000ffUL) << 24) |
++           ((x & 0x0000ff00UL) << 8) |
++           ((x & 0x00ff0000UL) >> 8) |
++           ((x & 0xff000000UL) >> 24);
++}
++
++#define NXSwapInt(x) ((unsigned int)NXSwapLong((unsigned long)(x)))
++#define NXSwapBigShortToHost(x) NXSwapShort(x)
++#define NXSwapBigIntToHost(x) NXSwapInt(x)
++#define NXSwapBigLongToHost(x) NXSwapLong(x)
++#define NXSwapHostShortToBig(x) NXSwapShort(x)
++#define NXSwapHostIntToBig(x) NXSwapInt(x)
++#define NXSwapHostLongToBig(x) NXSwapLong(x)
++
++#endif
+diff --git b/bsd/machine/endian.h b/bsd/machine/endian.h
+new file mode 100644
+index 0000000..d9be178
+--- /dev/null
++++ b/bsd/machine/endian.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_BSD_MACHINE_ENDIAN_H
++#define QUICKJS_OPENSTEP_BSD_MACHINE_ENDIAN_H
++
++#include <bsd/i386/endian.h>
++
++#endif
+diff --git b/bsd/machine/label_t.h b/bsd/machine/label_t.h
+new file mode 100644
+index 0000000..2a2c8a4
+--- /dev/null
++++ b/bsd/machine/label_t.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_BSD_MACHINE_LABEL_T_H
++#define QUICKJS_OPENSTEP_BSD_MACHINE_LABEL_T_H
++
++#include <bsd/i386/label_t.h>
++
++#endif
+diff --git b/bsd/machine/signal.h b/bsd/machine/signal.h
+new file mode 100644
+index 0000000..5a99691
+--- /dev/null
++++ b/bsd/machine/signal.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_BSD_MACHINE_SIGNAL_H
++#define QUICKJS_OPENSTEP_BSD_MACHINE_SIGNAL_H
++
++#include <bsd/i386/signal.h>
++
++#endif
+diff --git b/bsd/machine/types.h b/bsd/machine/types.h
+new file mode 100644
+index 0000000..7a6d4da
+--- /dev/null
++++ b/bsd/machine/types.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_BSD_MACHINE_TYPES_H
++#define QUICKJS_OPENSTEP_BSD_MACHINE_TYPES_H
++
++#include <bsd/i386/types.h>
++
++#endif
+diff --git a/cutils.h b/cutils.h
+index 9fcb7a6..57ccdc3 100644
+--- a/cutils.h
++++ b/cutils.h
+@@ -29,6 +29,14 @@
+ #include <string.h>
+ #include <inttypes.h>
+ 
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++#include "openstep-compat.h"
++#endif
++
++#ifndef CONFIG_VERSION
++#define CONFIG_VERSION "2025-09-13"
++#endif
++
+ #define likely(x)       __builtin_expect(!!(x), 1)
+ #define unlikely(x)     __builtin_expect(!!(x), 0)
+ #define force_inline inline __attribute__((always_inline))
+@@ -128,25 +136,55 @@ static inline int64_t min_int64(int64_t a, int64_t b)
+ /* WARNING: undefined if a = 0 */
+ static inline int clz32(unsigned int a)
+ {
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    int n = 0;
++    while ((a & 0x80000000U) == 0) {
++        n++;
++        a <<= 1;
++    }
++    return n;
++#else
+     return __builtin_clz(a);
++#endif
+ }
+ 
+ /* WARNING: undefined if a = 0 */
+ static inline int clz64(uint64_t a)
+ {
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    if ((a >> 32) != 0)
++        return clz32((unsigned int)(a >> 32));
++    return 32 + clz32((unsigned int)a);
++#else
+     return __builtin_clzll(a);
++#endif
+ }
+ 
+ /* WARNING: undefined if a = 0 */
+ static inline int ctz32(unsigned int a)
+ {
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    int n = 0;
++    while ((a & 1U) == 0) {
++        n++;
++        a >>= 1;
++    }
++    return n;
++#else
+     return __builtin_ctz(a);
++#endif
+ }
+ 
+ /* WARNING: undefined if a = 0 */
+ static inline int ctz64(uint64_t a)
+ {
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    if ((uint32_t)a != 0)
++        return ctz32((unsigned int)a);
++    return 32 + ctz32((unsigned int)(a >> 32));
++#else
+     return __builtin_ctzll(a);
++#endif
+ }
+ 
+ struct __attribute__((packed)) packed_u64 {
+diff --git b/dirent.h b/dirent.h
+new file mode 100644
+index 0000000..3d020f8
+--- /dev/null
++++ b/dirent.h
+@@ -0,0 +1,8 @@
++#ifndef QUICKJS_OPENSTEP_DIRENT_H
++#define QUICKJS_OPENSTEP_DIRENT_H
++
++#include <sys/dir.h>
++
++#define dirent direct
++
++#endif
+diff --git b/fenv.h b/fenv.h
+new file mode 100644
+index 0000000..d7c45b0
+--- /dev/null
++++ b/fenv.h
+@@ -0,0 +1,13 @@
++#ifndef QUICKJS_OPENSTEP_FENV_H
++#define QUICKJS_OPENSTEP_FENV_H
++
++typedef int fenv_t;
++typedef int fexcept_t;
++
++#define FE_TONEAREST 0
++#define FE_DOWNWARD 1
++#define FE_UPWARD 2
++#define FE_TOWARDZERO 3
++#define FE_ALL_EXCEPT 0
++
++#endif
+diff --git b/inttypes.h b/inttypes.h
+new file mode 100644
+index 0000000..4e8883f
+--- /dev/null
++++ b/inttypes.h
+@@ -0,0 +1,12 @@
++#ifndef QUICKJS_OPENSTEP_INTTYPES_H
++#define QUICKJS_OPENSTEP_INTTYPES_H
++
++#include "stdint.h"
++
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++
++#endif
+diff --git b/limits.h b/limits.h
+new file mode 100644
+index 0000000..c9117f8
+--- /dev/null
++++ b/limits.h
+@@ -0,0 +1,18 @@
++#ifndef QUICKJS_OPENSTEP_LIMITS_H
++#define QUICKJS_OPENSTEP_LIMITS_H
++
++#define CHAR_BIT 8
++#define SCHAR_MIN (-128)
++#define SCHAR_MAX 127
++#define UCHAR_MAX 255U
++#define SHRT_MIN (-32767 - 1)
++#define SHRT_MAX 32767
++#define USHRT_MAX 65535U
++#define INT_MIN (-2147483647 - 1)
++#define INT_MAX 2147483647
++#define UINT_MAX 4294967295U
++#define LONG_MIN (-2147483647L - 1L)
++#define LONG_MAX 2147483647L
++#define ULONG_MAX 4294967295UL
++
++#endif
+diff --git b/machine/endian.h b/machine/endian.h
+new file mode 100644
+index 0000000..04fd382
+--- /dev/null
++++ b/machine/endian.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_MACHINE_ENDIAN_H
++#define QUICKJS_OPENSTEP_MACHINE_ENDIAN_H
++
++#include <bsd/i386/endian.h>
++
++#endif
+diff --git b/machine/label_t.h b/machine/label_t.h
+new file mode 100644
+index 0000000..ba56ad2
+--- /dev/null
++++ b/machine/label_t.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_MACHINE_LABEL_T_H
++#define QUICKJS_OPENSTEP_MACHINE_LABEL_T_H
++
++#include <bsd/i386/label_t.h>
++
++#endif
+diff --git b/machine/signal.h b/machine/signal.h
+new file mode 100644
+index 0000000..09eab59
+--- /dev/null
++++ b/machine/signal.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_MACHINE_SIGNAL_H
++#define QUICKJS_OPENSTEP_MACHINE_SIGNAL_H
++
++#include <bsd/i386/signal.h>
++
++#endif
+diff --git b/machine/types.h b/machine/types.h
+new file mode 100644
+index 0000000..5248660
+--- /dev/null
++++ b/machine/types.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_MACHINE_TYPES_H
++#define QUICKJS_OPENSTEP_MACHINE_TYPES_H
++
++#include <bsd/i386/types.h>
++
++#endif
+diff --git b/math.h b/math.h
+new file mode 100644
+index 0000000..55904cb
+--- /dev/null
++++ b/math.h
+@@ -0,0 +1,41 @@
++#ifndef QUICKJS_OPENSTEP_MATH_H
++#define QUICKJS_OPENSTEP_MATH_H
++
++#ifndef HUGE_VAL
++#define HUGE_VAL 1.0e999
++#endif
++#ifndef NAN
++#define NAN (1.0e999 - 1.0e999)
++#endif
++#ifndef INFINITY
++#define INFINITY 1.0e999
++#endif
++
++extern double acos(double);
++extern double asin(double);
++extern double atan(double);
++extern double atan2(double, double);
++extern double ceil(double);
++extern double cos(double);
++extern double exp(double);
++extern double fabs(double);
++extern double floor(double);
++extern double fmod(double, double);
++extern double log(double);
++extern double log10(double);
++extern double pow(double, double);
++extern double sin(double);
++extern double sqrt(double);
++extern double tan(double);
++extern double cosh(double);
++extern double sinh(double);
++extern double tanh(double);
++extern double hypot(double, double);
++extern double acosh(double);
++extern double asinh(double);
++extern double atanh(double);
++extern double expm1(double);
++extern double log1p(double);
++extern double cbrt(double);
++
++#endif
+diff --git b/openstep-compat.h b/openstep-compat.h
+new file mode 100644
+index 0000000..542ddd5
+--- /dev/null
++++ b/openstep-compat.h
+@@ -0,0 +1,381 @@
++#ifndef QUICKJS_OPENSTEP_COMPAT_H
++#define QUICKJS_OPENSTEP_COMPAT_H
++
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++
++#include <stdarg.h>
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <math.h>
++#include <time.h>
++#include <unistd.h>
++
++typedef long ssize_t;
++
++struct timespec {
++    long tv_sec;
++    long tv_nsec;
++};
++
++extern char **environ;
++extern char *getwd(char *);
++extern int usleep(unsigned int);
++
++#ifndef _SC_OPEN_MAX
++#define _SC_OPEN_MAX 4
++#endif
++#ifndef ENOSYS
++#define ENOSYS 78
++#endif
++#ifndef PATH_MAX
++#define PATH_MAX 4096
++#endif
++#ifndef CLOCKS_PER_SEC
++#define CLOCKS_PER_SEC 1000000
++#endif
++
++#undef WIFEXITED
++#undef WEXITSTATUS
++#undef WIFSIGNALED
++#undef WTERMSIG
++#define WIFEXITED(status) (((status) & 0177) == 0)
++#define WEXITSTATUS(status) (((status) >> 8) & 0xff)
++#define WIFSIGNALED(status) (((status) & 0177) != 0 && ((status) & 0177) != 0177)
++#define WTERMSIG(status) ((status) & 0177)
++
++#ifndef NAN
++#define NAN (0.0 / 0.0)
++#endif
++#ifndef INFINITY
++#define INFINITY HUGE_VAL
++#endif
++
++typedef void (*sighandler_t)(int);
++
++static int qjs_openstep_vsnprintf(char *str, size_t size,
++                                  const char *format, va_list ap)
++{
++    char tmpbuf[65536];
++    int rc;
++
++    rc = vsprintf(tmpbuf, format, ap);
++    if (size > 0) {
++        strncpy(str, tmpbuf, size - 1);
++        str[size - 1] = '\0';
++    }
++    return rc;
++}
++
++static int qjs_openstep_snprintf(char *str, size_t size,
++                                 const char *format, ...)
++{
++    va_list ap;
++    int rc;
++
++    va_start(ap, format);
++    rc = qjs_openstep_vsnprintf(str, size, format, ap);
++    va_end(ap);
++    return rc;
++}
++
++static char *qjs_openstep_strdup(const char *str)
++{
++    size_t len;
++    char *p;
++
++    len = strlen(str) + 1;
++    p = malloc(len);
++    if (p != NULL)
++        memcpy(p, str, len);
++    return p;
++}
++
++static double qjs_openstep_trunc(double d)
++{
++    return d < 0 ? ceil(d) : floor(d);
++}
++
++static double qjs_openstep_round(double d)
++{
++    return d < 0 ? ceil(d - 0.5) : floor(d + 0.5);
++}
++
++static double qjs_openstep_log2(double d)
++{
++    return log(d) / log(2.0);
++}
++
++static double qjs_openstep_cosh(double d)
++{
++    return (exp(d) + exp(-d)) / 2.0;
++}
++
++static double qjs_openstep_sinh(double d)
++{
++    return (exp(d) - exp(-d)) / 2.0;
++}
++
++static double qjs_openstep_tanh(double d)
++{
++    double e2x;
++
++    e2x = exp(2.0 * d);
++    return (e2x - 1.0) / (e2x + 1.0);
++}
++
++static double qjs_openstep_hypot(double a, double b)
++{
++    return sqrt(a * a + b * b);
++}
++
++static double qjs_openstep_acosh(double d)
++{
++    return log(d + sqrt(d - 1.0) * sqrt(d + 1.0));
++}
++
++static double qjs_openstep_asinh(double d)
++{
++    return log(d + sqrt(d * d + 1.0));
++}
++
++static double qjs_openstep_atanh(double d)
++{
++    return 0.5 * log((1.0 + d) / (1.0 - d));
++}
++
++static double qjs_openstep_expm1(double d)
++{
++    return exp(d) - 1.0;
++}
++
++static double qjs_openstep_log1p(double d)
++{
++    return log(1.0 + d);
++}
++
++static double qjs_openstep_cbrt(double d)
++{
++    if (d < 0)
++        return -pow(-d, 1.0 / 3.0);
++    return pow(d, 1.0 / 3.0);
++}
++
++static double qjs_openstep_fmin(double a, double b)
++{
++    if (a != a)
++        return b;
++    if (b != b)
++        return a;
++    return a < b ? a : b;
++}
++
++static double qjs_openstep_fmax(double a, double b)
++{
++    if (a != a)
++        return b;
++    if (b != b)
++        return a;
++    return a > b ? a : b;
++}
++
++static long qjs_openstep_lrint(double d)
++{
++    return (long)(d < 0 ? d - 0.5 : d + 0.5);
++}
++
++static int qjs_openstep_isnan(double d)
++{
++    return d != d;
++}
++
++static int qjs_openstep_isfinite(double d)
++{
++    return !qjs_openstep_isnan(d) &&
++           d <= 1.7976931348623157e+308 &&
++           d >= -1.7976931348623157e+308;
++}
++
++static int qjs_openstep_signbit(double d)
++{
++    union {
++        double d;
++        uint64_t u64;
++    } u;
++
++    u.d = d;
++    return (u.u64 >> 63) != 0;
++}
++
++static struct tm *qjs_openstep_localtime_r(const time_t *timep, struct tm *result)
++{
++    struct tm *tmp;
++
++    tmp = localtime(timep);
++    if (tmp == NULL)
++        return NULL;
++    *result = *tmp;
++    return result;
++}
++
++static char *qjs_openstep_getcwd(char *buf, size_t size)
++{
++    char tmp[PATH_MAX];
++
++    if (getwd(tmp) == NULL)
++        return NULL;
++    if (strlen(tmp) + 1 > size) {
++        errno = ERANGE;
++        return NULL;
++    }
++    strcpy(buf, tmp);
++    return buf;
++}
++
++static int qjs_openstep_setenv(const char *name, const char *value, int overwrite)
++{
++    char *entry;
++    char **new_environ;
++    size_t count, i;
++    size_t len;
++    size_t name_len;
++
++    if (!overwrite && getenv(name) != NULL)
++        return 0;
++    name_len = strlen(name);
++    len = strlen(name) + strlen(value) + 2;
++    entry = malloc(len);
++    if (entry == NULL)
++        return -1;
++    qjs_openstep_snprintf(entry, len, "%s=%s", name, value);
++    for (i = 0; environ[i] != NULL; i++) {
++        if (strncmp(environ[i], name, name_len) == 0 &&
++            environ[i][name_len] == '=') {
++            environ[i] = entry;
++            return 0;
++        }
++    }
++    count = i;
++    new_environ = malloc((count + 2) * sizeof(*new_environ));
++    if (new_environ == NULL)
++        return -1;
++    for (i = 0; i < count; i++)
++        new_environ[i] = environ[i];
++    new_environ[count] = entry;
++    new_environ[count + 1] = NULL;
++    environ = new_environ;
++    return 0;
++}
++
++static int qjs_openstep_unsetenv(const char *name)
++{
++    size_t len;
++    char **src, **dst;
++
++    len = strlen(name);
++    for (src = dst = environ; *src != NULL; src++) {
++        if (strncmp(*src, name, len) == 0 && (*src)[len] == '=')
++            continue;
++        *dst++ = *src;
++    }
++    *dst = NULL;
++    return 0;
++}
++
++static long qjs_openstep_sysconf(int name)
++{
++    if (name == _SC_OPEN_MAX)
++        return 256;
++    errno = EINVAL;
++    return -1;
++}
++
++static int qjs_openstep_waitpid(int pid, int *status, int options)
++{
++    extern int wait4(int, int *, int, void *);
++
++    return wait4(pid, status, options, NULL);
++}
++
++static int qjs_openstep_tcgetattr(int fd, void *termios_p)
++{
++    (void)fd;
++    (void)termios_p;
++    errno = ENOSYS;
++    return -1;
++}
++
++static int qjs_openstep_tcsetattr(int fd, int optional_actions, const void *termios_p)
++{
++    (void)fd;
++    (void)optional_actions;
++    (void)termios_p;
++    errno = ENOSYS;
++    return -1;
++}
++
++static int qjs_openstep_nanosleep(const struct timespec *req,
++                                  struct timespec *rem)
++{
++    unsigned int usec;
++
++    (void)rem;
++    usec = (unsigned int)(req->tv_sec * 1000000 + req->tv_nsec / 1000);
++    return usleep(usec);
++}
++
++static char *qjs_openstep_realpath(const char *path, char *buf)
++{
++    char cwd_buf[PATH_MAX];
++
++    if (path[0] == '/') {
++        strncpy(buf, path, PATH_MAX - 1);
++        buf[PATH_MAX - 1] = '\0';
++        return buf;
++    }
++    if (qjs_openstep_getcwd(cwd_buf, sizeof(cwd_buf)) == NULL)
++        return NULL;
++    strncpy(buf, cwd_buf, PATH_MAX - 1);
++    buf[PATH_MAX - 1] = '\0';
++    strncat(buf, "/", PATH_MAX - strlen(buf) - 1);
++    strncat(buf, path, PATH_MAX - strlen(buf) - 1);
++    return buf;
++}
++
++#define snprintf qjs_openstep_snprintf
++#define vsnprintf qjs_openstep_vsnprintf
++#define strdup qjs_openstep_strdup
++#define trunc qjs_openstep_trunc
++#define round qjs_openstep_round
++#define log2 qjs_openstep_log2
++#define cosh qjs_openstep_cosh
++#define sinh qjs_openstep_sinh
++#define tanh qjs_openstep_tanh
++#define hypot qjs_openstep_hypot
++#define acosh qjs_openstep_acosh
++#define asinh qjs_openstep_asinh
++#define atanh qjs_openstep_atanh
++#define expm1 qjs_openstep_expm1
++#define log1p qjs_openstep_log1p
++#define cbrt qjs_openstep_cbrt
++#define fmin qjs_openstep_fmin
++#define fmax qjs_openstep_fmax
++#define lrint qjs_openstep_lrint
++#define isnan qjs_openstep_isnan
++#define isfinite qjs_openstep_isfinite
++#define signbit qjs_openstep_signbit
++#define localtime_r qjs_openstep_localtime_r
++#define getcwd qjs_openstep_getcwd
++#define setenv qjs_openstep_setenv
++#define unsetenv qjs_openstep_unsetenv
++#define sysconf qjs_openstep_sysconf
++#define waitpid qjs_openstep_waitpid
++#define tcgetattr qjs_openstep_tcgetattr
++#define tcsetattr qjs_openstep_tcsetattr
++#define nanosleep qjs_openstep_nanosleep
++#define realpath qjs_openstep_realpath
++
++#endif
++
++#endif
+diff --git a/qjs.c b/qjs.c
+index a88e39a..fc5ce4a 100644
+--- a/qjs.c
++++ b/qjs.c
+@@ -140,10 +140,14 @@ static size_t js_trace_malloc_usable_size(const void *ptr)
+     return 0;
+ #elif defined(__linux__) || defined(__GLIBC__)
+     return malloc_usable_size((void *)ptr);
++#else
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    return 0;
+ #else
+     /* change this to `return 0;` if compilation fails */
+     return malloc_usable_size((void *)ptr);
+ #endif
++#endif
+ }
+ 
+ static void
+diff --git a/qjsc.c b/qjsc.c
+index e55ca61..8c536fa 100644
+--- a/qjsc.c
++++ b/qjsc.c
+@@ -36,6 +36,19 @@
+ #include "cutils.h"
+ #include "quickjs-libc.h"
+ 
++#if defined(NeXT)
++#ifndef R_OK
++#define R_OK 4
++#endif
++#ifndef CONFIG_CC
++#define CONFIG_CC "/usr/local/bin/gcc"
++#endif
++#ifndef CONFIG_PREFIX
++#define CONFIG_PREFIX "/usr/local"
++#endif
++static int optind;
++#endif
++
+ typedef struct {
+     char *name;
+     char *short_name;
+diff --git a/quickjs-libc.c b/quickjs-libc.c
+index 54a7a15..cc98a75 100644
+--- a/quickjs-libc.c
++++ b/quickjs-libc.c
+@@ -42,7 +42,9 @@
+ #include <conio.h>
+ #include <utime.h>
+ #else
++#if !defined(NeXT) && !defined(__NeXT__) && !defined(__NeXT)
+ #include <dlfcn.h>
++#endif
+ #include <termios.h>
+ #include <sys/ioctl.h>
+ #include <sys/wait.h>
+@@ -65,7 +67,9 @@ typedef sig_t sighandler_t;
+ #endif
+ 
+ /* enable the os.Worker API. It relies on POSIX threads */
++#if !defined(NeXT) && !defined(__NeXT__) && !defined(__NeXT)
+ #define USE_WORKER
++#endif
+ 
+ #ifdef USE_WORKER
+ #include <pthread.h>
+@@ -480,7 +484,7 @@ typedef JSModuleDef *(JSInitModuleFunc)(JSContext *ctx,
+                                         const char *module_name);
+ 
+ 
+-#if defined(_WIN32)
++#if defined(_WIN32) || defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
+ static JSModuleDef *js_module_loader_so(JSContext *ctx,
+                                         const char *module_name)
+ {
+@@ -2830,6 +2834,16 @@ static JSValue js_os_stat(JSContext *ctx, JSValueConst this_val,
+         JS_DefinePropertyValueStr(ctx, obj, "ctime",
+                                   JS_NewInt64(ctx, timespec_to_ms(&st.st_ctimespec)),
+                                   JS_PROP_C_W_E);
++#elif defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++        JS_DefinePropertyValueStr(ctx, obj, "atime",
++                                  JS_NewInt64(ctx, (int64_t)st.st_atime * 1000),
++                                  JS_PROP_C_W_E);
++        JS_DefinePropertyValueStr(ctx, obj, "mtime",
++                                  JS_NewInt64(ctx, (int64_t)st.st_mtime * 1000),
++                                  JS_PROP_C_W_E);
++        JS_DefinePropertyValueStr(ctx, obj, "ctime",
++                                  JS_NewInt64(ctx, (int64_t)st.st_ctime * 1000),
++                                  JS_PROP_C_W_E);
+ #else
+         JS_DefinePropertyValueStr(ctx, obj, "atime",
+                                   JS_NewInt64(ctx, timespec_to_ms(&st.st_atim)),
+@@ -4339,4 +4353,3 @@ void js_std_eval_binary_json_module(JSContext *ctx,
+         exit(1);
+     }
+ }
+-
+diff --git a/quickjs.c b/quickjs.c
+index 0004383..72e71c6 100644
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -68,7 +68,7 @@
+ 
+ /* define to include Atomics.* operations which depend on the OS
+    threads */
+-#if !defined(EMSCRIPTEN)
++#if !defined(EMSCRIPTEN) && !defined(NeXT) && !defined(__NeXT__) && !defined(__NeXT)
+ #define CONFIG_ATOMICS
+ #endif
+ 
+@@ -1673,10 +1673,14 @@ static size_t js_def_malloc_usable_size(const void *ptr)
+     return 0;
+ #elif defined(__linux__) || defined(__GLIBC__)
+     return malloc_usable_size((void *)ptr);
++#else
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    return 0;
+ #else
+     /* change this to `return 0;` if compilation fails */
+     return malloc_usable_size((void *)ptr);
+ #endif
++#endif
+ }
+ 
+ static void *js_def_malloc(JSMallocState *s, size_t size)
+diff --git b/setjmp.h b/setjmp.h
+new file mode 100644
+index 0000000..216e1fa
+--- /dev/null
++++ b/setjmp.h
+@@ -0,0 +1,6 @@
++#ifndef QUICKJS_OPENSTEP_SETJMP_H
++#define QUICKJS_OPENSTEP_SETJMP_H
++
++#include <ansi/i386/setjmp.h>
++
++#endif
+diff --git b/stdint.h b/stdint.h
+new file mode 100644
+index 0000000..0f8cb4b
+--- /dev/null
++++ b/stdint.h
+@@ -0,0 +1,91 @@
++#ifndef QUICKJS_OPENSTEP_STDINT_H
++#define QUICKJS_OPENSTEP_STDINT_H
++
++#include <sys/types.h>
++
++typedef u_int8_t uint8_t;
++typedef u_int16_t uint16_t;
++typedef u_int32_t uint32_t;
++typedef u_int64_t uint64_t;
++typedef long intptr_t;
++typedef unsigned long uintptr_t;
++
++#ifndef CHAR_BIT
++#define CHAR_BIT 8
++#endif
++#ifndef INT_MIN
++#define INT_MIN (-2147483647 - 1)
++#endif
++#ifndef INT_MAX
++#define INT_MAX 2147483647
++#endif
++#ifndef UINT_MAX
++#define UINT_MAX 4294967295U
++#endif
++#ifndef LONG_MIN
++#define LONG_MIN (-2147483647L - 1L)
++#endif
++#ifndef LONG_MAX
++#define LONG_MAX 2147483647L
++#endif
++#ifndef ULONG_MAX
++#define ULONG_MAX 4294967295UL
++#endif
++
++#ifndef INT8_MIN
++#define INT8_MIN (-128)
++#endif
++#ifndef INT8_MAX
++#define INT8_MAX 127
++#endif
++#ifndef UINT8_MAX
++#define UINT8_MAX 255U
++#endif
++#ifndef INT16_MIN
++#define INT16_MIN (-32767 - 1)
++#endif
++#ifndef INT16_MAX
++#define INT16_MAX 32767
++#endif
++#ifndef UINT16_MAX
++#define UINT16_MAX 65535U
++#endif
++#ifndef INT32_MIN
++#define INT32_MIN (-2147483647 - 1)
++#endif
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#ifndef UINT32_MAX
++#define UINT32_MAX 4294967295U
++#endif
++#ifndef INT64_MIN
++#define INT64_MIN (-9223372036854775807LL - 1LL)
++#endif
++#ifndef INT64_MAX
++#define INT64_MAX 9223372036854775807LL
++#endif
++#ifndef UINT64_MAX
++#define UINT64_MAX 18446744073709551615ULL
++#endif
++#ifndef INTPTR_MIN
++#define INTPTR_MIN LONG_MIN
++#endif
++#ifndef INTPTR_MAX
++#define INTPTR_MAX LONG_MAX
++#endif
++#ifndef UINTPTR_MAX
++#define UINTPTR_MAX ULONG_MAX
++#endif
++#ifndef SIZE_MAX
++#define SIZE_MAX ULONG_MAX
++#endif
++
++#ifndef INT64_C
++#define INT64_C(c) c ## LL
++#endif
++#ifndef UINT64_C
++#define UINT64_C(c) c ## ULL
++#endif
++
++#endif

@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+QJS="$ROOT_DIR/usr/local/bin/qjs"
+QJSC="$ROOT_DIR/usr/local/bin/qjsc"
+
+[ -x "$QJS" ]
+[ -x "$QJSC" ]
+
+out=`"$QJS" -e 'print(1 + 2)'`
+[ "$out" = 3 ]
