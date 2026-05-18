@@ -1,0 +1,67 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+CFLAGS="-O2 -DNeXT"
+SED=/bin/sed
+GREP=/usr/local/bin/grep
+EGREP="/usr/local/bin/grep -E"
+
+export DESTDIR VERSION PREFIX PATH CC CFLAGS SED GREP EGREP
+
+if [ -d "jpeg-$VERSION" ]; then
+    cd "jpeg-$VERSION"
+fi
+
+/usr/local/bin/ksh ./configure --prefix="$PREFIX" --disable-shared --disable-dependency-tracking
+gnumake -f makefile.ansi CC="$CC" CFLAGS="$CFLAGS" AR="ar rc" AR2=/bin/ranlib
+gnumake -f makefile.ansi test
+/bin/ranlib libjpeg.a
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR$PREFIX" || mkdir "$DESTDIR$PREFIX"
+test -d "$DESTDIR$PREFIX/bin" || mkdir "$DESTDIR$PREFIX/bin"
+test -d "$DESTDIR$PREFIX/include" || mkdir "$DESTDIR$PREFIX/include"
+test -d "$DESTDIR$PREFIX/lib" || mkdir "$DESTDIR$PREFIX/lib"
+test -d "$DESTDIR$PREFIX/man" || mkdir "$DESTDIR$PREFIX/man"
+test -d "$DESTDIR$PREFIX/man/man1" || mkdir "$DESTDIR$PREFIX/man/man1"
+
+cp cjpeg "$DESTDIR$PREFIX/bin/cjpeg"
+cp djpeg "$DESTDIR$PREFIX/bin/djpeg"
+cp jpegtran "$DESTDIR$PREFIX/bin/jpegtran"
+cp rdjpgcom "$DESTDIR$PREFIX/bin/rdjpgcom"
+cp wrjpgcom "$DESTDIR$PREFIX/bin/wrjpgcom"
+chmod 755 "$DESTDIR$PREFIX/bin/cjpeg"
+chmod 755 "$DESTDIR$PREFIX/bin/djpeg"
+chmod 755 "$DESTDIR$PREFIX/bin/jpegtran"
+chmod 755 "$DESTDIR$PREFIX/bin/rdjpgcom"
+chmod 755 "$DESTDIR$PREFIX/bin/wrjpgcom"
+
+cp libjpeg.a "$DESTDIR$PREFIX/lib/libjpeg.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libjpeg.a"
+chmod 644 "$DESTDIR$PREFIX/lib/libjpeg.a"
+
+cp jconfig.h "$DESTDIR$PREFIX/include/jconfig.h"
+cp jpeglib.h "$DESTDIR$PREFIX/include/jpeglib.h"
+cp jmorecfg.h "$DESTDIR$PREFIX/include/jmorecfg.h"
+cp jerror.h "$DESTDIR$PREFIX/include/jerror.h"
+chmod 644 "$DESTDIR$PREFIX/include/jconfig.h"
+chmod 644 "$DESTDIR$PREFIX/include/jpeglib.h"
+chmod 644 "$DESTDIR$PREFIX/include/jmorecfg.h"
+chmod 644 "$DESTDIR$PREFIX/include/jerror.h"
+
+cp cjpeg.1 "$DESTDIR$PREFIX/man/man1/cjpeg.1"
+cp djpeg.1 "$DESTDIR$PREFIX/man/man1/djpeg.1"
+cp jpegtran.1 "$DESTDIR$PREFIX/man/man1/jpegtran.1"
+cp rdjpgcom.1 "$DESTDIR$PREFIX/man/man1/rdjpgcom.1"
+cp wrjpgcom.1 "$DESTDIR$PREFIX/man/man1/wrjpgcom.1"
+chmod 644 "$DESTDIR$PREFIX/man/man1/cjpeg.1"
+chmod 644 "$DESTDIR$PREFIX/man/man1/djpeg.1"
+chmod 644 "$DESTDIR$PREFIX/man/man1/jpegtran.1"
+chmod 644 "$DESTDIR$PREFIX/man/man1/rdjpgcom.1"
+chmod 644 "$DESTDIR$PREFIX/man/man1/wrjpgcom.1"

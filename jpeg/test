@@ -1,0 +1,53 @@
+#!/bin/sh
+
+set -e
+
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+export PATH
+
+WORKDIR=/tmp/jpeg-test-$$
+test -d "$WORKDIR" && rm -rf "$WORKDIR"
+mkdir "$WORKDIR"
+cd "$WORKDIR"
+
+cat > conftest.c <<'EOF'
+#include <stdio.h>
+#include <jpeglib.h>
+
+int
+main()
+{
+  struct jpeg_compress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  if (JPEG_LIB_VERSION != 80)
+    return 1;
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_compress(&cinfo);
+  jpeg_destroy_compress(&cinfo);
+  return 0;
+}
+EOF
+
+/bin/cc -I/usr/local/include -o conftest conftest.c -L/usr/local/lib -ljpeg
+./conftest
+
+cat > test.ppm <<'EOF'
+P3
+2 2
+255
+255 0 0 0 255 0
+0 0 255 255 255 255
+EOF
+
+cjpeg -outfile test.jpg test.ppm
+test -s test.jpg
+djpeg -ppm -outfile roundtrip.ppm test.jpg
+test -s roundtrip.ppm
+jpegtran -outfile transformed.jpg test.jpg
+test -s transformed.jpg
+rdjpgcom test.jpg >/dev/null
+
+cd /
+rm -rf "$WORKDIR"
