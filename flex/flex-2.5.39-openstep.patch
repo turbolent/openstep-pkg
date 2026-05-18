@@ -1,0 +1,206 @@
+diff --git a/flexdef.h b/flexdef.h
+index 046dd9a..ab83b8b 100644
+--- a/flexdef.h
++++ b/flexdef.h
+@@ -75,6 +75,9 @@ char *alloca ();
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
++#ifdef NeXT
++#include <sys/types.h>
++#endif
+ #ifdef HAVE_NETINET_IN_H
+ #include <netinet/in.h>
+ #endif
+@@ -84,6 +87,16 @@ char *alloca ();
+ #ifdef HAVE_SYS_WAIT_H
+ #include <sys/wait.h>
+ #endif
++#ifdef NeXT
++#ifndef WIFEXITED
++#define WIFEXITED(status) (((status) & 0xff) == 0)
++#endif
++#ifndef WEXITSTATUS
++#define WEXITSTATUS(status) (((status) >> 8) & 0xff)
++#endif
++int flex_next_snprintf(char *str, size_t size, const char *format, ...);
++#define snprintf flex_next_snprintf
++#endif
+ #ifdef HAVE_STDBOOL_H
+ #include <stdbool.h>
+ #else
+@@ -91,7 +104,21 @@ char *alloca ();
+ #define true 1
+ #define false 0
+ #endif
+-#ifdef HAVE_REGEX_H
++#ifdef NeXT
++#define REG_EXTENDED 1
++typedef struct {
++	int kind;
++} regex_t;
++typedef struct {
++	int rm_so;
++	int rm_eo;
++} regmatch_t;
++int regcomp(regex_t *preg, const char *regex, int cflags);
++int regexec(const regex_t *preg, const char *string, size_t nmatch,
++	    regmatch_t pmatch[], int eflags);
++size_t regerror(int errcode, const regex_t *preg, char *errbuf,
++		size_t errbuf_size);
++#elif defined(HAVE_REGEX_H)
+ #include <regex.h>
+ #endif
+ #include "flexint.h"
+diff --git a/main.c b/main.c
+index 069b7b2..73c8229 100644
+--- a/main.c
++++ b/main.c
+@@ -367,6 +367,13 @@ void check_options ()
+     filter_create_ext(output_chain, m4, "-P", 0);
+     filter_create_int(output_chain, filter_fix_linedirs, NULL);
+ 
++#ifdef NeXT
++    if (headerfilename != NULL && preproc_level == 1000) {
++        gen_line_dirs = false;
++        preproc_level = 2;
++    }
++#endif
++
+     /* For debugging, only run the requested number of filters. */
+     if (preproc_level > 0) {
+         filter_truncate(output_chain, preproc_level);
+diff --git a/misc.c b/misc.c
+index e3fdd50..463ee4d 100644
+--- a/misc.c
++++ b/misc.c
+@@ -34,6 +34,23 @@
+ #include "flexdef.h"
+ #include "tables.h"
+ 
++#ifdef NeXT
++#undef snprintf
++int flex_next_snprintf(char *str, size_t size, const char *format, ...)
++{
++	va_list ap;
++	int ret;
++
++	va_start(ap, format);
++	ret = vsprintf(str, format, ap);
++	va_end(ap);
++	if (size > 0)
++		str[size - 1] = '\0';
++	return ret;
++}
++#define snprintf flex_next_snprintf
++#endif
++
+ #define CMD_IF_TABLES_SER    "%if-tables-serialization"
+ #define CMD_TABLES_YYDMAP    "%tables-yydmap"
+ #define CMD_DEFINE_YYTABLES  "%define-yytables"
+diff --git a/regex.c b/regex.c
+index e12cf65..1e46f68 100644
+--- a/regex.c
++++ b/regex.c
+@@ -27,6 +27,101 @@
+ static const char* REGEXP_LINEDIR = "^#line ([[:digit:]]+) \"(.*)\"";
+ static const char* REGEXP_BLANK_LINE = "^[[:space:]]*$";
+ 
++#ifdef NeXT
++#define FLEX_NEXT_REGEX_LINEDIR 1
++#define FLEX_NEXT_REGEX_BLANK_LINE 2
++
++int regcomp(regex_t *preg, const char *regex, int cflags)
++{
++	(void)cflags;
++
++	if (strcmp(regex, REGEXP_LINEDIR) == 0) {
++		preg->kind = FLEX_NEXT_REGEX_LINEDIR;
++		return 0;
++	}
++	if (strcmp(regex, REGEXP_BLANK_LINE) == 0) {
++		preg->kind = FLEX_NEXT_REGEX_BLANK_LINE;
++		return 0;
++	}
++
++	preg->kind = 0;
++	return 1;
++}
++
++int regexec(const regex_t *preg, const char *string, size_t nmatch,
++	    regmatch_t pmatch[], int eflags)
++{
++	const char *p;
++	const char *digits;
++	const char *name;
++	const char *end;
++
++	(void)eflags;
++
++	if (preg->kind == FLEX_NEXT_REGEX_BLANK_LINE) {
++		for (p = string; *p != '\0'; p++) {
++			if (*p != ' ' && *p != '\t' && *p != '\r' && *p != '\n')
++				return 1;
++		}
++		return 0;
++	}
++
++	if (preg->kind != FLEX_NEXT_REGEX_LINEDIR)
++		return 1;
++
++	if (strncmp(string, "#line ", 6) != 0)
++		return 1;
++	digits = string + 6;
++	p = digits;
++	while (*p >= '0' && *p <= '9')
++		p++;
++	if (p == digits || *p != ' ' || p[1] != '"')
++		return 1;
++	name = p + 2;
++	end = name;
++	while (*end != '\0' && *end != '"')
++		end++;
++	if (*end != '"')
++		return 1;
++
++	if (nmatch > 0 && pmatch != NULL) {
++		pmatch[0].rm_so = 0;
++		pmatch[0].rm_eo = (int)(end - string + 1);
++	}
++	if (nmatch > 1 && pmatch != NULL) {
++		pmatch[1].rm_so = (int)(digits - string);
++		pmatch[1].rm_eo = (int)(p - string);
++	}
++	if (nmatch > 2 && pmatch != NULL) {
++		pmatch[2].rm_so = (int)(name - string);
++		pmatch[2].rm_eo = (int)(end - string);
++	}
++
++	return 0;
++}
++
++size_t regerror(int errcode, const regex_t *preg, char *errbuf,
++		size_t errbuf_size)
++{
++	const char *msg = "unsupported regular expression";
++	size_t len;
++
++	(void)errcode;
++	(void)preg;
++
++	len = strlen(msg);
++	if (errbuf != NULL && errbuf_size > 0) {
++		size_t copy_len = len;
++		if (copy_len >= errbuf_size)
++			copy_len = errbuf_size - 1;
++		memcpy(errbuf, msg, copy_len);
++		errbuf[copy_len] = '\0';
++	}
++
++	return len;
++}
++#endif
++
+ regex_t regex_linedir; /**< matches line directives */
+ regex_t regex_blank_line; /**< matches blank lines */
+ 

@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+FLEX="$ROOT_DIR/usr/local/bin/flex"
+CC=/bin/cc
+TMPDIR=/tmp/pkg-flex-$$
+
+[ -x "$FLEX" ]
+rm -rf "$TMPDIR"
+mkdir "$TMPDIR"
+
+cat > "$TMPDIR/scanner.l" <<'EOF'
+%option noyywrap
+%%
+hello { return 7; }
+. { return 1; }
+%%
+int main(void) { return yylex() == 7 ? 0 : 1; }
+EOF
+
+"$FLEX" --header-file="$TMPDIR/lex.yy.h" -o "$TMPDIR/lex.yy.c" "$TMPDIR/scanner.l"
+[ -s "$TMPDIR/lex.yy.h" ]
+"$CC" -o "$TMPDIR/scanner" "$TMPDIR/lex.yy.c"
+echo hello | "$TMPDIR/scanner"
+rm -rf "$TMPDIR"
