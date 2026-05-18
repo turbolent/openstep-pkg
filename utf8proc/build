@@ -1,0 +1,42 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="utf8proc-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+
+export DESTDIR VERSION PREFIX PATH
+
+if [ -d "utf8proc-$VERSION" ]; then
+    cd "utf8proc-$VERSION"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+gnumake utf8proc.o \
+    CC=cc \
+    CFLAGS="-O2 -DNeXT" \
+    PICFLAG= \
+    C99FLAG= \
+    WCFLAGS= \
+    UTF8PROC_DEFINES=-DUTF8PROC_STATIC
+
+rm -f libutf8proc.a
+/bin/ar cr libutf8proc.a utf8proc.o
+/bin/ranlib libutf8proc.a
+
+gnumake libutf8proc.pc prefix="$PREFIX"
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR$PREFIX" || mkdir "$DESTDIR$PREFIX"
+test -d "$DESTDIR$PREFIX/include" || mkdir "$DESTDIR$PREFIX/include"
+test -d "$DESTDIR$PREFIX/lib" || mkdir "$DESTDIR$PREFIX/lib"
+test -d "$DESTDIR$PREFIX/lib/pkgconfig" || mkdir "$DESTDIR$PREFIX/lib/pkgconfig"
+
+cp utf8proc.h "$DESTDIR$PREFIX/include/utf8proc.h"
+cp libutf8proc.a "$DESTDIR$PREFIX/lib/libutf8proc.a"
+cp libutf8proc.pc "$DESTDIR$PREFIX/lib/pkgconfig/libutf8proc.pc"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libutf8proc.a"

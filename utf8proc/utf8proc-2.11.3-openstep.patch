@@ -1,0 +1,116 @@
+diff --git a/utf8proc.c b/utf8proc.c
+index e8fa207..d66aaae 100644
+--- a/utf8proc.c
++++ b/utf8proc.c
+@@ -292,6 +292,7 @@ static utf8proc_bool grapheme_break_extended(int lbc, int tbc, int licb, int tic
+ {
+   if (state) {
+     int state_bc, state_icb; /* boundclass and indic_conjunct_break state */
++    utf8proc_bool break_permitted;
+     if (*state == 0) { /* state initialization */
+       state_bc = lbc;
+       state_icb = licb == UTF8PROC_INDIC_CONJUNCT_BREAK_CONSONANT ? licb : UTF8PROC_INDIC_CONJUNCT_BREAK_NONE;
+@@ -301,7 +302,7 @@ static utf8proc_bool grapheme_break_extended(int lbc, int tbc, int licb, int tic
+       state_icb = *state >> 8;   // 2nd byte of state is indic conjunct break
+     }
+ 
+-    utf8proc_bool break_permitted = grapheme_break_simple(state_bc, tbc) &&
++    break_permitted = grapheme_break_simple(state_bc, tbc) &&
+        !(state_icb == UTF8PROC_INDIC_CONJUNCT_BREAK_LINKER
+         && ticb == UTF8PROC_INDIC_CONJUNCT_BREAK_CONSONANT); // GB9c
+ 
+@@ -661,16 +662,20 @@ UTF8PROC_DLLEXPORT utf8proc_ssize_t utf8proc_normalize_utf32(utf8proc_int32_t *b
+     utf8proc_ssize_t rpos;
+     utf8proc_ssize_t wpos = 0;
+     for (rpos = 0; rpos < length; rpos++) {
++      const utf8proc_property_t *current_property;
+       utf8proc_int32_t current_char = buffer[rpos];
+       if (current_char < 0) {
+         /* skip grapheme break */
+         continue;
+       }
+-      const utf8proc_property_t *current_property = unsafe_get_property(current_char);
++      current_property = unsafe_get_property(current_char);
+       if (starter && current_property->combining_class > max_combining_class) {
+         /* combination perhaps possible */
+         utf8proc_int32_t hangul_lindex;
+         utf8proc_int32_t hangul_sindex;
++        int idx;
++        int len;
++        utf8proc_int32_t max_second;
+         hangul_lindex = *starter - UTF8PROC_HANGUL_LBASE;
+         if (hangul_lindex >= 0 && hangul_lindex < UTF8PROC_HANGUL_LCOUNT) {
+           utf8proc_int32_t hangul_vindex;
+@@ -697,22 +702,24 @@ UTF8PROC_DLLEXPORT utf8proc_ssize_t utf8proc_normalize_utf32(utf8proc_int32_t *b
+         if (!starter_property) {
+           starter_property = unsafe_get_property(*starter);
+         }
+-        int idx = starter_property->comb_index;
++        idx = starter_property->comb_index;
+         if (idx < 0x3FF && current_property->comb_issecond) {
+-          int len = starter_property->comb_length;
+-          utf8proc_int32_t max_second = utf8proc_combinations_second[idx + len - 1];
++          len = starter_property->comb_length;
++          max_second = utf8proc_combinations_second[idx + len - 1];
+           if (current_char <= max_second) {
+             int off;
++            utf8proc_int32_t composition;
+             // TODO: binary search? arithmetic search?
+             for (off = 0; off < len; ++off) {
+-              utf8proc_int32_t second = utf8proc_combinations_second[idx + off];
++              utf8proc_int32_t second;
++              second = utf8proc_combinations_second[idx + off];
+               if (current_char < second) {
+                 /* not found */
+                 break;
+               }
+               if (current_char == second) {
+                 /* found */
+-                utf8proc_int32_t composition = utf8proc_combinations_combined[idx + off];
++                composition = utf8proc_combinations_combined[idx + off];
+                 *starter = composition;
+                 starter_property = NULL;
+                 break;
+diff --git a/utf8proc.h b/utf8proc.h
+index 8d9a2e4..fed39e9 100644
+--- a/utf8proc.h
++++ b/utf8proc.h
+@@ -78,7 +78,26 @@
+ 
+ #include <stdlib.h>
+ 
+-#if defined(_MSC_VER) && _MSC_VER < 1800
++#if defined(NeXT)
++typedef signed char utf8proc_int8_t;
++typedef unsigned char utf8proc_uint8_t;
++typedef short utf8proc_int16_t;
++typedef unsigned short utf8proc_uint16_t;
++typedef int utf8proc_int32_t;
++typedef unsigned int utf8proc_uint32_t;
++typedef unsigned int utf8proc_size_t;
++typedef int utf8proc_ssize_t;
++#  ifndef __cplusplus
++typedef unsigned char utf8proc_bool;
++#    ifndef __bool_true_false_are_defined
++#      define false 0
++#      define true 1
++#      define __bool_true_false_are_defined 1
++#    endif
++#  else
++typedef bool utf8proc_bool;
++#  endif
++#elif defined(_MSC_VER) && _MSC_VER < 1800
+ // MSVC prior to 2013 lacked stdbool.h and stdint.h
+ typedef signed char utf8proc_int8_t;
+ typedef unsigned char utf8proc_uint8_t;
+@@ -120,6 +139,10 @@ typedef bool utf8proc_bool;
+ #endif
+ #include <limits.h>
+ 
++#if defined(NeXT) && !defined(SIZE_MAX)
++#  define SIZE_MAX UINT_MAX
++#endif
++
+ #ifdef UTF8PROC_STATIC
+ #  ifndef UTF8PROC_DLLEXPORT
+ #    define UTF8PROC_DLLEXPORT

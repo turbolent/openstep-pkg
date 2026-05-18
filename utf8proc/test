@@ -1,0 +1,45 @@
+#!/bin/sh
+
+set -e
+
+TMPDIR=/tmp/utf8proc-test.$$
+
+test -d "$TMPDIR" || mkdir "$TMPDIR"
+
+cat > "$TMPDIR/utf8proc_probe.c" <<'PROBE_EOF'
+#include <stdlib.h>
+#include <string.h>
+
+#include <utf8proc.h>
+
+int
+main(void)
+{
+  utf8proc_uint8_t src[] = "A\314\212";
+  utf8proc_uint8_t *norm;
+  utf8proc_int32_t cp;
+  utf8proc_ssize_t n;
+
+  norm = utf8proc_NFC(src);
+  if (norm == 0)
+    return 1;
+
+  cp = 0;
+  n = utf8proc_iterate(norm, -1, &cp);
+  if (n != 2 || cp != 0x00c5)
+    return 2;
+
+  free(norm);
+  if (strcmp(utf8proc_version(), "2.11.3") != 0)
+    return 3;
+
+  return 0;
+}
+PROBE_EOF
+
+cc -DNeXT -DUTF8PROC_STATIC \
+    -I"$LOCAL_ROOT/include" \
+    -L"$LOCAL_ROOT/lib" \
+    -o "$TMPDIR/utf8proc_probe" "$TMPDIR/utf8proc_probe.c" -lutf8proc
+
+"$TMPDIR/utf8proc_probe"
