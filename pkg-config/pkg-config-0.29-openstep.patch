@@ -1,0 +1,414 @@
+diff --git a/glib/configure b/glib/configure
+index ca4cb05..7ecde9e 100644
+--- a/glib/configure
++++ b/glib/configure
+@@ -24483,7 +24483,7 @@ fi
+ if test "x$have_threads" = xno; then
+         { $as_echo "$as_me:${as_lineno-$LINENO}: result: none available" >&5
+ $as_echo "none available" >&6; }
+-        as_fn_error $? "$THREAD_NO_IMPLEMENTATION" "$LINENO" 5
++        have_threads=none
+ else
+         { $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_threads" >&5
+ $as_echo "$have_threads" >&6; }
+@@ -24678,7 +24678,7 @@ if test x$have_threads = xposix; then :
+ $as_echo "$as_me: WARNING: $AIX_COMPILE_INFO" >&2;}
+                 ;;
+               *)
+-                G_THREAD_LIBS=error
++                G_THREAD_LIBS=
+ 	        glib_save_LIBS="$LIBS"
+ 	        for thread_lib in "" pthread pthread32 pthreads thread; do
+ 			if test x"$thread_lib" = x; then
+@@ -24781,7 +24781,7 @@ else
+ $as_echo "#define THREADS_NONE 1" >>confdefs.h
+ 
+ 	   g_threads_impl="NONE"
+-           G_THREAD_LIBS=error
++          G_THREAD_LIBS=
+ 
+ fi
+  if test "$g_threads_impl" = "POSIX"; then
+@@ -29619,4 +29619,3 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
+   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
+ $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
+ fi
+-
+diff --git a/glib/glib/Makefile.in b/glib/glib/Makefile.in
+index 3122edc..c6a3389 100644
+--- a/glib/glib/Makefile.in
++++ b/glib/glib/Makefile.in
+@@ -251,11 +251,7 @@ am_libglib_2_0_la_OBJECTS = $(am__objects_1) libglib_2_0_la-garray.lo \
+ 	libglib_2_0_la-gutf8.lo libglib_2_0_la-gunibreak.lo \
+ 	libglib_2_0_la-gunicollate.lo libglib_2_0_la-gunidecomp.lo \
+ 	libglib_2_0_la-gurifuncs.lo libglib_2_0_la-gutils.lo \
+-	libglib_2_0_la-gvariant.lo libglib_2_0_la-gvariant-core.lo \
+-	libglib_2_0_la-gvariant-parser.lo \
+-	libglib_2_0_la-gvariant-serialiser.lo \
+-	libglib_2_0_la-gvarianttypeinfo.lo \
+-	libglib_2_0_la-gvarianttype.lo libglib_2_0_la-gversion.lo \
++	libglib_2_0_la-gversion.lo \
+ 	libglib_2_0_la-gwakeup.lo libglib_2_0_la-gprintf.lo \
+ 	$(am__objects_2) $(am__objects_3) $(am__objects_4)
+ libglib_2_0_la_OBJECTS = $(am_libglib_2_0_la_OBJECTS)
+@@ -1232,12 +1228,6 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gurifuncs.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gutf8.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gutils.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvariant-core.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvariant-parser.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvariant-serialiser.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvariant.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvarianttype.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gvarianttypeinfo.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gversion.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gwakeup.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglib_2_0_la-gwin32.Plo@am__quote@
+diff --git a/glib/glib/deprecated/gthread.h b/glib/glib/deprecated/gthread.h
+index 462bb8f..b6e701e 100644
+--- a/glib/glib/deprecated/gthread.h
++++ b/glib/glib/deprecated/gthread.h
+@@ -119,19 +119,25 @@ GLIB_DEPRECATED_IN_2_32
+ void     g_thread_foreach      (GFunc             thread_func,
+                                 gpointer          user_data);
+ 
++#ifdef NeXT
++#else
+ #ifndef G_OS_WIN32
+ #include <pthread.h>
+ #endif
++#endif
+ 
+ #define g_static_mutex_get_mutex g_static_mutex_get_mutex_impl
+ #define G_STATIC_MUTEX_INIT { NULL }
+ typedef struct
+ {
+   GMutex *mutex;
++#ifdef NeXT
++#else
+ #ifndef G_OS_WIN32
+   /* only for ABI compatibility reasons */
+   pthread_mutex_t unused;
+ #endif
++#endif
+ } GStaticMutex;
+ 
+ #define g_static_mutex_lock(mutex) \
+@@ -157,7 +163,7 @@ struct _GStaticRecMutex
+ 
+   /* ABI compat only */
+   union {
+-#ifdef G_OS_WIN32
++#if defined(G_OS_WIN32) || defined(NeXT)
+     void *owner;
+ #else
+     pthread_t owner;
+diff --git a/glib/glib/gatomic.c b/glib/glib/gatomic.c
+index eb2fe46..595d658 100644
+--- a/glib/glib/gatomic.c
++++ b/glib/glib/gatomic.c
+@@ -677,9 +677,14 @@ gsize
+  * Fortunately, we already take care of the Windows case above, and all
+  * non-Windows platforms on which glib runs have pthreads.  Use those.
+  */
++#ifdef NeXT
++#define pthread_mutex_lock(lock) ((void) 0)
++#define pthread_mutex_unlock(lock) ((void) 0)
++#else
+ #include <pthread.h>
+ 
+ static pthread_mutex_t g_atomic_lock = PTHREAD_MUTEX_INITIALIZER;
++#endif
+ 
+ gint
+ (g_atomic_int_get) (const volatile gint *atomic)
+diff --git a/glib/glib/genviron.c b/glib/glib/genviron.c
+index be2d6a5..eb2e9a9 100644
+--- a/glib/glib/genviron.c
++++ b/glib/glib/genviron.c
+@@ -25,6 +25,9 @@
+  */
+ 
+ #include "config.h"
++#ifdef NeXT
++extern char ***_NSGetEnviron (void);
++#endif
+ 
+ #include "genviron.h"
+ 
+diff --git a/glib/glib/ggettext.c b/glib/glib/ggettext.c
+index 56d752a..58f8905 100644
+--- a/glib/glib/ggettext.c
++++ b/glib/glib/ggettext.c
+@@ -42,6 +42,9 @@
+ 
+ #include <string.h>
+ #include <locale.h>
++#ifndef LC_MESSAGES
++#define LC_MESSAGES LC_ALL
++#endif
+ #include "glibintl.h"
+ 
+ #ifdef G_OS_WIN32
+@@ -619,4 +622,3 @@ g_dngettext (const gchar *domain,
+  *
+  * Since: 2.18
+  */
+-
+diff --git a/glib/glib/glib-init.c b/glib/glib/glib-init.c
+index 8f45306..4ed144c 100644
+--- a/glib/glib/glib-init.c
++++ b/glib/glib/glib-init.c
+@@ -280,6 +280,10 @@ glib_init_ctor (void)
+   glib_init ();
+ }
+ 
++#else
++#ifdef NeXT
++/* OPENSTEP lacks compiler constructor support; defaults are enough here. */
+ #else
+ # error Your platform/compiler is missing constructor support
+ #endif
++#endif
+diff --git a/glib/glib/gmacros.h b/glib/glib/gmacros.h
+index f3f542b..21cd6a7 100644
+--- a/glib/glib/gmacros.h
++++ b/glib/glib/gmacros.h
+@@ -39,6 +39,10 @@
+  */
+ #include <stddef.h>
+ 
++#ifdef NeXT
++#undef __GNUC__
++#endif
++
+ /* Here we provide G_GNUC_EXTENSION as an alias for __extension__,
+  * where this is valid. This allows for warningless compilation of
+  * "long long" types even in the presence of '-ansi -pedantic'. 
+diff --git a/glib/glib/gmain.c b/glib/glib/gmain.c
+index ed7a9e8..0d86793 100644
+--- a/glib/glib/gmain.c
++++ b/glib/glib/gmain.c
+@@ -49,13 +49,18 @@
+ 
+ #ifdef G_OS_UNIX
+ #include "glib-unix.h"
++#ifndef NeXT
+ #include <pthread.h>
++#endif
+ #ifdef HAVE_EVENTFD
+ #include <sys/eventfd.h>
+ #endif
+ #endif
+ 
+ #include <signal.h>
++#ifndef SA_RESTART
++#define SA_RESTART 0
++#endif
+ #include <sys/types.h>
+ #include <time.h>
+ #include <stdlib.h>
+@@ -5489,7 +5494,7 @@ g_get_worker_context (void)
+   if (g_once_init_enter (&initialised))
+     {
+       /* mask all signals in the worker thread */
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(NeXT)
+       sigset_t prev_mask;
+       sigset_t all;
+ 
+@@ -5498,7 +5503,7 @@ g_get_worker_context (void)
+ #endif
+       glib_worker_context = g_main_context_new ();
+       g_thread_new ("gmain", glib_worker_main, NULL);
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(NeXT)
+       pthread_sigmask (SIG_SETMASK, &prev_mask, NULL);
+ #endif
+       g_once_init_leave (&initialised, TRUE);
+diff --git a/glib/glib/gnulib/vasnprintf.h b/glib/glib/gnulib/vasnprintf.h
+index 65f1bc1..9547984 100644
+--- a/glib/glib/gnulib/vasnprintf.h
++++ b/glib/glib/gnulib/vasnprintf.h
+@@ -25,6 +25,18 @@
+ /* Get size_t.  */
+ #include <stddef.h>
+ 
++#ifdef NeXT
++# ifndef __attribute__
++#  define __attribute__(Spec)
++# endif
++# ifndef __format__
++#  define __format__ format
++# endif
++# ifndef __printf__
++#  define __printf__ printf
++# endif
++#endif
++
+ #ifndef __attribute__
+ /* This feature is available in gcc versions 2.5 and later.  */
+ # if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5) || __STRICT_ANSI__
+diff --git a/glib/glib/gslice.c b/glib/glib/gslice.c
+index e380b9f..49de26c 100644
+--- a/glib/glib/gslice.c
++++ b/glib/glib/gslice.c
+@@ -35,6 +35,10 @@
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>             /* sysconf() */
+ #endif
++#ifdef NeXT
++extern int getpagesize (void);
++extern void *valloc ();
++#endif
+ #ifdef G_OS_WIN32
+ #include <windows.h>
+ #include <process.h>
+@@ -410,8 +414,12 @@ g_slice_init_nomessage (void)
+     GetSystemInfo (&system_info);
+     sys_page_size = system_info.dwPageSize;
+   }
++#else
++#ifdef NeXT
++  sys_page_size = getpagesize ();
+ #else
+   sys_page_size = sysconf (_SC_PAGESIZE); /* = sysconf (_SC_PAGE_SIZE); = getpagesize(); */
++#endif
+ #endif
+   mem_assert (sys_page_size >= 2 * LARGEALIGNMENT);
+   mem_assert ((sys_page_size & (sys_page_size - 1)) == 0);
+diff --git a/glib/glib/gspawn.c b/glib/glib/gspawn.c
+index 3db3c8d..843d89d 100644
+--- a/glib/glib/gspawn.c
++++ b/glib/glib/gspawn.c
+@@ -37,7 +37,7 @@
+ #include <sys/select.h>
+ #endif /* HAVE_SYS_SELECT_H */
+ 
+-#ifdef HAVE_SYS_RESOURCE_H
++#if defined(HAVE_SYS_RESOURCE_H) && defined(RLIMIT_NOFILE)
+ #include <sys/resource.h>
+ #endif /* HAVE_SYS_RESOURCE_H */
+ 
+@@ -1079,7 +1079,7 @@ fdwalk (int (*cb)(void *data, int fd), void *data)
+ 
+ #endif
+   
+-#ifdef HAVE_SYS_RESOURCE_H
++#if defined(HAVE_SYS_RESOURCE_H) && defined(RLIMIT_NOFILE)
+       
+   if (getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_max != RLIM_INFINITY)
+       open_max = rl.rlim_max;
+diff --git a/glib/glib/gtimer.c b/glib/glib/gtimer.c
+index a45c3cf..fcfe06b 100644
+--- a/glib/glib/gtimer.c
++++ b/glib/glib/gtimer.c
+@@ -41,6 +41,19 @@
+ #include <sys/time.h>
+ #endif
+ #include <time.h>
++#ifdef NeXT
++struct timespec { long tv_sec; long tv_nsec; };
++static int openstep_nanosleep (req, rem)
++struct timespec *req;
++struct timespec *rem;
++{
++  struct timeval tv;
++  tv.tv_sec = req->tv_sec;
++  tv.tv_usec = req->tv_nsec / 1000;
++  return select (0, 0, 0, 0, &tv);
++}
++#define nanosleep openstep_nanosleep
++#endif
+ #ifndef G_OS_WIN32
+ #include <errno.h>
+ #endif /* G_OS_WIN32 */
+diff --git a/glib/glib/gunicollate.c b/glib/glib/gunicollate.c
+index 050dd60..b5232f4 100644
+--- a/glib/glib/gunicollate.c
++++ b/glib/glib/gunicollate.c
+@@ -22,6 +22,17 @@
+ 
+ #include <locale.h>
+ #include <string.h>
++#ifdef NeXT
++static size_t openstep_strxfrm (d, s, n)
++char *d; const char *s; size_t n;
++{
++  size_t len = strlen (s);
++  if (d && n) { strncpy (d, s, n - 1); d[n - 1] = 0; }
++  return len;
++}
++#define strcoll strcmp
++#define strxfrm openstep_strxfrm
++#endif
+ #ifdef __STDC_ISO_10646__
+ #include <wchar.h>
+ #endif
+diff --git a/openstep-stubs.c b/openstep-stubs.c
+new file mode 100644
+index 0000000..996cd8a
+--- /dev/null
++++ b/openstep-stubs.c
+@@ -0,0 +1,44 @@
++#include "config.h"
++#include "glib/glib/glib.h"
++#include "glib/glib/gthreadprivate.h"
++
++void g_mutex_init (GMutex *m) { }
++void g_mutex_clear (GMutex *m) { }
++void g_mutex_lock (GMutex *m) { }
++gboolean g_mutex_trylock (GMutex *m) { return TRUE; }
++void g_mutex_unlock (GMutex *m) { }
++void g_rec_mutex_init (GRecMutex *m) { }
++void g_rec_mutex_clear (GRecMutex *m) { }
++void g_rec_mutex_lock (GRecMutex *m) { }
++gboolean g_rec_mutex_trylock (GRecMutex *m) { return TRUE; }
++void g_rec_mutex_unlock (GRecMutex *m) { }
++void g_rw_lock_init (GRWLock *l) { }
++void g_rw_lock_clear (GRWLock *l) { }
++void g_rw_lock_writer_lock (GRWLock *l) { }
++gboolean g_rw_lock_writer_trylock (GRWLock *l) { return TRUE; }
++void g_rw_lock_writer_unlock (GRWLock *l) { }
++void g_rw_lock_reader_lock (GRWLock *l) { }
++gboolean g_rw_lock_reader_trylock (GRWLock *l) { return TRUE; }
++void g_rw_lock_reader_unlock (GRWLock *l) { }
++void g_cond_init (GCond *c) { }
++void g_cond_clear (GCond *c) { }
++void g_cond_wait (GCond *c, GMutex *m) { }
++void g_cond_signal (GCond *c) { }
++void g_cond_broadcast (GCond *c) { }
++gboolean g_cond_wait_until (GCond *c, GMutex *m, gint64 t) { return FALSE; }
++gpointer g_private_get (GPrivate *k) { return k->p; }
++void g_private_set (GPrivate *k, gpointer v) { k->p = v; }
++void g_private_replace (GPrivate *k, gpointer v) { k->p = v; }
++GRealThread *g_system_thread_new (GThreadFunc f, gulong s, GError **e) { return NULL; }
++void g_system_thread_wait (GRealThread *t) { }
++void g_system_thread_free (GRealThread *t) { }
++void g_system_thread_exit (void) { }
++void g_system_thread_set_name (const gchar *n) { }
++void g_thread_yield (void) { }
++int putenv (char *s) { return 0; }
++long sysconf (int n) { return 256; }
++void rewinddir () { }
++int munmap () { return 0; }
++int sigaction () { return 0; }
++int sigemptyset () { return 0; }
++int waitpid () { return -1; }
+diff --git a/pkg.c b/pkg.c
+index a8980f0..4d0df27 100644
+--- a/pkg.c
++++ b/pkg.c
+@@ -31,7 +31,12 @@
+ #endif
+ 
+ #include <sys/types.h>
++#ifdef NeXT
++#include <sys/dir.h>
++#define dirent direct
++#else
+ #include <dirent.h>
++#endif
+ #include <string.h>
+ #include <errno.h>
+ #include <stdio.h>

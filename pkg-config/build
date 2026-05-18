@@ -1,0 +1,63 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATCHFILE="pkg-config-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+SED=/bin/sed
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+AWK=/usr/local/bin/gawk
+CONFIG_SHELL=/usr/local/bin/ksh
+CPPFLAGS="-I/usr/local/include"
+LDFLAGS="-L/usr/local/lib"
+LIBS="-liconv"
+glib_cv_value_AF_INET6=0
+
+export DESTDIR VERSION PATH CC SED GREP EGREP AWK CONFIG_SHELL CPPFLAGS LDFLAGS LIBS glib_cv_value_AF_INET6
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+
+# The bundled GLib resolver probe assumes modern resolver headers which
+# OPENSTEP does not provide. pkg-config does not use that resolver code.
+/usr/bin/perl5 -0pi -e 's/\{ \$as_echo "\$as_me:\$\{as_lineno-\$LINENO\}: checking if arpa\/nameser_compat\.h is needed".*?LIBS="\$save_libs"/# OPENSTEP pkg-config build does not use GLib resolver code.\n  NETWORK_LIBS=""/s' glib/configure
+
+run_configure \
+  --build=i386-next-openstep4.2 \
+  --host=i386-next-openstep4.2 \
+  --prefix=/usr/local \
+  --with-internal-glib \
+  --disable-shared \
+  --disable-host-tool
+
+gnumake -C glib/glib || true
+[ -f glib/glib/gspawn.o ]
+[ -f glib/glib/libglib_2_0_la-gprintf.o ]
+[ -f glib/glib/gnulib/libgnulib_la-vasnprintf.o ]
+gnumake pkg.o parse.o rpmvercmp.o main.o
+
+"$CC" $CPPFLAGS -I. -Iglib -Iglib/glib -Iglib/glib/gnulib -c openstep-stubs.c
+ls glib/glib/*.o | grep -v gvariant > glib-objects.list
+"$CC" $LDFLAGS -o pkg-config \
+  pkg.o parse.o rpmvercmp.o main.o openstep-stubs.o \
+  `cat glib-objects.list` glib/glib/gnulib/*.o glib/glib/libcharset/*.o \
+  $LIBS
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
+test -d "$DESTDIR/usr/local/share/aclocal" || mkdir "$DESTDIR/usr/local/share/aclocal"
+test -d "$DESTDIR/usr/local/share/man" || mkdir "$DESTDIR/usr/local/share/man"
+test -d "$DESTDIR/usr/local/share/man/man1" || mkdir "$DESTDIR/usr/local/share/man/man1"
+test -d "$DESTDIR/usr/local/share/doc" || mkdir "$DESTDIR/usr/local/share/doc"
+test -d "$DESTDIR/usr/local/share/doc/pkg-config" || mkdir "$DESTDIR/usr/local/share/doc/pkg-config"
+
+cp pkg-config "$DESTDIR/usr/local/bin/pkg-config"
+cp pkg.m4 "$DESTDIR/usr/local/share/aclocal/pkg.m4"
+cp pkg-config.1 "$DESTDIR/usr/local/share/man/man1/pkg-config.1"
+cp pkg-config-guide.html "$DESTDIR/usr/local/share/doc/pkg-config/pkg-config-guide.html"

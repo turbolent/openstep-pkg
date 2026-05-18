@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -e
+
+PKG_CONFIG="$ROOT_DIR/usr/local/bin/pkg-config"
+PCDIR="/tmp/pkg-config-test.$$"
+
+[ -x "$PKG_CONFIG" ]
+[ -f "$ROOT_DIR/usr/local/share/aclocal/pkg.m4" ]
+[ -f "$ROOT_DIR/usr/local/share/man/man1/pkg-config.1" ]
+
+version=`"$PKG_CONFIG" --version`
+[ "$version" = 0.29 ]
+"$PKG_CONFIG" --atleast-pkgconfig-version=0.29
+
+rm -rf "$PCDIR"
+mkdir "$PCDIR"
+cat > "$PCDIR/sample.pc" <<'EOF'
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+Name: sample
+Description: sample pc file
+Version: 1.2.3
+Libs: -L${libdir} -lsample
+Cflags: -I${includedir}/sample
+EOF
+
+modversion=`PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --modversion sample`
+[ "$modversion" = 1.2.3 ]
+
+flags=`PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --cflags --libs sample`
+[ "$flags" = "-I/usr/local/include/sample -L/usr/local/lib -lsample" ]
+
+rm -rf "$PCDIR"

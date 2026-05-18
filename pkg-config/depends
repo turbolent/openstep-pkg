@@ -1,0 +1,6 @@
+coreutils
+gawk
+grep
+libiconv
+make
+patch
