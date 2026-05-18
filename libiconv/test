@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+ICONV="$ROOT_DIR/usr/local/bin/iconv"
+INPUT="/tmp/pkg-libiconv-in.$$"
+OUTPUT="/tmp/pkg-libiconv-out.$$"
+
+[ -x "$ICONV" ]
+[ -f "$ROOT_DIR/usr/local/include/iconv.h" ]
+[ -f "$ROOT_DIR/usr/local/lib/libiconv.a" ]
+
+"$ICONV" --version >/dev/null
+echo hello > "$INPUT"
+"$ICONV" -f ASCII -t UTF-16BE "$INPUT" > "$OUTPUT"
+test "`wc -c < "$OUTPUT"`" -eq 12
+
+rm -f "$INPUT" "$OUTPUT"

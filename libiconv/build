@@ -1,0 +1,30 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATCHFILE="libiconv-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+SED=/bin/sed
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+AWK=/usr/local/bin/gawk
+CONFIG_SHELL=/usr/local/bin/ksh
+
+export DESTDIR VERSION PATH CC SED GREP EGREP AWK CONFIG_SHELL
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+
+run_configure \
+  --build=i386-next-openstep4.2 \
+  --host=i386-next-openstep4.2 \
+  --prefix=/usr/local \
+  --disable-shared \
+  --enable-static \
+  --disable-nls
+
+gnumake
+gnumake install DESTDIR="$DESTDIR"
