@@ -99,6 +99,52 @@ index 7c03362..0b5a821 100644
  #ifdef _WIN32
  #  ifdef HAVE_IO_H
  #  include <io.h>
+diff --git a/lib/curlx/wait.c b/lib/curlx/wait.c
+index 4e10a82..91afaeb 100644
+--- a/lib/curlx/wait.c
++++ b/lib/curlx/wait.c
+@@ -40,6 +40,10 @@
+ #include <dos.h>  /* delay() */
+ #endif
+ 
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++extern int usleep(unsigned int useconds);
++#endif
++
+ #include "timediff.h"
+ #include "wait.h"
+ 
+@@ -61,6 +65,10 @@
+ int curlx_wait_ms(timediff_t timeout_ms)
+ {
+   int r = 0;
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++  timediff_t pending_ms;
++  unsigned int pending_us;
++#endif
+ 
+   if(!timeout_ms)
+     return 0;
+@@ -78,6 +86,19 @@ int curlx_wait_ms(timediff_t timeout_ms)
+     /* do not use ULONG_MAX, because that is equal to INFINITE */
+ #endif
+   Sleep((DWORD)timeout_ms);
++#elif defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++  pending_ms = timeout_ms;
++  while(pending_ms > 0) {
++    if(pending_ms > 1000) {
++      pending_us = 1000000U;
++      pending_ms -= 1000;
++    }
++    else {
++      pending_us = (unsigned int)pending_ms * 1000U;
++      pending_ms = 0;
++    }
++    (void)usleep(pending_us);
++  }
+ #else
+   /* avoid using poll() for this since it behaves incorrectly with no sockets
+      on Apple operating systems */
 diff --git a/lib/file.c b/lib/file.c
 index f45a487..56aa44e 100644
 --- a/lib/file.c
@@ -115,6 +161,46 @@ index f45a487..56aa44e 100644
  #include "urldata.h"
  #include <curl/curl.h>
  #include "progress.h"
+diff --git a/lib/multi.c b/lib/multi.c
+index c27e8bd..b16e8f1 100644
+--- a/lib/multi.c
++++ b/lib/multi.c
+@@ -1424,6 +1424,11 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
+   if((timeout_internal >= 0) && (timeout_internal < (long)timeout_ms))
+     timeout_ms = (int)timeout_internal;
+ 
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++  if(cpfds.n && !timeout_ms)
++    timeout_ms = 10;
++#endif
++
+   if(data)
+     CURL_TRC_M(data, "multi_wait(fds=%d, timeout=%d) tinternal=%ld",
+                cpfds.n, timeout_ms, timeout_internal);
+@@ -2831,6 +2836,11 @@ CURLMcode curl_multi_perform(CURLM *m, int *running_handles)
+       /* the removed may have another timeout in queue */
+       struct Curl_easy *data = Curl_splayget(t);
+       (void)add_next_timeout(now, multi, data);
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++      if((data->state.expiretime.tv_sec || data->state.expiretime.tv_usec) &&
++         (curlx_timediff_us(data->state.expiretime, now) > 0))
++        break;
++#endif
+       if(data->mstate == MSTATE_PENDING) {
+         bool stream_unused;
+         CURLcode result_unused;
+@@ -3095,6 +3105,11 @@ static void multi_mark_expired_as_dirty(struct multi_run_ctx *mrc)
+     }
+ #endif
+     (void)add_next_timeout(mrc->now, multi, data);
++#if defined(NeXT) || defined(__NeXT__) || defined(__NeXT)
++    if((data->state.expiretime.tv_sec || data->state.expiretime.tv_usec) &&
++       (curlx_timediff_us(data->state.expiretime, mrc->now) > 0))
++      return;
++#endif
+     Curl_multi_mark_dirty(data);
+   }
+ }
 diff --git a/src/tool_dirhie.c b/src/tool_dirhie.c
 index 91cc1b6..27d3b66 100644
 --- a/src/tool_dirhie.c

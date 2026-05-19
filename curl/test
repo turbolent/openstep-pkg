@@ -6,6 +6,18 @@ CURL="$ROOT_DIR/usr/local/bin/curl"
 TMPFILE=/tmp/pkg-curl-$$.txt
 
 [ -x "$CURL" ]
+
+version_output=`"$CURL" -V`
+case "$version_output" in
+    *zlib*)
+        :
+    ;;
+    *)
+        echo "curl is missing zlib support" >&2
+        exit 1
+    ;;
+esac
+
 /bin/rm -f "$TMPFILE"
 /bin/echo hello > "$TMPFILE"
 

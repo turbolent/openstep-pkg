@@ -4,3 +4,4 @@ gawk
 grep
 openssl
 patch
+zlib
