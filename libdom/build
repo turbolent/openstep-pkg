@@ -1,0 +1,45 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libdom-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+PERL=/usr/bin/perl
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+BUILDDIR=build-openstep
+CFLAGS=-DNeXT
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC PERL MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL BUILDDIR
+export CFLAGS
+
+if [ -d "libdom-$VERSION" ]; then
+    cd "libdom-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config.override <<'EOF'
+WITH_EXPAT_BINDING := no
+WITH_LIBXML_BINDING := no
+WITH_HUBBUB_BINDING := yes
+CFLAGS := $(CFLAGS) -DNeXT -I/NextDeveloper/Headers
+EOF
+
+gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$BUILDDIR/libdom.a"
+
+gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$DESTDIR$PREFIX/lib/libdom.a"

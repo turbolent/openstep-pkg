@@ -1,0 +1,67 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libcss-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+PERL=/usr/bin/perl
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+BUILDDIR=build-openstep
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC PERL MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL BUILDDIR
+
+if [ -d "libcss-$VERSION" ]; then
+    cd "libcss-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+BUILD_CC="/usr/local/bin/gcc -DNeXT -I/NextDeveloper/Headers -I`pwd`/include"
+export BUILD_CC
+
+cat > Makefile.config.override <<'EOF'
+CFLAGS := $(CFLAGS) -DNeXT -I/NextDeveloper/Headers
+EOF
+
+rebuild_archive()
+{
+    olddir=`pwd`
+
+    rm -f "$BUILDDIR/libcss.a"
+    rm -rf "$BUILDDIR/arobjs"
+    mkdir "$BUILDDIR/arobjs"
+
+    n=0
+    for obj in "$BUILDDIR"/*.o; do
+        test -f "$obj" || continue
+        n=`expr $n + 1`
+        cp "$obj" "$BUILDDIR/arobjs/o$n.o"
+    done
+
+    cd "$BUILDDIR/arobjs"
+    for obj in o*.o; do
+        /bin/ar r ../libcss.a "$obj" >/dev/null
+    done
+    cd "$olddir"
+
+    /bin/ranlib "$BUILDDIR/libcss.a"
+}
+
+gnumake PREFIX="$PREFIX" WARNFLAGS=
+rebuild_archive
+
+gnumake install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$DESTDIR$PREFIX/lib/libcss.a"

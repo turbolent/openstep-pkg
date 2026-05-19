@@ -1,0 +1,59 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libnslog-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <nslog/nslog.h>
+
+NSLOG_DEFINE_CATEGORY(probe, "probe category");
+
+static int seen = 0;
+
+static void render(void *pw, nslog_entry_context_t *ctx,
+        const char *fmt, va_list args)
+{
+    char buf[64];
+
+    (void) pw;
+    vsprintf(buf, fmt, args);
+    if (ctx->category != 0 &&
+            strcmp(ctx->category->name, "probe") == 0 &&
+            strcmp(buf, "value 42") == 0)
+        seen++;
+}
+
+int main(void)
+{
+    nslog_filter_t *filter = 0;
+    char *text;
+
+    if (nslog_filter_from_text("(lvl:WARN || cat:probe)", &filter) !=
+            NSLOG_NO_ERROR)
+        return 1;
+
+    text = nslog_filter_sprintf(filter);
+    if (text == 0 || strcmp(text, "(lvl:WARNING || cat:probe)") != 0)
+        return 2;
+
+    nslog_filter_set_active(filter, 0);
+    nslog_filter_unref(filter);
+    nslog_set_render_callback(render, 0);
+    NSLOG(probe, INFO, "value %d", 42);
+    if (nslog_uncork() != NSLOG_NO_ERROR)
+        return 3;
+
+    return seen == 1 ? 0 : 4;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libnslog.a" -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"

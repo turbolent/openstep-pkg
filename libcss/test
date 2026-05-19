@@ -1,0 +1,61 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libcss-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <string.h>
+#include <libcss/libcss.h>
+
+static css_error resolve_url(void *pw, const char *base,
+        lwc_string *rel, lwc_string **abs)
+{
+    (void) pw;
+    (void) base;
+    *abs = lwc_string_ref(rel);
+    return CSS_OK;
+}
+
+int main(void)
+{
+    css_stylesheet *sheet = 0;
+    css_stylesheet_params params;
+    css_error err;
+    const char source[] = "body { color: red; }";
+
+    memset(&params, 0, sizeof(params));
+    params.params_version = CSS_STYLESHEET_PARAMS_VERSION_1;
+    params.level = CSS_LEVEL_21;
+    params.charset = "UTF-8";
+    params.url = "file:test.css";
+    params.title = "";
+    params.allow_quirks = false;
+    params.inline_style = false;
+    params.resolve = resolve_url;
+
+    err = css_stylesheet_create(&params, &sheet);
+    if (err != CSS_OK)
+        return 10 + err;
+
+    err = css_stylesheet_append_data(sheet,
+            (const uint8_t *) source, sizeof(source) - 1);
+    if (err != CSS_OK && err != CSS_NEEDDATA)
+        return 20 + err;
+
+    err = css_stylesheet_data_done(sheet);
+    css_stylesheet_destroy(sheet);
+    if (err != CSS_OK)
+        return 30 + err;
+
+    return 0;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I/NextDeveloper/Headers -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libcss.a" "$LOCAL_ROOT/lib/libparserutils.a" \
+    "$LOCAL_ROOT/lib/libwapcaplet.a" -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"

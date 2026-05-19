@@ -1,0 +1,39 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libparserutils-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+PERL=/usr/bin/perl
+MAKE=gnumake
+CCACHE=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+BUILDDIR=build-openstep
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC PERL MAKE
+export CCACHE CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL BUILDDIR
+
+if [ -d "libparserutils-$VERSION" ]; then
+    cd "libparserutils-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config.override <<'EOF'
+CFLAGS := $(CFLAGS) -DWITHOUT_ICONV_FILTER -DNeXT
+EOF
+
+gnumake PREFIX="$PREFIX"
+/bin/ranlib "$BUILDDIR/libparserutils.a"
+
+gnumake install DESTDIR="$DESTDIR" PREFIX="$PREFIX"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libparserutils.a"

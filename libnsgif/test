@@ -1,0 +1,53 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libnsgif-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <stdlib.h>
+#include <string.h>
+#include <nsgif.h>
+
+static nsgif_bitmap_t *create(int width, int height)
+{
+    return malloc(width * height * 4);
+}
+
+static void destroy(nsgif_bitmap_t *bitmap)
+{
+    free(bitmap);
+}
+
+static uint8_t *get_buffer(nsgif_bitmap_t *bitmap)
+{
+    return (uint8_t *) bitmap;
+}
+
+int main(void)
+{
+    nsgif_bitmap_cb_vt cb;
+    nsgif_t *gif;
+
+    memset(&cb, 0, sizeof(cb));
+    cb.create = create;
+    cb.destroy = destroy;
+    cb.get_buffer = get_buffer;
+
+    if (nsgif_create(&cb, NSGIF_BITMAP_FMT_R8G8B8A8, &gif) != NSGIF_OK)
+        return 1;
+
+    if (strcmp(nsgif_strerror(NSGIF_OK), "Success") != 0)
+        return 2;
+
+    nsgif_destroy(gif);
+    return 0;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libnsgif.a" -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"

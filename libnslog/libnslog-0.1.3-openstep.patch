@@ -1,0 +1,507 @@
+diff --git a/src/Makefile b/src/Makefile
+index d598cf5..23be6bd 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -1,43 +1,5 @@
+ DIR_SOURCES := core.c filter.c
+ 
+-CFLAGS := $(CFLAGS) -I$(BUILDDIR) -Isrc/
+-
+-SOURCES := $(SOURCES) $(BUILDDIR)/filter-parser.c $(BUILDDIR)/filter-lexer.c
+-
+-$(BUILDDIR)/%-lexer.inc $(BUILDDIR)/%-lexer.h: src/%-lexer.l
+-	$(VQ)$(ECHO) "	  FLEX: $<"
+-	$(Q)$(FLEX) --outfile=$(BUILDDIR)/$(*F)-lexer.inc --header-file=$(BUILDDIR)/$(*F)-lexer.h $<
+-.PRECIOUS: $(BUILDDIR)/%-lexer.inc
+-
+-$(BUILDDIR)/%-lexer.inc: $(BUILDDIR)/%-parser.h
+-
+-$(BUILDDIR)/%-lexer.c: $(BUILDDIR)/%-lexer.inc
+-	$(Q)echo "#ifndef __clang_analyzer__" > $@
+-	$(Q)echo "#include \"$(notdir $<)\"" >> $@
+-	$(Q)echo "#endif" >> $@
+-
+-# Bison 3.0 and later require api.prefix in curly braces
+-# Bison 2.6 and later require api.prefix
+-# Bison 2.5 and earlier require name-prefix switch
+-bisonvsn := $(word 4,$(shell $(BISON) --version))
+-bisonmaj := $(word 1,$(subst ., ,$(bisonvsn)))
+-bisonmin := $(word 2,$(subst ., ,$(bisonvsn)))
+-ifeq ($(bisonmaj),1)
+-  BISON_DEFINES = --name-prefix=$(*F)_
+-else
+-  ifeq ($(bisonmaj),2)
+-    ifneq ($(findstring $(bisonmin),"0 1 2 3 4 5"),)
+-      BISON_DEFINES = --name-prefix=$(*F)_
+-    else
+-      BISON_DEFINES = --define=api.prefix=$(*F)_
+-    endif
+-  else
+-    BISON_DEFINES = --define=api.prefix={$(*F)_}
+-  endif
+-endif
+-
+-$(BUILDDIR)/%-parser.c $(BUILDDIR)/%-parser.h: src/%-parser.y
+-	$(VQ)$(ECHO) "	 BISON: $<"
+-	$(Q)$(BISON) -d -t $(BISON_DEFINES) --report=all --output=$(BUILDDIR)/$(*F)-parser.c --defines=$(BUILDDIR)/$(*F)-parser.h $<
++CFLAGS := $(CFLAGS) -Isrc/
+ 
+ include $(NSBUILD)/Makefile.subdir
+diff --git a/src/core.c b/src/core.c
+index 921cb06..aba4b40 100644
+--- a/src/core.c
++++ b/src/core.c
+@@ -74,6 +74,8 @@ const char *nslog_short_level_name(nslog_level level)
+ 
+ static void nslog__normalise_category(nslog_category_t *cat)
+ {
++	int bufsz;
++
+ 	if (cat->name != NULL)
+ 		return;
+ 	if (cat->parent == NULL) {
+@@ -81,15 +83,41 @@ static void nslog__normalise_category(nslog_category_t *cat)
+ 		cat->namelen = strlen(cat->name);
+ 	} else {
+ 		nslog__normalise_category(cat->parent);
+-		int bufsz = strlen(cat->parent->name) + strlen(cat->cat_name) + 2 /* a slash and a NUL */;
++		bufsz = strlen(cat->parent->name) + strlen(cat->cat_name) + 2 /* a slash and a NUL */;
+ 		cat->name = malloc(bufsz);
++#ifdef NeXT
++		sprintf(cat->name, "%s/%s", cat->parent->name, cat->cat_name);
++#else
+ 		snprintf(cat->name, bufsz, "%s/%s", cat->parent->name, cat->cat_name);
++#endif
+ 		cat->namelen = bufsz - 1;
+ 	}
+ 	cat->next = nslog__all_categories;
+ 	nslog__all_categories = cat;
+ }
+ 
++static void nslog__log_corked_string(nslog_entry_context_t *ctx,
++				     int measured_len,
++				     const char *message)
++{
++	struct nslog_cork_chain *newcork;
++
++	newcork = calloc(sizeof(struct nslog_cork_chain) + measured_len + 1, 1);
++	if (newcork == NULL) {
++		/* Wow, something went wrong */
++		return;
++	}
++	newcork->context = *ctx;
++	memcpy(newcork->message, message, measured_len + 1);
++	if (nslog__cork_chain == NULL) {
++		nslog__cork_chain = nslog__cork_chain_last = newcork;
++	} else {
++		nslog__cork_chain_last->next = newcork;
++		nslog__cork_chain_last = newcork;
++	}
++}
++
++#ifndef NeXT
+ static void nslog__log_corked(nslog_entry_context_t *ctx,
+ 			      int measured_len,
+ 			      const char *fmt,
+@@ -110,6 +138,7 @@ static void nslog__log_corked(nslog_entry_context_t *ctx,
+ 		nslog__cork_chain_last = newcork;
+ 	}
+ }
++#endif
+ 
+ static void nslog__log_uncorked(nslog_entry_context_t *ctx,
+ 				const char *fmt,
+@@ -132,12 +161,27 @@ void nslog__log(nslog_entry_context_t *ctx,
+ 	va_list ap;
+ 	va_start(ap, pattern);
+ 	if (nslog__corked) {
++#ifdef NeXT
++		char message[4096];
++		int slen;
++
++		slen = vsprintf(message, pattern, ap);
++		va_end(ap);
++		if (slen < 0)
++			return;
++		if (slen >= (int) sizeof(message)) {
++			slen = sizeof(message) - 1;
++			message[slen] = '\0';
++		}
++		nslog__log_corked_string(ctx, slen, message);
++#else
+ 		va_list ap2;
+ 		va_copy(ap2, ap);
+ 		int slen = vsnprintf(NULL, 0, pattern, ap);
+ 		va_end(ap);
+ 		nslog__log_corked(ctx, slen, pattern, ap2);
+ 		va_end(ap2);
++#endif
+ 	} else {
+ 		nslog__log_uncorked(ctx, pattern, ap);
+ 		va_end(ap);
+diff --git a/src/filter.c b/src/filter.c
+index 0a478b1..f4174d3 100644
+--- a/src/filter.c
++++ b/src/filter.c
+@@ -14,19 +14,6 @@
+ 
+ #include "nslog_internal.h"
+ 
+-#include "filter-parser.h"
+-
+-/* Ensure compatability with bison 2.6 and later */
+-#if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED && defined FILTER_STYPE_IS_DECLARED
+-#define YYSTYPE FILTER_STYPE
+-#endif
+-
+-#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED && defined FILTER_LTYPE_IS_DECLARED
+-#define YYLTYPE FILTER_LTYPE
+-#endif
+-
+-#include "filter-lexer.h"
+-
+ typedef enum {
+ 	/* Fundamentals */
+ 	NSLFK_CATEGORY = 0,
+@@ -376,19 +363,285 @@ char *nslog_filter_sprintf(nslog_filter_t *filter)
+ 	return ret;
+ }
+ 
++struct nslog_text_parser {
++	const char *input;
++};
++
++static void nslog__skip_ws(struct nslog_text_parser *parser)
++{
++	while (*parser->input == ' ' || *parser->input == '\t')
++		parser->input++;
++}
++
++static bool nslog__accept_char(struct nslog_text_parser *parser, char ch)
++{
++	nslog__skip_ws(parser);
++	if (*parser->input != ch)
++		return false;
++	parser->input++;
++	return true;
++}
++
++static bool nslog__accept_word(struct nslog_text_parser *parser,
++			       const char *word)
++{
++	const char *p = parser->input;
++	const char *w = word;
++
++	nslog__skip_ws(parser);
++	p = parser->input;
++	while (*w != '\0') {
++		if (*p != *w)
++			return false;
++		p++;
++		w++;
++	}
++	parser->input = p;
++	return true;
++}
++
++static char *nslog__read_pattern(struct nslog_text_parser *parser)
++{
++	const char *start;
++	const char *end;
++	char *ret;
++	int len;
++
++	nslog__skip_ws(parser);
++	start = parser->input;
++	end = start;
++	while (*end != '\0' &&
++	       *end != ' ' &&
++	       *end != '\t' &&
++	       *end != ':' &&
++	       *end != '|' &&
++	       *end != '&' &&
++	       *end != ')' &&
++	       *end != '^' &&
++	       *end != '!')
++		end++;
++
++	if (end == start)
++		return NULL;
++
++	len = end - start;
++	ret = malloc(len + 1);
++	if (ret == NULL)
++		return NULL;
++
++	memcpy(ret, start, len);
++	ret[len] = '\0';
++	parser->input = end;
++	return ret;
++}
++
++static bool nslog__read_level(struct nslog_text_parser *parser,
++			      nslog_level *level)
++{
++	const char *start;
++	const char *end;
++	int len;
++
++	nslog__skip_ws(parser);
++	start = parser->input;
++	end = start;
++	while ((*end >= 'A' && *end <= 'Z') || (*end >= '0' && *end <= '9'))
++		end++;
++
++	len = end - start;
++	if (len == 9 && strncmp(start, "DEEPDEBUG", len) == 0)
++		*level = NSLOG_LEVEL_DEEPDEBUG;
++	else if (len == 6 && strncmp(start, "DDEBUG", len) == 0)
++		*level = NSLOG_LEVEL_DEEPDEBUG;
++	else if (len == 2 && strncmp(start, "DD", len) == 0)
++		*level = NSLOG_LEVEL_DEEPDEBUG;
++	else if (len == 5 && strncmp(start, "DEBUG", len) == 0)
++		*level = NSLOG_LEVEL_DEBUG;
++	else if (len == 3 && strncmp(start, "DBG", len) == 0)
++		*level = NSLOG_LEVEL_DEBUG;
++	else if (len == 7 && strncmp(start, "VERBOSE", len) == 0)
++		*level = NSLOG_LEVEL_VERBOSE;
++	else if (len == 4 && strncmp(start, "CHAT", len) == 0)
++		*level = NSLOG_LEVEL_VERBOSE;
++	else if (len == 4 && strncmp(start, "INFO", len) == 0)
++		*level = NSLOG_LEVEL_INFO;
++	else if (len == 7 && strncmp(start, "WARNING", len) == 0)
++		*level = NSLOG_LEVEL_WARNING;
++	else if (len == 4 && strncmp(start, "WARN", len) == 0)
++		*level = NSLOG_LEVEL_WARNING;
++	else if (len == 5 && strncmp(start, "ERROR", len) == 0)
++		*level = NSLOG_LEVEL_ERROR;
++	else if (len == 3 && strncmp(start, "ERR", len) == 0)
++		*level = NSLOG_LEVEL_ERROR;
++	else if (len == 8 && strncmp(start, "CRITICAL", len) == 0)
++		*level = NSLOG_LEVEL_CRITICAL;
++	else if (len == 4 && strncmp(start, "CRIT", len) == 0)
++		*level = NSLOG_LEVEL_CRITICAL;
++	else
++		return false;
++
++	parser->input = end;
++	return true;
++}
++
++static nslog_filter_t *nslog__parse_filter(struct nslog_text_parser *parser);
++
++static nslog_filter_t *nslog__parse_basic_filter(struct nslog_text_parser *parser)
++{
++	const char *saved;
++	nslog_filter_t *filter = NULL;
++	char *pattern = NULL;
++	nslog_level level;
++
++	saved = parser->input;
++	if (nslog__accept_word(parser, "level:") ||
++	    nslog__accept_word(parser, "lvl:")) {
++		if (!nslog__read_level(parser, &level))
++			goto fail;
++		if (nslog_filter_level_new(level, &filter) != NSLOG_NO_ERROR)
++			goto fail;
++		return filter;
++	}
++
++	parser->input = saved;
++	if (nslog__accept_word(parser, "cat:") ||
++	    nslog__accept_word(parser, "category:")) {
++		pattern = nslog__read_pattern(parser);
++		if (pattern == NULL)
++			goto fail;
++		if (nslog_filter_category_new(pattern, &filter) != NSLOG_NO_ERROR)
++			goto fail;
++		free(pattern);
++		return filter;
++	}
++
++	parser->input = saved;
++	if (nslog__accept_word(parser, "file:") ||
++	    nslog__accept_word(parser, "filename:")) {
++		pattern = nslog__read_pattern(parser);
++		if (pattern == NULL)
++			goto fail;
++		if (nslog_filter_filename_new(pattern, &filter) != NSLOG_NO_ERROR)
++			goto fail;
++		free(pattern);
++		return filter;
++	}
++
++	parser->input = saved;
++	if (nslog__accept_word(parser, "dir:") ||
++	    nslog__accept_word(parser, "dirname:")) {
++		pattern = nslog__read_pattern(parser);
++		if (pattern == NULL)
++			goto fail;
++		if (nslog_filter_dirname_new(pattern, &filter) != NSLOG_NO_ERROR)
++			goto fail;
++		free(pattern);
++		return filter;
++	}
++
++	parser->input = saved;
++	if (nslog__accept_word(parser, "func:") ||
++	    nslog__accept_word(parser, "funcname:")) {
++		pattern = nslog__read_pattern(parser);
++		if (pattern == NULL)
++			goto fail;
++		if (nslog_filter_funcname_new(pattern, &filter) != NSLOG_NO_ERROR)
++			goto fail;
++		free(pattern);
++		return filter;
++	}
++
++fail:
++	free(pattern);
++	parser->input = saved;
++	return NULL;
++}
++
++static nslog_filter_t *nslog__parse_filter(struct nslog_text_parser *parser)
++{
++	nslog_filter_t *left = NULL;
++	nslog_filter_t *right = NULL;
++	nslog_filter_t *ret = NULL;
++	const char *saved;
++	char op = '\0';
++
++	nslog__skip_ws(parser);
++	if (nslog__accept_char(parser, '!')) {
++		left = nslog__parse_filter(parser);
++		if (left == NULL)
++			return NULL;
++		if (nslog_filter_not_new(left, &ret) != NSLOG_NO_ERROR)
++			ret = NULL;
++		nslog_filter_unref(left);
++		return ret;
++	}
++
++	saved = parser->input;
++	if (nslog__accept_char(parser, '(')) {
++		left = nslog__parse_filter(parser);
++		if (left == NULL)
++			goto fail;
++
++		nslog__skip_ws(parser);
++		if (parser->input[0] == '&' && parser->input[1] == '&') {
++			parser->input += 2;
++			op = '&';
++		} else if (parser->input[0] == '|' && parser->input[1] == '|') {
++			parser->input += 2;
++			op = '|';
++		} else if (parser->input[0] == '^') {
++			parser->input++;
++			op = '^';
++		} else {
++			goto fail;
++		}
++
++		right = nslog__parse_filter(parser);
++		if (right == NULL)
++			goto fail;
++		if (!nslog__accept_char(parser, ')'))
++			goto fail;
++
++		if (op == '&') {
++			if (nslog_filter_and_new(left, right, &ret) != NSLOG_NO_ERROR)
++				ret = NULL;
++		} else if (op == '|') {
++			if (nslog_filter_or_new(left, right, &ret) != NSLOG_NO_ERROR)
++				ret = NULL;
++		} else {
++			if (nslog_filter_xor_new(left, right, &ret) != NSLOG_NO_ERROR)
++				ret = NULL;
++		}
++		nslog_filter_unref(left);
++		nslog_filter_unref(right);
++		return ret;
++	}
++	parser->input = saved;
++
++	return nslog__parse_basic_filter(parser);
++
++fail:
++	nslog_filter_unref(left);
++	nslog_filter_unref(right);
++	parser->input = saved;
++	return NULL;
++}
++
+ nslog_error nslog_filter_from_text(const char *input,
+ 				   nslog_filter_t **output)
+ {
+-	int ret;
+-	YY_BUFFER_STATE buffer = filter__scan_string((char *)input);
+-	filter_push_buffer_state(buffer);
+-	ret = filter_parse(output);
+-	filter_lex_destroy();
+-	switch (ret) {
+-	case 0:
+-		return NSLOG_NO_ERROR;
+-	case 2:
+-		return NSLOG_NO_MEMORY;
++	struct nslog_text_parser parser;
++	nslog_filter_t *filter;
++
++	parser.input = input;
++	filter = nslog__parse_filter(&parser);
++	nslog__skip_ws(&parser);
++	if (filter == NULL || *parser.input != '\0') {
++		nslog_filter_unref(filter);
++		*output = NULL;
++		return NSLOG_PARSE_ERROR;
+ 	}
+-	return NSLOG_PARSE_ERROR;
++
++	*output = filter;
++	return NSLOG_NO_ERROR;
+ }
+diff --git a/src/nslog_internal.h b/src/nslog_internal.h
+index d5519e7..88c6fe2 100644
+--- a/src/nslog_internal.h
++++ b/src/nslog_internal.h
+@@ -18,12 +18,40 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#if defined(NeXT)
++#ifndef __bool_true_false_are_defined
++typedef unsigned char bool;
++#ifndef true
++#define true 1
++#endif
++#ifndef false
++#define false 0
++#endif
++#define __bool_true_false_are_defined 1
++#endif
++#else
+ #include <stdbool.h>
++#endif
+ #include <stdarg.h>
+ #include <assert.h>
+ 
+ #include "nslog/nslog.h"
+ 
++#if defined(NeXT)
++static char *nslog__strdup(const char *s)
++{
++	size_t len;
++	char *ret;
++
++	len = strlen(s) + 1;
++	ret = malloc(len);
++	if (ret != NULL)
++		memcpy(ret, s, len);
++	return ret;
++}
++#define strdup nslog__strdup
++#endif
++
+ bool nslog__filter_matches(nslog_entry_context_t *ctx);
+ 
+ #endif /* NSLOG_INTERNAL_H_ */

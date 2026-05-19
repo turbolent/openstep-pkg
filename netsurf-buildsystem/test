@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+BASE=$LOCAL_ROOT/share/netsurf-buildsystem
+
+test -f "$BASE/README"
+test -f "$BASE/COPYING"
+test -f "$BASE/makefiles/Makefile.top"
+test -f "$BASE/makefiles/Makefile.tools"
+test -f "$BASE/makefiles/Makefile.gcc"
+test -f "$BASE/makefiles/Makefile.pkgconfig"
+test -f "$BASE/testtools/testrunner.pl"
+test -f "$BASE/citools/jenkins-build.sh"
+
+grep 'NetSurf shared build system' "$BASE/README" >/dev/null

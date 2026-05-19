@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libparserutils-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <stdio.h>
+#include <parserutils/charset/mibenum.h>
+
+int main(void)
+{
+    printf("%u\n",
+        (unsigned) parserutils_charset_mibenum_from_name("UTF-8", 5));
+    return 0;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libparserutils.a" -o "$TMP"
+
+"$TMP" > "$TMP.out"
+grep '^106$' "$TMP.out" >/dev/null
+
+rm -f "$TMP.c" "$TMP" "$TMP.out"

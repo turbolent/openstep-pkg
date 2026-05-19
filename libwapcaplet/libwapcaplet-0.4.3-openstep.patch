@@ -1,0 +1,64 @@
+diff --git a/include/libwapcaplet/libwapcaplet.h b/include/libwapcaplet/libwapcaplet.h
+index 57e2e48..7e1e76a 100644
+--- a/include/libwapcaplet/libwapcaplet.h
++++ b/include/libwapcaplet/libwapcaplet.h
+@@ -14,10 +14,41 @@ extern "C"
+ {
+ #endif
+ 
++#include <stddef.h>
++#if defined(NeXT)
++#ifndef OPENSTEP_C99_TYPES_DEFINED
++#define OPENSTEP_C99_TYPES_DEFINED
++#ifndef __cplusplus
++typedef unsigned char bool;
++#ifndef true
++#define true 1
++#endif
++#ifndef false
++#define false 0
++#endif
++#define __bool_true_false_are_defined 1
++#endif
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef signed short int16_t;
++typedef unsigned short uint16_t;
++typedef signed int int32_t;
++typedef unsigned int uint32_t;
++typedef signed long long int64_t;
++typedef unsigned long long uint64_t;
++typedef unsigned long uintptr_t;
++#ifndef PRIu32
++#define PRIu32 "u"
++#endif
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#endif
++#else
+ #include <sys/types.h>
+ #include <stdbool.h>
+-#include <stddef.h>
+ #include <stdint.h>
++#endif
+ #include <assert.h>
+ 
+ /**
+diff --git a/src/libwapcaplet.c b/src/libwapcaplet.c
+index 34a72cd..83d994f 100644
+--- a/src/libwapcaplet.c
++++ b/src/libwapcaplet.c
+@@ -12,6 +12,12 @@
+ 
+ #include "libwapcaplet/libwapcaplet.h"
+ 
++#if defined(NeXT)
++#ifndef restrict
++#define restrict
++#endif
++#endif
++
+ #ifndef UNUSED
+ #define UNUSED(x) ((x) = (x))
+ #endif

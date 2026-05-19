@@ -1,0 +1,5 @@
+gcc3
+make
+netsurf-buildsystem
+libparserutils
+patch

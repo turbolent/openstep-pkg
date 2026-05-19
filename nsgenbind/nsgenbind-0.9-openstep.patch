@@ -1,0 +1,285 @@
+diff --git a/src/Makefile b/src/Makefile
+index fa1ddc87b..aa74b6d63 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -14,6 +14,9 @@ $(BUILDDIR)/%-lexer.c $(BUILDDIR)/%-lexer.h: src/%-lexer.l
+ 
+ $(BUILDDIR)/%-lexer.c: $(BUILDDIR)/%-parser.h
+ 
++$(BUILDDIR)/$(subst /,_,$(BUILDDIR)/nsgenbind-parser.o): $(BUILDDIR)/nsgenbind-lexer.h
++$(BUILDDIR)/$(subst /,_,$(BUILDDIR)/webidl-parser.o): $(BUILDDIR)/webidl-lexer.h
++
+ # Bison 3.0 and later require api.prefix in curly braces
+ # Bison 2.6 and later require api.prefix
+ # Bison 2.5 and earlier require name-prefix switch
+diff --git a/src/duk-libdom-common.c b/src/duk-libdom-common.c
+index a75f14840..2d13ba37f 100644
+--- a/src/duk-libdom-common.c
++++ b/src/duk-libdom-common.c
+@@ -11,7 +11,9 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NeXT
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ #include <ctype.h>
+ 
+diff --git a/src/duk-libdom-dictionary.c b/src/duk-libdom-dictionary.c
+index bc531474d..8be0d5996 100644
+--- a/src/duk-libdom-dictionary.c
++++ b/src/duk-libdom-dictionary.c
+@@ -11,7 +11,9 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NeXT
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ #include <ctype.h>
+ 
+diff --git a/src/duk-libdom-generated.c b/src/duk-libdom-generated.c
+index 13194e07d..ef7e08f81 100644
+--- a/src/duk-libdom-generated.c
++++ b/src/duk-libdom-generated.c
+@@ -17,7 +17,9 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NeXT
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ #include <ctype.h>
+ 
+diff --git a/src/duk-libdom-interface.c b/src/duk-libdom-interface.c
+index 46436c460..6c9586e54 100644
+--- a/src/duk-libdom-interface.c
++++ b/src/duk-libdom-interface.c
+@@ -11,7 +11,9 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NeXT
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ #include <ctype.h>
+ 
+diff --git a/src/duk-libdom.c b/src/duk-libdom.c
+index 61cd20e63..3210f8634 100644
+--- a/src/duk-libdom.c
++++ b/src/duk-libdom.c
+@@ -11,7 +11,9 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NeXT
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ #include <ctype.h>
+ 
+diff --git a/src/nsgenbind.c b/src/nsgenbind.c
+index 73b9673a5..726db1e44 100644
+--- a/src/nsgenbind.c
++++ b/src/nsgenbind.c
+@@ -11,7 +11,13 @@
+ #include <stdbool.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifdef NeXT
++extern char *optarg;
++extern int optind;
++extern int getopt(int argc, char * const argv[], const char *optstring);
++#else
+ #include <getopt.h>
++#endif
+ #include <errno.h>
+ 
+ #include "options.h"
+diff --git a/src/output.c b/src/output.c
+index 84579f27d..8dc0a5d85 100644
+--- a/src/output.c
++++ b/src/output.c
+@@ -63,26 +63,51 @@ int output_close(struct opctx *opctx)
+  */
+ static char output_buffer[128*1024];
+ 
++static int output_write(struct opctx *opctx, const char *data, int len)
++{
++        int idx;
++
++        /* account for newlines in output */
++        for (idx = 0; idx < len; idx++) {
++                if (data[idx] == '\n') {
++                        opctx->lineno++;
++                }
++        }
++
++        fwrite(data, 1, len, opctx->outf);
++
++        return len;
++}
++
+ int outputf(struct opctx *opctx, const char *fmt, ...)
+ {
+         va_list ap;
+         int res;
+-        int idx;
+ 
+         va_start(ap, fmt);
++#ifdef NeXT
++        if (strcmp(fmt, "%s") == 0) {
++                const char *str;
++
++                str = va_arg(ap, const char *);
++                va_end(ap);
++                if (str == NULL) {
++                        str = "(null)";
++                }
++                return output_write(opctx, str, strlen(str));
++        }
++#endif
+         res = vsnprintf(output_buffer, sizeof(output_buffer), fmt, ap);
+         va_end(ap);
+ 
+-        /* account for newlines in output */
+-        for (idx = 0; idx < res; idx++) {
+-                if (output_buffer[idx] == '\n') {
+-                        opctx->lineno++;
+-                }
++        if (res < 0) {
++                return res;
++        }
++        if ((size_t)res >= sizeof(output_buffer)) {
++                res = sizeof(output_buffer) - 1;
+         }
+ 
+-        fwrite(output_buffer, 1, res, opctx->outf);
+-
+-        return res;
++        return output_write(opctx, output_buffer, res);
+ }
+ 
+ int outputc(struct opctx *opctx, int c)
+diff --git a/src/utils.c b/src/utils.c
+index 85d26f26e..9e4108b33 100644
+--- a/src/utils.c
++++ b/src/utils.c
+@@ -11,12 +11,61 @@
+ #include <stdbool.h>
+ #include <errno.h>
+ #include <stdlib.h>
++#ifdef NeXT
++#include <stdarg.h>
++#endif
++#ifdef NeXT
++extern int getpid(void);
++#else
+ #include <sys/types.h>
+ #include <unistd.h>
++#endif
+ 
+ #include "options.h"
+ #include "utils.h"
+ 
++#ifdef NeXT
++char *strdup(const char *s)
++{
++        size_t len;
++        char *copy;
++
++        len = strlen(s) + 1;
++        copy = malloc(len);
++        if (copy != NULL) {
++                memcpy(copy, s, len);
++        }
++        return copy;
++}
++
++int vsnprintf(char *str, size_t size, const char *format, va_list ap)
++{
++        char tmp[8192];
++        int ret;
++        size_t copy;
++
++        ret = vsprintf(tmp, format, ap);
++        if ((str != NULL) && (size != 0)) {
++                copy = (ret >= 0 && (size_t)ret < size) ?
++                        (size_t)ret : size - 1;
++                memcpy(str, tmp, copy);
++                str[copy] = 0;
++        }
++        return ret;
++}
++
++int snprintf(char *str, size_t size, const char *format, ...)
++{
++        va_list ap;
++        int ret;
++
++        va_start(ap, format);
++        ret = vsnprintf(str, size, format, ap);
++        va_end(ap);
++        return ret;
++}
++#endif
++
+ /* exported function documented in utils.h */
+ char *genb_fpath(const char *fname)
+ {
+@@ -35,7 +84,7 @@ static char *genb_fpath_tmp(const char *fname)
+         char *fpath;
+         int fpathl;
+ 
+-        fpathl = strlen(options->outdirname) + strlen(fname) + 3;
++        fpathl = strlen(options->outdirname) + strlen(fname) + 16;
+         fpath = malloc(fpathl);
+         snprintf(fpath, fpathl, "%s/%s.%d", options->outdirname, fname, getpid());
+ 
+diff --git a/src/utils.h b/src/utils.h
+index c9dfd36cf..b4c67d9a4 100644
+--- a/src/utils.h
++++ b/src/utils.h
+@@ -36,7 +36,7 @@ FILE *genb_fopen_tmp(const char *fname);
+  */
+ int genb_fclose_tmp(FILE *filef, const char *fname);
+ 
+-#if defined(__APPLE__) || defined(_WIN32)
++#if defined(__APPLE__) || defined(_WIN32) || defined(NeXT)
+ #define NEED_STRNDUP 1
+ char *strndup(const char *s, size_t n);
+ #endif
+diff --git a/src/webidl-parser.y b/src/webidl-parser.y
+index 9b4c2011a..dc2abe37e 100644
+--- a/src/webidl-parser.y
++++ b/src/webidl-parser.y
+@@ -17,8 +17,25 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdbool.h>
++#ifdef NeXT
++#include <stdlib.h>
++#define strtof(nptr, endptr) ((float)strtod((nptr), (endptr)))
++#ifndef INFINITY
++#define INFINITY ((float)(1.0 / 0.0))
++#endif
++#ifndef NAN
++#define NAN ((float)(0.0 / 0.0))
++#endif
++#else
+ #include <stdint.h>
+ #include <math.h>
++#ifndef INFINITY
++#define INFINITY ((float)(1.0 / 0.0))
++#endif
++#ifndef NAN
++#define NAN ((float)(0.0 / 0.0))
++#endif
++#endif
+ 
+ #define YYFPRINTF webidl_fprintf
+ #define YY_LOCATION_PRINT(File, Loc)                            \

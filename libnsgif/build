@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libnsgif-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+INSTALLFLAGS=-c
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP
+export INSTALL INSTALLFLAGS
+
+if [ -d "libnsgif-$VERSION" ]; then
+    cd "libnsgif-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config <<'EOF'
+CFLAGS := $(CFLAGS) -DNeXT
+EOF
+
+gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "build-i386-next-openstep4-i386-next-openstep4-release-lib-static/libnsgif.a"
+
+gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$DESTDIR$PREFIX/lib/libnsgif.a"

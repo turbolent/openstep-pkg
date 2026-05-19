@@ -1,0 +1,639 @@
+diff --git a/Makefile b/Makefile
+index 43e9a80..47bb40a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -61,6 +61,7 @@ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/fpmath.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/functypes.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/hint.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/libcss.h
++INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/openstep.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/properties.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/select.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/libcss/stylesheet.h
+diff --git a/include/libcss/computed.h b/include/libcss/computed.h
+index 5d9cc7e..30d0a3a 100644
+--- a/include/libcss/computed.h
++++ b/include/libcss/computed.h
+@@ -13,7 +13,11 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/functypes.h>
+diff --git a/include/libcss/font_face.h b/include/libcss/font_face.h
+index 135682c..727dc1e 100644
+--- a/include/libcss/font_face.h
++++ b/include/libcss/font_face.h
+@@ -14,7 +14,11 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/functypes.h>
+diff --git a/include/libcss/fpmath.h b/include/libcss/fpmath.h
+index eec40b3..32c3c3f 100644
+--- a/include/libcss/fpmath.h
++++ b/include/libcss/fpmath.h
+@@ -13,7 +13,11 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ #include <limits.h>
+ 
+ /* 22:10 fixed point math */
+@@ -160,4 +164,3 @@ css_float_to_fixed(const float a) {
+ #endif
+ 
+ #endif
+-
+diff --git a/include/libcss/functypes.h b/include/libcss/functypes.h
+index 68a3f09..6095035 100644
+--- a/include/libcss/functypes.h
++++ b/include/libcss/functypes.h
+@@ -13,8 +13,12 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
+ #include <stdint.h>
++#endif
+ #include <stdlib.h>
+ 
+ #include <libcss/types.h>
+@@ -24,4 +28,3 @@ extern "C"
+ #endif
+ 
+ #endif
+-
+diff --git a/include/libcss/hint.h b/include/libcss/hint.h
+index 629d2f6..18ce18b 100644
+--- a/include/libcss/hint.h
++++ b/include/libcss/hint.h
+@@ -13,7 +13,11 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/computed.h>
+ #include <libcss/errors.h>
+diff --git a/include/libcss/libcss.h b/include/libcss/libcss.h
+index 89e83b5..a58e14a 100644
+--- a/include/libcss/libcss.h
++++ b/include/libcss/libcss.h
+@@ -13,7 +13,11 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/types.h>
+@@ -29,4 +33,3 @@ extern "C"
+ #endif
+ 
+ #endif
+-
+diff --git b/include/libcss/openstep.h b/include/libcss/openstep.h
+new file mode 100644
+index 0000000..f3a7fce
+--- /dev/null
++++ b/include/libcss/openstep.h
+@@ -0,0 +1,61 @@
++/*
++ * OPENSTEP compatibility definitions for systems without C99 headers.
++ */
++
++#ifndef libcss_openstep_h_
++#define libcss_openstep_h_
++
++#ifdef NeXT
++
++#ifndef __TARGET_ARCHITECTURE__
++#define __TARGET_ARCHITECTURE__ "i386"
++#endif
++
++/*
++ * GCC 3's preprocessor on OPENSTEP does not expand NeXT's ARCH_INCLUDE()
++ * string-concatenating include helper correctly.  These private machine
++ * headers are not needed for libcss' public dependency types.
++ */
++#ifndef _BSD_MACHINE_ENDIAN_H_
++#define _BSD_MACHINE_ENDIAN_H_
++#endif
++#ifndef _BSD_MACHINE_LABEL_T_H_
++#define _BSD_MACHINE_LABEL_T_H_
++#endif
++#ifndef _BSD_MACHINE_TYPES_H_
++#define _BSD_MACHINE_TYPES_H_
++#endif
++#ifndef _ANSI_MACHINE_LIMITS_H_
++#define _ANSI_MACHINE_LIMITS_H_
++#endif
++#ifndef _ANSI_MACHINE_LIMITS_H
++#define _ANSI_MACHINE_LIMITS_H
++#endif
++
++#include <libwapcaplet/libwapcaplet.h>
++
++#ifndef parserutils_openstep_h_
++#define parserutils_openstep_h_
++#ifndef OPENSTEP_C99_TYPES_DEFINED
++typedef signed short int16_t;
++typedef unsigned short uint16_t;
++typedef signed int int32_t;
++typedef signed long long int64_t;
++typedef unsigned long long uint64_t;
++#endif
++#endif
++
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#ifndef UINT32_MAX
++#define UINT32_MAX 4294967295U
++#endif
++
++#ifndef restrict
++#define restrict
++#endif
++
++#endif
++
++#endif
+diff --git a/include/libcss/types.h b/include/libcss/types.h
+index 3fb28d3..46d201e 100644
+--- a/include/libcss/types.h
++++ b/include/libcss/types.h
+@@ -13,11 +13,17 @@ extern "C"
+ {
+ #endif
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
+ #include <stdint.h>
++#endif
+ #include <stdlib.h>
+ 
++#ifndef NeXT
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/fpmath.h>
+ 
+diff --git a/src/bytecode/bytecode.h b/src/bytecode/bytecode.h
+index ccfdcac..789e046 100644
+--- a/src/bytecode/bytecode.h
++++ b/src/bytecode/bytecode.h
+@@ -8,7 +8,11 @@
+ #ifndef css_bytecode_bytecode_h_
+ #define css_bytecode_bytecode_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stdio.h>
+ 
+ #include <libcss/types.h>
+@@ -127,4 +131,3 @@ static inline bool isInherit(css_code_t OPV)
+ #endif
+ 
+ 
+-
+diff --git a/src/bytecode/opcodes.h b/src/bytecode/opcodes.h
+index 7a1377b..de91346 100644
+--- a/src/bytecode/opcodes.h
++++ b/src/bytecode/opcodes.h
+@@ -8,7 +8,11 @@
+ #ifndef css_bytecode_opcodes_h_
+ #define css_bytecode_opcodes_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ enum op_align_content {
+ 	ALIGN_CONTENT_STRETCH		= 0x0000,
+diff --git a/src/charset/detect.c b/src/charset/detect.c
+index 23c1bf9..64cd83c 100644
+--- a/src/charset/detect.c
++++ b/src/charset/detect.c
+@@ -5,7 +5,11 @@
+  * Copyright 2008 John-Mark Bell <jmb@netsurf-browser.org>
+  */
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <string.h>
+ 
+ #include <parserutils/charset/mibenum.h>
+diff --git a/src/charset/detect.h b/src/charset/detect.h
+index c963ebd..92f0246 100644
+--- a/src/charset/detect.h
++++ b/src/charset/detect.h
+@@ -8,7 +8,11 @@
+ #ifndef css_charset_detect_h_
+ #define css_charset_detect_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/functypes.h>
+@@ -21,4 +25,3 @@ parserutils_error css__charset_extract(const uint8_t *data, size_t len,
+ 		uint16_t *mibenum, uint32_t *source);
+ 
+ #endif
+-
+diff --git a/src/lex/lex.c b/src/lex/lex.c
+index 5269db3..5b05720 100644
+--- a/src/lex/lex.c
++++ b/src/lex/lex.c
+@@ -23,8 +23,12 @@
+ 
+ #include <assert.h>
+ #include <stdarg.h>
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
+ #include <stdint.h>
++#endif
+ 
+ #include <parserutils/charset/utf8.h>
+ #include <parserutils/input/inputstream.h>
+@@ -2203,4 +2207,3 @@ bool isSpace(uint8_t c)
+ {
+ 	return c == ' ' || c == '\r' || c == '\n' || c == '\f' || c == '\t';
+ }
+-
+diff --git a/src/lex/lex.h b/src/lex/lex.h
+index ac21444..499aee6 100644
+--- a/src/lex/lex.h
++++ b/src/lex/lex.h
+@@ -8,7 +8,11 @@
+ #ifndef css_lex_lex_h_
+ #define css_lex_lex_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/functypes.h>
+@@ -75,4 +79,3 @@ css_error css__lexer_setopt(css_lexer *lexer, css_lexer_opttype type,
+ css_error css__lexer_get_token(css_lexer *lexer, css_token **token);
+ 
+ #endif
+-
+diff --git a/src/parse/parse.c b/src/parse/parse.c
+index d7cb357..bfd958b 100644
+--- a/src/parse/parse.c
++++ b/src/parse/parse.c
+@@ -7,9 +7,15 @@
+ 
+ #include <assert.h>
+ #include <ctype.h>
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
++#ifndef NeXT
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <parserutils/input/inputstream.h>
+ #include <parserutils/utils/stack.h>
+@@ -2663,4 +2669,3 @@ static void tprinter(void *token)
+ }
+ #endif
+ #endif
+-
+diff --git a/src/parse/parse.h b/src/parse/parse.h
+index 1e040de..bed0fcc 100644
+--- a/src/parse/parse.h
++++ b/src/parse/parse.h
+@@ -8,7 +8,11 @@
+ #ifndef css_css__parse_parse_h_
+ #define css_css__parse_parse_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <parserutils/utils/vector.h>
+ 
+@@ -78,4 +82,3 @@ const char *css__parser_read_charset(css_parser *parser,
+ bool css__parser_quirks_permitted(css_parser *parser);
+ 
+ #endif
+-
+diff --git a/src/parse/properties/Makefile b/src/parse/properties/Makefile
+index df84d49..6c00987 100644
+--- a/src/parse/properties/Makefile
++++ b/src/parse/properties/Makefile
+@@ -1,13 +1,13 @@
+ # Sources
+ 
+-AUTOGEN_PARSERS := $(shell $(PERL) -pe'$$_="" unless /^([^\#][^:]+):/;$$_=$$1 . " "' $(DIR)properties.gen)
++AUTOGEN_PARSERS := $(shell awk -F: '/^[^\#][^:]+:/ { printf "%s ", $$1 }' $(DIR)properties.gen)
+ 
+ # Dodgy use of define/eval to bypass DIR changing
+ define build_gen_parser
+ 
+-$(BUILDDIR)/gen_parser: $(DIR)css_property_parser_gen.c
++$(BUILDDIR)/gen_parser: $(BUILDDIR)/stamp $(DIR)css_property_parser_gen.c
+ 	$$(VQ)$$(ECHO) $$(ECHOFLAGS) " PREPARE: $$@"
+-	$$(Q)$$(BUILD_CC) -o $$@ $$^
++	$$(Q)$$(BUILD_CC) -o $$@ $(DIR)css_property_parser_gen.c
+ 
+ endef
+ 
+diff --git a/src/parse/properties/css_property_parser_gen.c b/src/parse/properties/css_property_parser_gen.c
+index 3e1d997..5fdae5a 100644
+--- a/src/parse/properties/css_property_parser_gen.c
++++ b/src/parse/properties/css_property_parser_gen.c
+@@ -8,7 +8,27 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
++
++#ifdef NeXT
++static char *css__strdup(const char *src)
++{
++	size_t len;
++	char *copy;
++
++	len = strlen(src) + 1;
++	copy = malloc(len);
++	if (copy != NULL)
++		memcpy(copy, src, len);
++
++	return copy;
++}
++#define strdup css__strdup
++#endif
+ 
+ /* Descriptors are space separated key:value pairs brackets () are
+  * used to quote in values.
+diff --git a/src/select/arena_hash.h b/src/select/arena_hash.h
+index 449284f..2002a52 100644
+--- a/src/select/arena_hash.h
++++ b/src/select/arena_hash.h
+@@ -9,7 +9,11 @@
+ #ifndef css_select_arena_hash_h_
+ #define css_select_arena_hash_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ /**
+  * Currently 32-bit MurmurHash2.
+@@ -64,4 +68,3 @@ static inline uint32_t css__arena_hash(const uint8_t *data, size_t len)
+ }
+ 
+ #endif
+-
+diff --git a/src/select/bloom.h b/src/select/bloom.h
+index dda4cca..969236a 100644
+--- a/src/select/bloom.h
++++ b/src/select/bloom.h
+@@ -31,7 +31,11 @@
+ #ifndef libcss_bloom_h_
+ #define libcss_bloom_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ #include <string.h>
+ 
+ /* Size of bloom filter as multiple of 32 bits.
+diff --git a/src/select/dispatch.h b/src/select/dispatch.h
+index 8ddf4f9..29121ec 100644
+--- a/src/select/dispatch.h
++++ b/src/select/dispatch.h
+@@ -8,7 +8,11 @@
+ #ifndef css_select_dispatch_h_
+ #define css_select_dispatch_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/computed.h>
+diff --git a/src/select/hash.h b/src/select/hash.h
+index 5f48a38..b38790d 100644
+--- a/src/select/hash.h
++++ b/src/select/hash.h
+@@ -8,7 +8,11 @@
+ #ifndef css_select_hash_h_
+ #define css_select_hash_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/unit.h>
+ #include <libcss/errors.h>
+@@ -65,4 +69,3 @@ css_error css__selector_hash_find_universal(css_selector_hash *hash,
+ css_error css__selector_hash_size(css_selector_hash *hash, size_t *size);
+ 
+ #endif
+-
+diff --git a/src/select/select.c b/src/select/select.c
+index da0aa61..1833270 100644
+--- a/src/select/select.c
++++ b/src/select/select.c
+@@ -8,7 +8,11 @@
+ #include <assert.h>
+ #include <string.h>
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/select.h>
+ 
+@@ -2958,4 +2962,3 @@ void dump_chain(const css_selector *selector)
+ 	} while (detail);
+ }
+ #endif
+-
+diff --git a/src/select/select.h b/src/select/select.h
+index 5170e58..803ec2f 100644
+--- a/src/select/select.h
++++ b/src/select/select.h
+@@ -8,8 +8,12 @@
+ #ifndef css_select_select_h_
+ #define css_select_select_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <stdbool.h>
+ #include <stdint.h>
++#endif
+ 
+ #include <libcss/select.h>
+ 
+@@ -109,4 +113,3 @@ bool css__outranks_existing(uint16_t op, bool important,
+ 		css_select_state *state, enum flag_value explicit_default);
+ 
+ #endif
+-
+diff --git a/src/select/strings.c b/src/select/strings.c
+index 6e9137d..d104fc0 100644
+--- a/src/select/strings.c
++++ b/src/select/strings.c
+@@ -5,7 +5,11 @@
+  * Copyright 2009 John-Mark Bell <jmb@netsurf-browser.org>
+  */
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include "select/strings.h"
+ #include "utils/utils.h"
+diff --git a/src/stylesheet.c b/src/stylesheet.c
+index 22c7681..cbcbed7 100644
+--- a/src/stylesheet.c
++++ b/src/stylesheet.c
+@@ -8,6 +8,7 @@
+ #include <assert.h>
+ #include <string.h>
+ #include <stdarg.h>
++#include <stdlib.h>
+ 
+ #include "stylesheet.h"
+ #include "bytecode/bytecode.h"
+@@ -18,6 +19,22 @@
+ #include "select/dispatch.h"
+ #include "select/font_face.h"
+ 
++#ifdef NeXT
++static char *css__strdup(const char *src)
++{
++	size_t len;
++	char *copy;
++
++	len = strlen(src) + 1;
++	copy = malloc(len);
++	if (copy != NULL)
++		memcpy(copy, src, len);
++
++	return copy;
++}
++#define strdup css__strdup
++#endif
++
+ static css_error _add_selectors(css_stylesheet *sheet, css_rule *rule);
+ static css_error _remove_selectors(css_stylesheet *sheet, css_rule *rule);
+ static size_t _rule_size(const css_rule *rule);
+diff --git a/src/stylesheet.h b/src/stylesheet.h
+index 673bc95..4426b8e 100644
+--- a/src/stylesheet.h
++++ b/src/stylesheet.h
+@@ -8,10 +8,16 @@
+ #ifndef css_stylesheet_h_
+ #define css_stylesheet_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stdio.h>
+ 
++#ifndef NeXT
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/errors.h>
+ #include <libcss/functypes.h>
+@@ -330,4 +336,3 @@ css_error css__stylesheet_string_add(css_stylesheet *sheet,
+ 		lwc_string *string, uint32_t *string_number);
+ 
+ #endif
+-
+diff --git a/src/utils/utils.h b/src/utils/utils.h
+index 854273a..4956ade 100644
+--- a/src/utils/utils.h
++++ b/src/utils/utils.h
+@@ -8,7 +8,11 @@
+ #ifndef css_utils_h_
+ #define css_utils_h_
+ 
++#ifdef NeXT
++#include <libcss/openstep.h>
++#else
+ #include <libwapcaplet/libwapcaplet.h>
++#endif
+ 
+ #include <libcss/types.h>
+ #include <libcss/errors.h>

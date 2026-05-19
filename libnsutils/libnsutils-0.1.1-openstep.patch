@@ -1,0 +1,212 @@
+diff --git a/Makefile b/Makefile
+index e275537..248d02c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -55,5 +55,6 @@ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsutils/base64.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsutils/endian.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsutils/time.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsutils/unistd.h
++INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsutils/openstep.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR)/pkgconfig:lib$(COMPONENT).pc.in
+ INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR):$(OUTPUT)
+diff --git a/include/nsutils/base64.h b/include/nsutils/base64.h
+index fb26426..a61a380 100644
+--- a/include/nsutils/base64.h
++++ b/include/nsutils/base64.h
+@@ -15,7 +15,11 @@
+ #ifndef NSUTILS_BASE64_H_
+ #define NSUTILS_BASE64_H_
+ 
++#ifdef NeXT
++#include <nsutils/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <nsutils/errors.h>
+ 
+diff --git a/include/nsutils/endian.h b/include/nsutils/endian.h
+index a15c7e2..dd6da17 100644
+--- a/include/nsutils/endian.h
++++ b/include/nsutils/endian.h
+@@ -13,8 +13,12 @@
+ #ifndef NSUTILS_ENDIAN_H__
+ #define NSUTILS_ENDIAN_H__
+ 
++#ifdef NeXT
++#include <nsutils/openstep.h>
++#else
+ #include <inttypes.h>
+ #include <stdbool.h>
++#endif
+ 
+ /**
+  * Detect if the host is little endian.
+diff --git a/include/nsutils/openstep.h b/include/nsutils/openstep.h
+new file mode 100644
+index 0000000..706ff24
+--- /dev/null
++++ b/include/nsutils/openstep.h
+@@ -0,0 +1,34 @@
++/*
++ * OPENSTEP compatibility definitions for old system headers.
++ */
++
++#ifndef NSUTILS_OPENSTEP_H_
++#define NSUTILS_OPENSTEP_H_
++
++#include <sys/types.h>
++
++#ifndef OPENSTEP_C99_TYPES_DEFINED
++#define OPENSTEP_C99_TYPES_DEFINED
++
++#ifndef __cplusplus
++typedef unsigned char bool;
++#ifndef true
++#define true 1
++#endif
++#ifndef false
++#define false 0
++#endif
++#define __bool_true_false_are_defined 1
++#endif
++
++typedef u_int8_t uint8_t;
++typedef u_int16_t uint16_t;
++typedef u_int32_t uint32_t;
++typedef u_int64_t uint64_t;
++#ifndef _POSIX_SOURCE
++typedef int ssize_t;
++#endif
++
++#endif
++
++#endif
+diff --git a/include/nsutils/time.h b/include/nsutils/time.h
+index f162b75..0f8a5f3 100644
+--- a/include/nsutils/time.h
++++ b/include/nsutils/time.h
+@@ -15,7 +15,11 @@
+ #ifndef NSUTILS_TIME_H_
+ #define NSUTILS_TIME_H_
+ 
++#ifdef NeXT
++#include <nsutils/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <nsutils/errors.h>
+ 
+diff --git a/include/nsutils/unistd.h b/include/nsutils/unistd.h
+index 06af226..14b5890 100644
+--- a/include/nsutils/unistd.h
++++ b/include/nsutils/unistd.h
+@@ -15,6 +15,9 @@
+ #ifndef NSUTILS_UNISTD_H_
+ #define NSUTILS_UNISTD_H_
+ 
++#ifdef NeXT
++#include <nsutils/openstep.h>
++#endif
+ #include <unistd.h>
+ 
+ /**
+diff --git a/src/base64.c b/src/base64.c
+index 87752da..38d8092 100644
+--- a/src/base64.c
++++ b/src/base64.c
+@@ -14,11 +14,15 @@
+  * Implements RFC4648 (https://tools.ietf.org/html/rfc4648)
+  */
+ 
+-#include <stdint.h>
+ #include <stdlib.h>
+-#include <stdbool.h>
+ #include <string.h>
+ 
++#ifdef NeXT
++#include "nsutils/openstep.h"
++#else
++#include <stdint.h>
++#include <stdbool.h>
++#endif
+ #include "nsutils/base64.h"
+ 
+ static const uint8_t b64_decoding_table[256] = {
+@@ -135,6 +139,10 @@ table_encode(const uint8_t *encoding_table,
+         size_t encoded_len;
+         size_t i; /* input index */
+         size_t j; /* output index */
++        uint32_t octet_a;
++        uint32_t octet_b;
++        uint32_t octet_c;
++        uint32_t triple;
+ 
+         encoded_len = 4 * ((input_length + 2) / 3);
+ 
+@@ -145,11 +153,11 @@ table_encode(const uint8_t *encoding_table,
+ 
+         for (i = 0, j = 0; i < input_length;) {
+ 
+-                uint32_t octet_a = i < input_length ? input[i++] : 0;
+-                uint32_t octet_b = i < input_length ? input[i++] : 0;
+-                uint32_t octet_c = i < input_length ? input[i++] : 0;
++                octet_a = i < input_length ? input[i++] : 0;
++                octet_b = i < input_length ? input[i++] : 0;
++                octet_c = i < input_length ? input[i++] : 0;
+ 
+-                uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
++                triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+ 
+                 encoded[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+                 encoded[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+diff --git a/src/time.c b/src/time.c
+index 34519a1..498e73f 100644
+--- a/src/time.c
++++ b/src/time.c
+@@ -12,10 +12,14 @@
+  * Time operation implementation
+  */
+ 
+-#include <stdint.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
++#ifdef NeXT
++#include "nsutils/openstep.h"
++#else
++#include <stdint.h>
++#endif
+ #if (defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && (defined _POSIX_MONOTONIC_CLOCK)) || defined(__OpenBSD__)
+ #include <time.h>
+ #elif defined(__riscos)
+diff --git a/src/unistd.c b/src/unistd.c
+index bdedad7..7f9206a 100644
+--- a/src/unistd.c
++++ b/src/unistd.c
+@@ -18,10 +18,14 @@
+ 
+ #include "nsutils/unistd.h"
+ 
++#if defined(NeXT) && !defined(SEEK_SET)
++#define SEEK_SET 0
++#endif
++
+ /* exported interface documented in nsutils/unistd.h */
+ ssize_t nsu_pwrite(int fd, const void *buf, size_t count, off_t offset)
+ {
+-#if (defined(__riscos) || defined(__amiga) || defined(_WIN32) || defined(__serenity__))
++#if (defined(__riscos) || defined(__amiga) || defined(_WIN32) || defined(__serenity__) || defined(NeXT))
+         off_t sk;
+ 
+         sk = lseek(fd, offset, SEEK_SET);
+@@ -53,7 +57,7 @@ ssize_t nsu_pwrite(int fd, const void *buf, size_t count, off_t offset)
+ /* exported interface documented in nsutils/unistd.h */
+ ssize_t nsu_pread(int fd, void *buf, size_t count, off_t offset)
+ {
+-#if (defined(__riscos) || defined(_WIN32) || defined(__serenity__) || (defined(__amiga) && !defined(__amigaos4__)))
++#if (defined(__riscos) || defined(_WIN32) || defined(__serenity__) || defined(NeXT) || (defined(__amiga) && !defined(__amigaos4__)))
+         off_t sk;
+ 
+         sk = lseek(fd, offset, SEEK_SET);

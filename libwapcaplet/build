@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+
+PATH=/usr/local/bin:$PATH
+export PATH
+
+if test -d libwapcaplet-0.4.3; then
+	cd libwapcaplet-0.4.3
+fi
+
+patch -p1 < libwapcaplet-0.4.3-openstep.patch
+
+gnumake Q= CC=cc CCACHE= WARNFLAGS= \
+	PREFIX=/usr/local \
+	NSSHARED=/usr/local/share/netsurf-buildsystem
+
+for lib in build-*-release-lib-static/libwapcaplet.a; do
+	ranlib "$lib"
+done
+
+gnumake Q= CC=cc CCACHE= WARNFLAGS= \
+	INSTALL=/usr/bin/install \
+	INSTALLFLAGS=-c \
+	PREFIX=/usr/local \
+	NSSHARED=/usr/local/share/netsurf-buildsystem \
+	install DESTDIR="$DESTDIR"
+
+if test -f "$DESTDIR/usr/local/lib/libwapcaplet.a"; then
+	ranlib "$DESTDIR/usr/local/lib/libwapcaplet.a"
+fi

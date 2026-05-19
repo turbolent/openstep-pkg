@@ -1,0 +1,54 @@
+#!/bin/sh
+
+set -e
+
+TMPDIR=/tmp/libwapcaplet-test.$$
+
+test -d "$TMPDIR" || mkdir "$TMPDIR"
+
+cat > "$TMPDIR/lwc_probe.c" <<'PROBE_EOF'
+#include <string.h>
+
+#include <libwapcaplet/libwapcaplet.h>
+
+int
+main(void)
+{
+	lwc_string *mixed = 0;
+	lwc_string *lower = 0;
+	lwc_string *sub = 0;
+	bool equal = false;
+	lwc_error err;
+
+	err = lwc_intern_string("OpenStep", 8, &mixed);
+	if (err != lwc_error_ok || mixed == 0)
+		return 1;
+
+	err = lwc_intern_string("openstep", 8, &lower);
+	if (err != lwc_error_ok || lower == 0)
+		return 2;
+
+	err = lwc_string_caseless_isequal(mixed, lower, &equal);
+	if (err != lwc_error_ok || equal == false)
+		return 3;
+
+	err = lwc_intern_substring(mixed, 4, 4, &sub);
+	if (err != lwc_error_ok || sub == 0)
+		return 4;
+
+	if (lwc_string_length(sub) != 4 ||
+	    memcmp(lwc_string_data(sub), "Step", 4) != 0)
+		return 5;
+
+	lwc_string_unref(sub);
+	lwc_string_unref(lower);
+	lwc_string_unref(mixed);
+
+	return 0;
+}
+PROBE_EOF
+
+cc -I"$LOCAL_ROOT/include" -L"$LOCAL_ROOT/lib" \
+	-o "$TMPDIR/lwc_probe" "$TMPDIR/lwc_probe.c" -lwapcaplet
+
+"$TMPDIR/lwc_probe"

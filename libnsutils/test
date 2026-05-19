@@ -1,0 +1,53 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libnsutils-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <nsutils/base64.h>
+#include <nsutils/endian.h>
+#include <nsutils/time.h>
+#include <nsutils/unistd.h>
+
+int main(void)
+{
+    const uint8_t input[] = "OpenStep";
+    uint8_t encoded[32];
+    uint8_t *decoded = 0;
+    size_t encoded_len = sizeof(encoded);
+    size_t decoded_len = 0;
+    uint64_t ms = 0;
+    nsuerror err;
+
+    err = nsu_base64_encode(input, 8, encoded, &encoded_len);
+    if (err != NSUERROR_OK || encoded_len != 12 ||
+            memcmp(encoded, "T3BlblN0ZXA=", 12) != 0)
+        return 1;
+
+    err = nsu_base64_decode_alloc(encoded, encoded_len, &decoded, &decoded_len);
+    if (err != NSUERROR_OK || decoded_len != 8 ||
+            memcmp(decoded, input, 8) != 0)
+        return 2;
+
+    free(decoded);
+
+    if (endian_big_to_host(endian_host_to_big(0x12345678)) != 0x12345678)
+        return 3;
+
+    if (nsu_getmonotonic_ms(&ms) != NSUERROR_OK || ms == 0)
+        return 4;
+
+    return 0;
+}
+EOF
+
+cc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libnsutils.a" -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"

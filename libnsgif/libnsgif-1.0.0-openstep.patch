@@ -1,0 +1,115 @@
+diff --git a/Makefile b/Makefile
+index e02c073..e0be74d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -46,5 +46,6 @@ include $(NSBUILD)/Makefile.top
+ # Extra installation rules
+ I := /$(INCLUDEDIR)
+ INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsgif.h
++INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nsgif_openstep.h
+ INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR)/pkgconfig:lib$(COMPONENT).pc.in
+ INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR):$(OUTPUT)
+diff --git a/include/nsgif.h b/include/nsgif.h
+index e6873b6..be8168d 100644
+--- a/include/nsgif.h
++++ b/include/nsgif.h
+@@ -16,9 +16,13 @@
+ #ifndef NSNSGIF_H
+ #define NSNSGIF_H
+ 
++#ifdef NeXT
++#include <nsgif_openstep.h>
++#else
+ #include <stdint.h>
+ #include <stdbool.h>
+ #include <inttypes.h>
++#endif
+ 
+ /** Representation of infinity. */
+ #define NSGIF_INFINITE (UINT32_MAX)
+diff --git b/include/nsgif_openstep.h b/include/nsgif_openstep.h
+new file mode 100644
+index 0000000..2e061b7
+--- /dev/null
++++ b/include/nsgif_openstep.h
+@@ -0,0 +1,41 @@
++/*
++ * OPENSTEP compatibility for public LibNSGIF headers.
++ *
++ * OPENSTEP 4.2 does not provide the C99 integer or boolean headers used by
++ * LibNSGIF.  Keep the fallback narrow so hosted users still get the native
++ * headers everywhere else.
++ */
++
++#ifndef NSGIF_OPENSTEP_H
++#define NSGIF_OPENSTEP_H
++
++#ifdef NeXT
++
++typedef unsigned char uint8_t;
++typedef unsigned short uint16_t;
++typedef unsigned int uint32_t;
++
++#ifndef __cplusplus
++typedef unsigned char bool;
++#ifndef true
++#define true 1
++#endif
++#ifndef false
++#define false 0
++#endif
++#define __bool_true_false_are_defined 1
++#endif
++
++#ifndef UINT32_MAX
++#define UINT32_MAX 4294967295U
++#endif
++
++#else
++
++#include <stdint.h>
++#include <stdbool.h>
++#include <inttypes.h>
++
++#endif
++
++#endif
+diff --git a/src/gif.c b/src/gif.c
+index 73814bf..cc03897 100644
+--- a/src/gif.c
++++ b/src/gif.c
+@@ -9,10 +9,14 @@
+  */
+ 
+ #include <assert.h>
++#ifdef NeXT
++#include "nsgif_openstep.h"
++#else
+ #include <stdint.h>
++#include <stdbool.h>
++#endif
+ #include <stdlib.h>
+ #include <string.h>
+-#include <stdbool.h>
+ 
+ #include "lzw.h"
+ #include "nsgif.h"
+diff --git a/src/lzw.c b/src/lzw.c
+index 3098ef5..bf6bafc 100644
+--- a/src/lzw.c
++++ b/src/lzw.c
+@@ -8,9 +8,13 @@
+  */
+ 
+ #include <assert.h>
++#ifdef NeXT
++#include "nsgif_openstep.h"
++#else
+ #include <stdint.h>
+-#include <stdlib.h>
+ #include <stdbool.h>
++#endif
++#include <stdlib.h>
+ 
+ #include "lzw.h"
+ 

@@ -1,0 +1,7 @@
+gcc3
+make
+netsurf-buildsystem
+libwapcaplet
+libparserutils
+libhubbub
+patch

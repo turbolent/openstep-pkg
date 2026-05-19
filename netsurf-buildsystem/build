@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+PREFIX=/usr/local
+BASE=$DESTDIR$PREFIX/share/netsurf-buildsystem
+
+if [ -d "buildsystem-$2" ]; then
+    cd "buildsystem-$2"
+fi
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
+test -d "$BASE" || mkdir "$BASE"
+test -d "$BASE/makefiles" || mkdir "$BASE/makefiles"
+test -d "$BASE/testtools" || mkdir "$BASE/testtools"
+test -d "$BASE/citools" || mkdir "$BASE/citools"
+
+for file in \
+    Makefile.top \
+    Makefile.tools \
+    Makefile.subdir \
+    Makefile.pkgconfig \
+    Makefile.clang \
+    Makefile.gcc \
+    Makefile.norcroft \
+    Makefile.open64
+do
+    cp "makefiles/$file" "$BASE/makefiles/$file"
+done
+
+cp testtools/testrunner.pl "$BASE/testtools/testrunner.pl"
+cp citools/jenkins-build.sh "$BASE/citools/jenkins-build.sh"
+cp README "$BASE/README"
+cp COPYING "$BASE/COPYING"

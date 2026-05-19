@@ -1,0 +1,1610 @@
+diff --git a/Makefile b/Makefile
+index f542630..d7ade22 100644
+--- a/Makefile
++++ b/Makefile
+@@ -56,7 +56,7 @@ include $(NSBUILD)/Makefile.top
+ # Extra installation rules
+ Is := include/dom
+ I := /$(INCLUDEDIR)/dom
+-INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):$(Is)/dom.h;$(Is)/functypes.h;$(Is)/inttypes.h;$(Is)/walk.h
++INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):$(Is)/dom.h;$(Is)/functypes.h;$(Is)/inttypes.h;$(Is)/openstep.h;$(Is)/walk.h
+ 
+ Is := include/dom/core
+ I := /$(INCLUDEDIR)/dom/core
+diff --git a/bindings/hubbub/parser.h b/bindings/hubbub/parser.h
+index 5a95a91..55f04c1 100644
+--- a/bindings/hubbub/parser.h
++++ b/bindings/hubbub/parser.h
+@@ -9,7 +9,11 @@
+ #define dom_hubbub_parser_h_
+ 
+ #include <stddef.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <hubbub/errors.h>
+ 
+diff --git a/bindings/xml/expat_xmlparser.c b/bindings/xml/expat_xmlparser.c
+index a63ccf1..b3e4357 100644
+--- a/bindings/xml/expat_xmlparser.c
++++ b/bindings/xml/expat_xmlparser.c
+@@ -5,7 +5,11 @@
+  * Copyright 2012 Daniel Silverstone <dsilvers@netsurf-browser.org>
+  */
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <string.h>
+ #include <assert.h>
+ 
+diff --git a/bindings/xml/libxml_xmlparser.c b/bindings/xml/libxml_xmlparser.c
+index e4a6d80..4876b07 100644
+--- a/bindings/xml/libxml_xmlparser.c
++++ b/bindings/xml/libxml_xmlparser.c
+@@ -5,7 +5,11 @@
+  * Copyright 2007 John-Mark Bell <jmb@netsurf-browser.org>
+  */
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <string.h>
+ #include <assert.h>
+ 
+diff --git a/bindings/xml/xmlparser.h b/bindings/xml/xmlparser.h
+index d9bd07b..595b925 100644
+--- a/bindings/xml/xmlparser.h
++++ b/bindings/xml/xmlparser.h
+@@ -9,7 +9,11 @@
+ #define xml_xmlparser_h_
+ 
+ #include <stddef.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <dom/dom.h>
+ 
+diff --git a/examples/dom-structure-dump.c b/examples/dom-structure-dump.c
+index 189292d..d74f733 100644
+--- a/examples/dom-structure-dump.c
++++ b/examples/dom-structure-dump.c
+@@ -37,8 +37,16 @@
+ 
+ #include <assert.h>
+ #include <stdarg.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+diff --git a/include/dom/core/attr.h b/include/dom/core/attr.h
+index 1ae5be5..88571bb 100644
+--- a/include/dom/core/attr.h
++++ b/include/dom/core/attr.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_attr_h_
+ #define dom_core_attr_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/node.h>
+diff --git a/include/dom/core/comment.h b/include/dom/core/comment.h
+index 43b48c2..3ac7c4e 100644
+--- a/include/dom/core/comment.h
++++ b/include/dom/core/comment.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_comment_h_
+ #define dom_core_comment_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/characterdata.h>
+diff --git a/include/dom/core/document.h b/include/dom/core/document.h
+index de3e07a..3bf2197 100644
+--- a/include/dom/core/document.h
++++ b/include/dom/core/document.h
+@@ -8,10 +8,22 @@
+ #ifndef dom_core_document_h_
+ #define dom_core_document_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stddef.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/implementation.h>
+diff --git a/include/dom/core/element.h b/include/dom/core/element.h
+index 7ed12e2..9da3d21 100644
+--- a/include/dom/core/element.h
++++ b/include/dom/core/element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_element_h_
+ #define dom_core_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+diff --git a/include/dom/core/implementation.h b/include/dom/core/implementation.h
+index 2a47da0..6899510 100644
+--- a/include/dom/core/implementation.h
++++ b/include/dom/core/implementation.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_implementation_h_
+ #define dom_core_implementation_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/events/document_event.h>
+diff --git a/include/dom/core/node.h b/include/dom/core/node.h
+index 90026a1..4fe1b31 100644
+--- a/include/dom/core/node.h
++++ b/include/dom/core/node.h
+@@ -8,8 +8,16 @@
+ #ifndef dom_core_node_h_
+ #define dom_core_node_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+diff --git a/include/dom/core/string.h b/include/dom/core/string.h
+index 4c2da97..559e48d 100644
+--- a/include/dom/core/string.h
++++ b/include/dom/core/string.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_string_h_
+ #define dom_string_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stddef.h>
+ #include <libwapcaplet/libwapcaplet.h>
+ 
+diff --git a/include/dom/core/text.h b/include/dom/core/text.h
+index 7bafc8c..0dafc62 100644
+--- a/include/dom/core/text.h
++++ b/include/dom/core/text.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_text_h_
+ #define dom_core_text_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/characterdata.h>
+diff --git a/include/dom/core/typeinfo.h b/include/dom/core/typeinfo.h
+index 6a6a9bc..7e9b310 100644
+--- a/include/dom/core/typeinfo.h
++++ b/include/dom/core/typeinfo.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_core_typeinfo_h_
+ #define dom_core_typeinfo_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+diff --git a/include/dom/events/custom_event.h b/include/dom/events/custom_event.h
+index a5bc2f6..b15b3f3 100644
+--- a/include/dom/events/custom_event.h
++++ b/include/dom/events/custom_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_custom_event_h_
+ #define dom_events_custom_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/document_event.h b/include/dom/events/document_event.h
+index 3842fd5..13ef401 100644
+--- a/include/dom/events/document_event.h
++++ b/include/dom/events/document_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_document_event_h_
+ #define dom_events_document_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+diff --git a/include/dom/events/event.h b/include/dom/events/event.h
+index aba9655..8e51aba 100644
+--- a/include/dom/events/event.h
++++ b/include/dom/events/event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_event_h_
+ #define dom_events_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/events/event_target.h>
+diff --git a/include/dom/events/event_target.h b/include/dom/events/event_target.h
+index e55b6cb..2416dc5 100644
+--- a/include/dom/events/event_target.h
++++ b/include/dom/events/event_target.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_event_target_h_
+ #define dom_events_event_target_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/keyboard_event.h b/include/dom/events/keyboard_event.h
+index e3b7d50..6d5a4e4 100644
+--- a/include/dom/events/keyboard_event.h
++++ b/include/dom/events/keyboard_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_keyboard_event_h_
+ #define dom_events_keyboard_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/mouse_event.h b/include/dom/events/mouse_event.h
+index 9cf84bb..16bfa7c 100644
+--- a/include/dom/events/mouse_event.h
++++ b/include/dom/events/mouse_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_mouse_event_h_
+ #define dom_events_mouse_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/events/event_target.h>
+diff --git a/include/dom/events/mouse_multi_wheel_event.h b/include/dom/events/mouse_multi_wheel_event.h
+index d8115ad..e3f2375 100644
+--- a/include/dom/events/mouse_multi_wheel_event.h
++++ b/include/dom/events/mouse_multi_wheel_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_mouse_multi_wheel_event_h_
+ #define dom_events_mouse_multi_wheel_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/events/event_target.h>
+diff --git a/include/dom/events/mouse_wheel_event.h b/include/dom/events/mouse_wheel_event.h
+index f753b68..107fcb8 100644
+--- a/include/dom/events/mouse_wheel_event.h
++++ b/include/dom/events/mouse_wheel_event.h
+@@ -7,7 +7,11 @@
+ #ifndef dom_events_mouse_wheel_event_h_
+ #define dom_events_mouse_wheel_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/events/event_target.h>
+diff --git a/include/dom/events/mutation_event.h b/include/dom/events/mutation_event.h
+index 80a8b46..98475cd 100644
+--- a/include/dom/events/mutation_event.h
++++ b/include/dom/events/mutation_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_mutation_event_h_
+ #define dom_events_mutation_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/mutation_name_event.h b/include/dom/events/mutation_name_event.h
+index e0325d7..b1dd8b2 100644
+--- a/include/dom/events/mutation_name_event.h
++++ b/include/dom/events/mutation_name_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_mutation_name_event_h_
+ #define dom_events_mutation_name_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/text_event.h b/include/dom/events/text_event.h
+index d7cbfba..74620be 100644
+--- a/include/dom/events/text_event.h
++++ b/include/dom/events/text_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_text_event_h_
+ #define dom_events_text_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/events/ui_event.h b/include/dom/events/ui_event.h
+index 0979a3b..326109d 100644
+--- a/include/dom/events/ui_event.h
++++ b/include/dom/events/ui_event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_events_ui_event_h_
+ #define dom_events_ui_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/functypes.h b/include/dom/functypes.h
+index 31a7ee8..6b7f28b 100644
+--- a/include/dom/functypes.h
++++ b/include/dom/functypes.h
+@@ -9,7 +9,11 @@
+ #define dom_functypes_h_
+ 
+ #include <stddef.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ /**
+  * Severity levels for dom_msg function, based on syslog(3)
+diff --git a/include/dom/html/html_anchor_element.h b/include/dom/html/html_anchor_element.h
+index c7bcdea..942921d 100644
+--- a/include/dom/html/html_anchor_element.h
++++ b/include/dom/html/html_anchor_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_anchor_element_h_
+ #define dom_html_anchor_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_applet_element.h b/include/dom/html/html_applet_element.h
+index 29e5c62..33b2a63 100644
+--- a/include/dom/html/html_applet_element.h
++++ b/include/dom/html/html_applet_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_applet_element_h_
+ #define dom_html_applet_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_area_element.h b/include/dom/html/html_area_element.h
+index c57202b..ec9febe 100644
+--- a/include/dom/html/html_area_element.h
++++ b/include/dom/html/html_area_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_area_element_h_
+ #define dom_html_area_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_base_element.h b/include/dom/html/html_base_element.h
+index c8283f3..a269757 100644
+--- a/include/dom/html/html_base_element.h
++++ b/include/dom/html/html_base_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_base_element_h_
+ #define dom_html_base_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_basefont_element.h b/include/dom/html/html_basefont_element.h
+index fa60e0d..863e386 100644
+--- a/include/dom/html/html_basefont_element.h
++++ b/include/dom/html/html_basefont_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_base_font_element_h_
+ #define dom_html_base_font_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_br_element.h b/include/dom/html/html_br_element.h
+index 9475e74..50a05a7 100644
+--- a/include/dom/html/html_br_element.h
++++ b/include/dom/html/html_br_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_br_element_h_
+ #define dom_html_br_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_button_element.h b/include/dom/html/html_button_element.h
+index 155d125..97a898b 100644
+--- a/include/dom/html/html_button_element.h
++++ b/include/dom/html/html_button_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_button_element_h_
+ #define dom_html_button_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/html/html_form_element.h>
+diff --git a/include/dom/html/html_directory_element.h b/include/dom/html/html_directory_element.h
+index 67fa269..3df869a 100644
+--- a/include/dom/html/html_directory_element.h
++++ b/include/dom/html/html_directory_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_directory_element_h_
+ #define dom_html_directory_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_div_element.h b/include/dom/html/html_div_element.h
+index 051a6d5..939e6b6 100644
+--- a/include/dom/html/html_div_element.h
++++ b/include/dom/html/html_div_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_div_element_h_
+ #define dom_html_div_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_dlist_element.h b/include/dom/html/html_dlist_element.h
+index e628a63..a867a85 100644
+--- a/include/dom/html/html_dlist_element.h
++++ b/include/dom/html/html_dlist_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_dlist_element_h_
+ #define dom_html_dlist_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_fieldset_element.h b/include/dom/html/html_fieldset_element.h
+index 26383b3..4dab61f 100644
+--- a/include/dom/html/html_fieldset_element.h
++++ b/include/dom/html/html_fieldset_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_field_set_element_h_
+ #define dom_html_field_set_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ 
+diff --git a/include/dom/html/html_font_element.h b/include/dom/html/html_font_element.h
+index b878f42..da897fb 100644
+--- a/include/dom/html/html_font_element.h
++++ b/include/dom/html/html_font_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_font_element_h_
+ #define dom_html_font_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_frame_element.h b/include/dom/html/html_frame_element.h
+index 1202f5c..b9d8e57 100644
+--- a/include/dom/html/html_frame_element.h
++++ b/include/dom/html/html_frame_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_frame_element_h_
+ #define dom_html_frame_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_frameset_element.h b/include/dom/html/html_frameset_element.h
+index c0de3b4..e7ee6b7 100644
+--- a/include/dom/html/html_frameset_element.h
++++ b/include/dom/html/html_frameset_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_frame_set_element_h_
+ #define dom_html_frame_set_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_heading_element.h b/include/dom/html/html_heading_element.h
+index fb42b89..a1c598a 100644
+--- a/include/dom/html/html_heading_element.h
++++ b/include/dom/html/html_heading_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_heading_element_h_
+ #define dom_html_heading_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_hr_element.h b/include/dom/html/html_hr_element.h
+index 14f09f6..41e9236 100644
+--- a/include/dom/html/html_hr_element.h
++++ b/include/dom/html/html_hr_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_hr_element_h_
+ #define dom_html_hr_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_iframe_element.h b/include/dom/html/html_iframe_element.h
+index f064cfe..1e700be 100644
+--- a/include/dom/html/html_iframe_element.h
++++ b/include/dom/html/html_iframe_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_iframe_element_h_
+ #define dom_html_iframe_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_image_element.h b/include/dom/html/html_image_element.h
+index bde2584..e8553db 100644
+--- a/include/dom/html/html_image_element.h
++++ b/include/dom/html/html_image_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_image_element_h_
+ #define dom_html_image_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+diff --git a/include/dom/html/html_input_element.h b/include/dom/html/html_input_element.h
+index c73dca3..13b46ea 100644
+--- a/include/dom/html/html_input_element.h
++++ b/include/dom/html/html_input_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_input_element_h_
+ #define dom_html_input_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+diff --git a/include/dom/html/html_label_element.h b/include/dom/html/html_label_element.h
+index 6aca45d..cf7fbfc 100644
+--- a/include/dom/html/html_label_element.h
++++ b/include/dom/html/html_label_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_label_element_h_
+ #define dom_html_label_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ 
+diff --git a/include/dom/html/html_legend_element.h b/include/dom/html/html_legend_element.h
+index caf34a6..4c2729d 100644
+--- a/include/dom/html/html_legend_element.h
++++ b/include/dom/html/html_legend_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_legend_element_h_
+ #define dom_html_legend_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_li_element.h b/include/dom/html/html_li_element.h
+index 1a2d641..04749f2 100644
+--- a/include/dom/html/html_li_element.h
++++ b/include/dom/html/html_li_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_li_element_h_
+ #define dom_html_li_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+diff --git a/include/dom/html/html_link_element.h b/include/dom/html/html_link_element.h
+index f0b1f3c..9095f7a 100644
+--- a/include/dom/html/html_link_element.h
++++ b/include/dom/html/html_link_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_link_element_h_
+ #define dom_html_link_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_map_element.h b/include/dom/html/html_map_element.h
+index 6abdee5..17849cd 100644
+--- a/include/dom/html/html_map_element.h
++++ b/include/dom/html/html_map_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_map_element_h_
+ #define dom_html_map_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_menu_element.h b/include/dom/html/html_menu_element.h
+index f4dad74..ffb1746 100644
+--- a/include/dom/html/html_menu_element.h
++++ b/include/dom/html/html_menu_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_menu_element_h_
+ #define dom_html_menu_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_mod_element.h b/include/dom/html/html_mod_element.h
+index 99c4f2e..91edf0a 100644
+--- a/include/dom/html/html_mod_element.h
++++ b/include/dom/html/html_mod_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_mod_element_h_
+ #define dom_html_mod_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_object_element.h b/include/dom/html/html_object_element.h
+index 0263e85..f0fb32e 100644
+--- a/include/dom/html/html_object_element.h
++++ b/include/dom/html/html_object_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_object_element_h_
+ #define dom_html_object_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_olist_element.h b/include/dom/html/html_olist_element.h
+index fe99dae..1a396ea 100644
+--- a/include/dom/html/html_olist_element.h
++++ b/include/dom/html/html_olist_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_olist_element_h_
+ #define dom_html_olist_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+diff --git a/include/dom/html/html_opt_group_element.h b/include/dom/html/html_opt_group_element.h
+index a356275..6587791 100644
+--- a/include/dom/html/html_opt_group_element.h
++++ b/include/dom/html/html_opt_group_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_opt_group_element_h_
+ #define dom_html_opt_group_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/html/html_form_element.h>
+diff --git a/include/dom/html/html_option_element.h b/include/dom/html/html_option_element.h
+index aa0d11c..1cff21b 100644
+--- a/include/dom/html/html_option_element.h
++++ b/include/dom/html/html_option_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_option_element_h_
+ #define dom_html_option_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/html/html_form_element.h>
+diff --git a/include/dom/html/html_paragraph_element.h b/include/dom/html/html_paragraph_element.h
+index c0e228a..d889841 100644
+--- a/include/dom/html/html_paragraph_element.h
++++ b/include/dom/html/html_paragraph_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_paragraph_element_h_
+ #define dom_html_paragraph_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_param_element.h b/include/dom/html/html_param_element.h
+index be12789..4fd953b 100644
+--- a/include/dom/html/html_param_element.h
++++ b/include/dom/html/html_param_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_param_element_h_
+ #define dom_html_param_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_pre_element.h b/include/dom/html/html_pre_element.h
+index 48c885f..a960f3b 100644
+--- a/include/dom/html/html_pre_element.h
++++ b/include/dom/html/html_pre_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_pre_element_h_
+ #define dom_html_pre_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+diff --git a/include/dom/html/html_quote_element.h b/include/dom/html/html_quote_element.h
+index 7d88eef..bcc011d 100644
+--- a/include/dom/html/html_quote_element.h
++++ b/include/dom/html/html_quote_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_quote_element_h_
+ #define dom_html_quote_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_script_element.h b/include/dom/html/html_script_element.h
+index 880ca1c..7a8ad73 100644
+--- a/include/dom/html/html_script_element.h
++++ b/include/dom/html/html_script_element.h
+@@ -10,7 +10,11 @@
+ #ifndef dom_html_script_element_h_
+ #define dom_html_script_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_select_element.h b/include/dom/html/html_select_element.h
+index 42aef00..54ef2bb 100644
+--- a/include/dom/html/html_select_element.h
++++ b/include/dom/html/html_select_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_select_element_h_
+ #define dom_html_select_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ 
+diff --git a/include/dom/html/html_style_element.h b/include/dom/html/html_style_element.h
+index 5b3cd41..b8415ec 100644
+--- a/include/dom/html/html_style_element.h
++++ b/include/dom/html/html_style_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_style_element_h_
+ #define dom_html_style_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_table_element.h b/include/dom/html/html_table_element.h
+index 205d719..c4164b5 100644
+--- a/include/dom/html/html_table_element.h
++++ b/include/dom/html/html_table_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_table_element_h_
+ #define dom_html_table_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_tablecaption_element.h b/include/dom/html/html_tablecaption_element.h
+index 412efae..8a4d673 100644
+--- a/include/dom/html/html_tablecaption_element.h
++++ b/include/dom/html/html_tablecaption_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_table_caption_element_h_
+ #define dom_html_table_caption_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_tablecell_element.h b/include/dom/html/html_tablecell_element.h
+index 9d5c152..86f76c6 100644
+--- a/include/dom/html/html_tablecell_element.h
++++ b/include/dom/html/html_tablecell_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_table_cell_element_h_
+ #define dom_html_table_cell_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/inttypes.h>
+ #include <dom/core/exceptions.h>
+diff --git a/include/dom/html/html_tablecol_element.h b/include/dom/html/html_tablecol_element.h
+index 56865a9..daf7cec 100644
+--- a/include/dom/html/html_tablecol_element.h
++++ b/include/dom/html/html_tablecol_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_table_col_element_h_
+ #define dom_html_table_col_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_tablerow_element.h b/include/dom/html/html_tablerow_element.h
+index 897e243..32486eb 100644
+--- a/include/dom/html/html_tablerow_element.h
++++ b/include/dom/html/html_tablerow_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_table_row_element_h_
+ #define dom_html_table_row_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_tablesection_element.h b/include/dom/html/html_tablesection_element.h
+index bceec18..aa540d1 100644
+--- a/include/dom/html/html_tablesection_element.h
++++ b/include/dom/html/html_tablesection_element.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_html_table_section_element_h_
+ #define dom_html_table_section_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/html/html_text_area_element.h b/include/dom/html/html_text_area_element.h
+index 9954e04..b547b9b 100644
+--- a/include/dom/html/html_text_area_element.h
++++ b/include/dom/html/html_text_area_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_text_area_element_h_
+ #define dom_html_text_area_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ #include <dom/html/html_form_element.h>
+diff --git a/include/dom/html/html_ulist_element.h b/include/dom/html/html_ulist_element.h
+index c5daa6a..34ac4f4 100644
+--- a/include/dom/html/html_ulist_element.h
++++ b/include/dom/html/html_ulist_element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_html_u_list_element_h_
+ #define dom_html_u_list_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/exceptions.h>
+ #include <dom/core/string.h>
+ 
+diff --git a/include/dom/inttypes.h b/include/dom/inttypes.h
+index 366e56e..db1ad52 100644
+--- a/include/dom/inttypes.h
++++ b/include/dom/inttypes.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_inttypes_h_
+ #define dom_inttypes_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ /**
+  * The IDL spec(2nd ed) 3.10.5 defines a short type with 16bit range
+diff --git b/include/dom/openstep.h b/include/dom/openstep.h
+new file mode 100644
+index 0000000..6243f79
+--- /dev/null
++++ b/include/dom/openstep.h
+@@ -0,0 +1,22 @@
++/*
++ * OPENSTEP compatibility definitions for systems without C99 headers.
++ */
++
++#ifndef dom_openstep_h_
++#define dom_openstep_h_
++
++#ifdef NeXT
++
++#include <parserutils/openstep.h>
++
++#ifndef PRIu32
++#define PRIu32 "u"
++#endif
++
++#ifndef restrict
++#define restrict
++#endif
++
++#endif
++
++#endif
+diff --git a/src/core/document.h b/src/core/document.h
+index 5cf5dc1..67125a4 100644
+--- a/src/core/document.h
++++ b/src/core/document.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_document_h_
+ #define dom_internal_core_document_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stddef.h>
+ 
+ #include <dom/core/node.h>
+diff --git a/src/core/element.h b/src/core/element.h
+index fb946b7..d8e8393 100644
+--- a/src/core/element.h
++++ b/src/core/element.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_element_h_
+ #define dom_internal_core_element_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/element.h>
+ 
+diff --git a/src/core/namednodemap.h b/src/core/namednodemap.h
+index 9e05845..ed90fab 100644
+--- a/src/core/namednodemap.h
++++ b/src/core/namednodemap.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_namednodemap_h_
+ #define dom_internal_core_namednodemap_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/namednodemap.h>
+ #include <dom/core/node.h>
+diff --git a/src/core/node.c b/src/core/node.c
+index 1218742..efcba6d 100644
+--- a/src/core/node.c
++++ b/src/core/node.c
+@@ -7,7 +7,11 @@
+  */
+ 
+ #include <assert.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+diff --git a/src/core/node.h b/src/core/node.h
+index 36cdd7d..d25a97b 100644
+--- a/src/core/node.h
++++ b/src/core/node.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_node_h_
+ #define dom_internal_core_node_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <libwapcaplet/libwapcaplet.h>
+ 
+diff --git a/src/core/nodelist.h b/src/core/nodelist.h
+index 4fe5b61..30c437d 100644
+--- a/src/core/nodelist.h
++++ b/src/core/nodelist.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_nodelist_h_
+ #define dom_internal_core_nodelist_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/nodelist.h>
+ 
+diff --git a/src/core/string.c b/src/core/string.c
+index f140a3a..6ca3b44 100644
+--- a/src/core/string.c
++++ b/src/core/string.c
+@@ -8,7 +8,11 @@
+ 
+ #include <assert.h>
+ #include <ctype.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stdlib.h>
+ #include <string.h>
+ 
+diff --git a/src/core/text.h b/src/core/text.h
+index 3f5739b..9114984 100644
+--- a/src/core/text.h
++++ b/src/core/text.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_text_h_
+ #define dom_internal_core_text_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/exceptions.h>
+ #include <dom/core/text.h>
+diff --git a/src/core/tokenlist.h b/src/core/tokenlist.h
+index 325d726..460f148 100644
+--- a/src/core/tokenlist.h
++++ b/src/core/tokenlist.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_core_tokenlist_h_
+ #define dom_internal_core_tokenlist_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/core/tokenlist.h>
+ 
+diff --git a/src/events/event.h b/src/events/event.h
+index 7cada7b..95eb0de 100644
+--- a/src/events/event.h
++++ b/src/events/event.h
+@@ -8,7 +8,11 @@
+ #ifndef dom_internal_events_event_h_
+ #define dom_internal_events_event_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #include <dom/core/document.h>
+ #include <dom/events/event_target.h>
+diff --git a/src/html/html_element.c b/src/html/html_element.c
+index c110455..04d0831 100644
+--- a/src/html/html_element.c
++++ b/src/html/html_element.c
+@@ -518,7 +518,11 @@ dom_exception dom_html_element_set_int32_t_property(dom_html_element *ele,
+ 	if (err != DOM_NO_ERR)
+ 		goto fail;
+ 	
++#ifdef NeXT
++	if (sprintf(numbuffer, "%"PRIu32, value) >= 32)
++#else
+ 	if (snprintf(numbuffer, 32, "%"PRIu32, value) == 32)
++#endif
+ 		numbuffer[31] = '\0';
+ 	
+ 	err = dom_string_create((const uint8_t *) numbuffer,
+@@ -607,7 +611,11 @@ dom_exception dom_html_element_set_dom_ulong_property(dom_html_element *ele,
+ 	if (err != DOM_NO_ERR)
+ 		goto fail;
+ 
++#ifdef NeXT
++	if (sprintf(numbuffer, "%"PRIu32, value) >= 32)
++#else
+ 	if (snprintf(numbuffer, 32, "%"PRIu32, value) == 32)
++#endif
+ 		numbuffer[31] = '\0';
+ 
+ 	err = dom_string_create((const uint8_t *) numbuffer,
+diff --git a/src/utils/character_valid.h b/src/utils/character_valid.h
+index 5094e7c..5dedfe5 100644
+--- a/src/utils/character_valid.h
++++ b/src/utils/character_valid.h
+@@ -16,7 +16,11 @@
+ #ifndef dom_utils_character_valid_h_
+ #define dom_utils_character_valid_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <stdlib.h>
+ 
+ struct xml_char_range {
+diff --git a/src/utils/hashtable.c b/src/utils/hashtable.c
+index db6ece8..716b663 100644
+--- a/src/utils/hashtable.c
++++ b/src/utils/hashtable.c
+@@ -9,7 +9,11 @@
+ 
+ #include <stdlib.h>
+ #include <string.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <assert.h>
+ #ifdef TEST_RIG
+ #include <stdio.h>
+diff --git a/src/utils/hashtable.h b/src/utils/hashtable.h
+index 27e1906..5676cba 100644
+--- a/src/utils/hashtable.h
++++ b/src/utils/hashtable.h
+@@ -9,7 +9,11 @@
+ #ifndef dom_utils_hashtable_h_
+ #define dom_utils_hashtable_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/functypes.h>
+ 
+ typedef struct dom_hash_table dom_hash_table;
+diff --git a/src/utils/validate.c b/src/utils/validate.c
+index 4fd7d6d..9cb34e6 100644
+--- a/src/utils/validate.c
++++ b/src/utils/validate.c
+@@ -5,7 +5,11 @@
+  * Copyright 2009 Bo Yang <struggleyb.nku@gmail.com>
+  */
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ #include <stddef.h>
+ 
+ #include "utils/validate.h"
+diff --git a/src/utils/validate.h b/src/utils/validate.h
+index 7318653..8347da5 100644
+--- a/src/utils/validate.h
++++ b/src/utils/validate.h
+@@ -15,7 +15,11 @@
+ #ifndef  dom_utils_valid_h_
+ #define  dom_utils_valid_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <dom/core/string.h>
+ 
+ bool _dom_validate_name(dom_string *name);
+diff --git a/test/testutils/domtsasserts.c b/test/testutils/domtsasserts.c
+index 85ee969..13db094 100644
+--- a/test/testutils/domtsasserts.c
++++ b/test/testutils/domtsasserts.c
+@@ -6,7 +6,11 @@
+  */
+ 
+ #include <stdio.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <stdlib.h>
+ #include <string.h>
+ 
+diff --git a/test/testutils/domtsasserts.h b/test/testutils/domtsasserts.h
+index 9091c01..1b9ce79 100644
+--- a/test/testutils/domtsasserts.h
++++ b/test/testutils/domtsasserts.h
+@@ -8,7 +8,11 @@
+ #ifndef domtsasserts_h_
+ #define domtsasserts_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include <dom/dom.h>
+ 
+diff --git a/test/testutils/domtscondition.h b/test/testutils/domtscondition.h
+index 30da6cc..075a868 100644
+--- a/test/testutils/domtscondition.h
++++ b/test/testutils/domtscondition.h
+@@ -8,7 +8,11 @@
+ #ifndef domtscondition_h_
+ #define domtscondition_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ /**
+  * Just simple functions which meet the needs of DOMTS conditions
+diff --git a/test/testutils/foreach.c b/test/testutils/foreach.c
+index 533958f..c772084 100644
+--- a/test/testutils/foreach.c
++++ b/test/testutils/foreach.c
+@@ -5,7 +5,11 @@
+  * Copyright 2009 Bo Yang <struggleyb.nku@gmail.com>
+  */
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include "foreach.h"
+ #include "list.h"
+diff --git a/test/testutils/list.c b/test/testutils/list.c
+index fa43c61..b6c481e 100644
+--- a/test/testutils/list.c
++++ b/test/testutils/list.c
+@@ -7,7 +7,11 @@
+  */
+ 
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+diff --git a/test/testutils/list.h b/test/testutils/list.h
+index 6b0f209..e8b4ea0 100644
+--- a/test/testutils/list.h
++++ b/test/testutils/list.h
+@@ -8,7 +8,11 @@
+ #ifndef list_h_
+ #define list_h_
+ 
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <stdbool.h>
++#endif
+ 
+ #include "comparators.h"
+ 
+diff --git a/test/testutils/utils.h b/test/testutils/utils.h
+index 560e909..a0cc42e 100644
+--- a/test/testutils/utils.h
++++ b/test/testutils/utils.h
+@@ -9,7 +9,11 @@
+ #define utils_h_
+ 
+ #include <stddef.h>
++#ifdef NeXT
++#include <dom/openstep.h>
++#else
+ #include <inttypes.h>
++#endif
+ 
+ #ifndef max
+ #define max(a,b) ((a)>(b)?(a):(b))

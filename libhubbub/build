@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libhubbub-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+PERL=/usr/bin/perl
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+BUILDDIR=build-openstep
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC PERL MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL BUILDDIR
+
+if [ -d "libhubbub-$VERSION" ]; then
+    cd "libhubbub-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config.override <<'EOF'
+CFLAGS := $(CFLAGS) -DNeXT
+EOF
+
+gnumake PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$BUILDDIR/libhubbub.a"
+
+gnumake install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$DESTDIR$PREFIX/lib/libhubbub.a"

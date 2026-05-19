@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libhubbub-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <hubbub/parser.h>
+
+int main(void)
+{
+    hubbub_parser *parser = 0;
+
+    if (hubbub_parser_create("UTF-8", false, &parser) != HUBBUB_OK)
+        return 1;
+
+    if (hubbub_parser_parse_chunk(parser,
+            (const uint8_t *) "<html><body>ok</body></html>", 28) != HUBBUB_OK)
+        return 2;
+
+    if (hubbub_parser_completed(parser) != HUBBUB_OK)
+        return 3;
+
+    if (hubbub_parser_destroy(parser) != HUBBUB_OK)
+        return 4;
+
+    return 0;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libhubbub.a" "$LOCAL_ROOT/lib/libparserutils.a" -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"

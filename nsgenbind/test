@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/nsgenbind-test.$$
+
+rm -rf "$TMP"
+mkdir "$TMP"
+mkdir "$TMP/idl"
+mkdir "$TMP/out"
+
+cat > "$TMP/blankidl.bnd" <<'EOF'
+binding duk_libdom {
+	webidl "blank.idl";
+};
+EOF
+
+cat > "$TMP/idl/blank.idl" <<'EOF'
+
+EOF
+
+"$LOCAL_ROOT/bin/nsgenbind" -I "$TMP/idl" "$TMP/blankidl.bnd" "$TMP/out"
+
+test -f "$TMP/out/binding.c"
+test -f "$TMP/out/Makefile"
+
+rm -rf "$TMP"
