@@ -208,7 +208,7 @@ check_build_shell() {
             die "missing required build shell for $parent_pkg_name: $build_shell (and could not locate local pdksh package)"
 
         log "installing required build shell pdksh for $parent_pkg_name"
-        install_pkg "$pdksh_pkg_dir"
+        ( install_pkg "$pdksh_pkg_dir" ) < /dev/null
         load_pkg "$parent_pkg_dir"
 
         build_shell=`build_shell_path "$PKG_NAME"`
@@ -603,7 +603,7 @@ install_depends() {
         esac
 
         log "installing dependency $dep_pkg for $parent_pkg_name"
-        install_pkg "$dep_dir"
+        ( install_pkg "$dep_dir" ) < /dev/null
         load_pkg "$parent_pkg_dir"
     done < "$dep_file"
 }
@@ -693,9 +693,47 @@ clean_work_cache() {
     clean_build_cache
 }
 
+installed_same_version() {
+    [ -f "$INST_DIR/version" ] || return 1
+
+    read installed_version installed_version_extra < "$INST_DIR/version" ||
+        return 1
+
+    [ "x$installed_version" = "x$PKG_VERSION" ] && [ -z "$installed_version_extra" ]
+}
+
+restore_install_context() {
+    PKG_INSTALL_STACK=$saved_install_stack
+    PKG_DIR=$saved_pkg_dir
+    PKG_NAME=$saved_pkg_name
+    PKG_VERSION=$saved_pkg_version
+    ROOT_DIR=$saved_root_dir
+    LOCAL_ROOT=$saved_local_root
+    CACHE_ROOT=$saved_cache_root
+    DB_ROOT=$saved_db_root
+    SRC_CACHE=$saved_src_cache
+    BUILD_ROOT=$saved_build_root
+    IMAGE_DIR=$saved_image_dir
+    INST_DIR=$saved_inst_dir
+    BUILD_CWD=$saved_build_cwd
+    export PKG_INSTALL_STACK
+}
+
 install_pkg() {
     pkg_arg=$1
     saved_install_stack=$PKG_INSTALL_STACK
+    saved_pkg_dir=$PKG_DIR
+    saved_pkg_name=$PKG_NAME
+    saved_pkg_version=$PKG_VERSION
+    saved_root_dir=$ROOT_DIR
+    saved_local_root=$LOCAL_ROOT
+    saved_cache_root=$CACHE_ROOT
+    saved_db_root=$DB_ROOT
+    saved_src_cache=$SRC_CACHE
+    saved_build_root=$BUILD_ROOT
+    saved_image_dir=$IMAGE_DIR
+    saved_inst_dir=$INST_DIR
+    saved_build_cwd=$BUILD_CWD
 
     load_pkg "$pkg_arg"
 
@@ -711,6 +749,13 @@ install_pkg() {
     log "starting install for $PKG_NAME"
     install_depends
     check_depends
+
+    if installed_same_version; then
+        log "already installed: $PKG_NAME $PKG_VERSION"
+        restore_install_context
+        return 0
+    fi
+
     check_build_shell
 
     if [ ! -d "$IMAGE_DIR" ] || [ -z "`find "$IMAGE_DIR" -print 2>/dev/null | sed 1d`" ]; then
@@ -741,8 +786,7 @@ install_pkg() {
     clean_image_cache
     log "installed $PKG_NAME $PKG_VERSION"
 
-    PKG_INSTALL_STACK=$saved_install_stack
-    export PKG_INSTALL_STACK
+    restore_install_context
 }
 
 install_pkgs() {
