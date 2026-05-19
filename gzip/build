@@ -1,0 +1,52 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/bin:/usr/bin:$PATH
+CC=/bin/cc
+GREP=/bin/grep
+EGREP=/usr/bin/egrep
+CONFIG_SHELL=/usr/local/bin/ksh
+PATCHFILE="gzip-$VERSION-openstep.patch"
+BUILD_DIR=`pwd`
+MKDIR_P="/bin/sh $BUILD_DIR/build-aux/install-sh -c -d"
+
+ac_cv_header_stdbool_h=no
+gl_cv_func_working_utimes=no
+gl_cv_absolute_fcntl_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/fcntl.h
+gl_cv_absolute_stdlib_h=/NextLibrary/Frameworks/System.framework/Headers/ansi/stdlib.h
+gl_cv_absolute_sys_stat_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/sys/stat.h
+gl_cv_absolute_sys_time_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/sys/time.h
+gl_cv_absolute_time_h=/NextLibrary/Frameworks/System.framework/Headers/ansi/time.h
+gl_cv_absolute_unistd_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/unistd.h
+
+export DESTDIR VERSION PATH CC GREP EGREP CONFIG_SHELL PATCHFILE MKDIR_P
+export ac_cv_header_stdbool_h gl_cv_func_working_utimes
+export gl_cv_absolute_fcntl_h gl_cv_absolute_stdlib_h
+export gl_cv_absolute_sys_stat_h gl_cv_absolute_sys_time_h
+export gl_cv_absolute_time_h gl_cv_absolute_unistd_h
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+  --disable-dependency-tracking --prefix=/usr/local
+gnumake
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
+test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
+test -d "$DESTDIR/usr/local/share/man" || mkdir "$DESTDIR/usr/local/share/man"
+test -d "$DESTDIR/usr/local/share/man/man1" || mkdir "$DESTDIR/usr/local/share/man/man1"
+
+for program in gzip gunzip gzexe zcat zcmp zdiff zegrep zfgrep zforce zgrep zless zmore znew
+do
+    cp "$program" "$DESTDIR/usr/local/bin/$program"
+done
+
+for manpage in gzip.1 gunzip.1 gzexe.1 zcat.1 zcmp.1 zdiff.1 zforce.1 zgrep.1 zless.1 zmore.1 znew.1
+do
+    cp "$manpage" "$DESTDIR/usr/local/share/man/man1/"
+done

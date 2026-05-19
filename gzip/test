@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+GZIP="$LOCAL_ROOT/bin/gzip"
+TMPDIR=/tmp/gzip-test-$$
+
+test -x "$GZIP"
+mkdir "$TMPDIR"
+trap 'rm -rf "$TMPDIR"' 0 1 2 3 15
+
+"$GZIP" --version >/dev/null
+echo 'openstep gzip package test' > "$TMPDIR/plain.txt"
+"$GZIP" -c "$TMPDIR/plain.txt" > "$TMPDIR/plain.txt.gz"
+"$GZIP" -cd "$TMPDIR/plain.txt.gz" > "$TMPDIR/out.txt"
+cmp "$TMPDIR/plain.txt" "$TMPDIR/out.txt"

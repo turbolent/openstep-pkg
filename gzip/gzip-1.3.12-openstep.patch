@@ -1,0 +1,38 @@
+diff --git a/lib/fcntl-safer.h b/lib/fcntl-safer.h
+index cab6aab..bfe27ca 100644
+--- a/lib/fcntl-safer.h
++++ b/lib/fcntl-safer.h
+@@ -20,5 +20,9 @@
+ 
+ #include <sys/types.h>
+ 
++#ifdef NeXT
++typedef unsigned short mode_t;
++#endif
++
+ int open_safer (char const *, int, ...);
+ int creat_safer (char const *, mode_t);
+diff --git a/gzip.c b/gzip.c
+index ec2c5d2..f773b73 100644
+--- a/gzip.c
++++ b/gzip.c
+@@ -97,7 +97,18 @@ static char rcsid[] = "$Id: gzip.c,v 1.16 2007/03/20 05:09:51 eggert Exp $";
+ # define NO_DIR 0
+ #endif
+ #if !NO_DIR
+-# include <dirent.h>
++# if HAVE_DIRENT_H
++#  include <dirent.h>
++# elif HAVE_SYS_DIR_H
++#  include <sys/dir.h>
++#  define dirent direct
++# elif HAVE_SYS_NDIR_H
++#  include <sys/ndir.h>
++#  define dirent direct
++# elif HAVE_NDIR_H
++#  include <ndir.h>
++#  define dirent direct
++# endif
+ # ifndef _D_EXACT_NAMLEN
+ #  define _D_EXACT_NAMLEN(dp) strlen ((dp)->d_name)
+ # endif
