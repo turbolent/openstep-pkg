@@ -3,11 +3,12 @@
 set -e
 
 DESTDIR=$1
+PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/bin/cc
 CFLAGS="-O3 -D_POSIX_SOURCE"
 
-export DESTDIR PATH CC CFLAGS
+export DESTDIR PREFIX PATH CC CFLAGS
 
 cat > dirname <<'EOF'
 #!/bin/sh
@@ -25,14 +26,16 @@ chmod +x dirname
 PATH=.:$PATH
 export PATH
 
-/bin/sh ./configure --static --prefix=/usr/local
+/bin/sh ./configure --static --prefix="$PREFIX"
 gnumake teststatic
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
-test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
-test -d "$DESTDIR/usr/local/include" || mkdir "$DESTDIR/usr/local/include"
-test -d "$DESTDIR/usr/local/lib" || mkdir "$DESTDIR/usr/local/lib"
+test -d "$DESTDIR$PREFIX" || mkdir "$DESTDIR$PREFIX"
+test -d "$DESTDIR$PREFIX/include" || mkdir "$DESTDIR$PREFIX/include"
+test -d "$DESTDIR$PREFIX/lib" || mkdir "$DESTDIR$PREFIX/lib"
+test -d "$DESTDIR$PREFIX/lib/pkgconfig" || mkdir "$DESTDIR$PREFIX/lib/pkgconfig"
 
-cp zlib.h "$DESTDIR/usr/local/include/zlib.h"
-cp zconf.h "$DESTDIR/usr/local/include/zconf.h"
-cp libz.a "$DESTDIR/usr/local/lib/libz.a"
+cp zlib.h "$DESTDIR$PREFIX/include/zlib.h"
+cp zconf.h "$DESTDIR$PREFIX/include/zconf.h"
+cp libz.a "$DESTDIR$PREFIX/lib/libz.a"
+cp zlib.pc "$DESTDIR$PREFIX/lib/pkgconfig/zlib.pc"

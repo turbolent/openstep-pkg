@@ -4,6 +4,10 @@ set -e
 
 HEADER="$ROOT_DIR/usr/local/include/zlib.h"
 LIBRARY="$ROOT_DIR/usr/local/lib/libz.a"
+PCFILE="$ROOT_DIR/usr/local/lib/pkgconfig/zlib.pc"
 
 [ -s "$HEADER" ]
 [ -s "$LIBRARY" ]
+[ -s "$PCFILE" ]
+grep '^Name: zlib$' "$PCFILE" >/dev/null
+grep '^Libs: .* -lz' "$PCFILE" >/dev/null
