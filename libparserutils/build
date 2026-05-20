@@ -16,10 +16,11 @@ CCACHE=
 CC_CAN_BUILD_AND_DEP=no
 CC_CANNOT_DEP=yes
 INSTALL=/usr/bin/install
+INSTALLFLAGS=-c
 BUILDDIR=build-openstep
 
 export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC PERL MAKE
-export CCACHE CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL BUILDDIR
+export CCACHE CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL INSTALLFLAGS BUILDDIR
 
 if [ -d "libparserutils-$VERSION" ]; then
     cd "libparserutils-$VERSION"
@@ -32,8 +33,8 @@ cat > Makefile.config.override <<'EOF'
 CFLAGS := $(CFLAGS) -DWITHOUT_ICONV_FILTER -DNeXT
 EOF
 
-gnumake PREFIX="$PREFIX"
+gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
 /bin/ranlib "$BUILDDIR/libparserutils.a"
 
-gnumake install DESTDIR="$DESTDIR" PREFIX="$PREFIX"
+gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
 /bin/ranlib "$DESTDIR$PREFIX/lib/libparserutils.a"
