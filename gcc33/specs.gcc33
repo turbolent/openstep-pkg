@@ -1,0 +1,106 @@
+*asm:
+
+
+*asm_final:
+
+
+*asm_options:
+%a %Y %{c:%W{o*}%{!o*:-o %w%b%O}}%{!c:-o %d%w%u%O}
+
+*invoke_as:
+%{!S:-o %{|!pipe:%g.s} |
+ as %(asm_options) %{!pipe:%g.s} %A }
+
+*cpp:
+%{posixstrict:-D_POSIX_SOURCE}                           %{!posixstrict:%{bsd:-D__STRICT_BSD__}                   %{posix:-D_POSIX_SOURCE}                                 %{!ansi:-D_NEXT_SOURCE}}                                 %{MD:-MD %M} %{MMD:-MMD %M}
+
+*cpp_options:
+%{C:%{!E:%eGNU C does not support -C without using -E}} %{std*} %{nostdinc*} %{C} %{v} %{I*} %{P} %{$} %I %{MD:-M -MF %W{!o: %b.d}%W{o*:%.d%*}} %{MMD:-MM -MF %W{!o: %b.d}%W{o*:%.d%*}} %{M} %{MM} %W{MF*} %{MG} %{MP} %{MQ*} %{MT*} %{M|MD|MM|MMD:%{o*:-MQ %*}} %{!no-gcc:-D__GNUC__=%v1 -D__GNUC_MINOR__=%v2 -D__GNUC_PATCHLEVEL__=%v3} %{!undef:%{!ansi:%{!std=*:%p}%{std=gnu*:%p}} %P} %{trigraphs} %{Os:-D__OPTIMIZE_SIZE__} %{O*:%{!O0:-D__OPTIMIZE__}} %{fno-inline|O0|!O*:-D__NO_INLINE__} %{ffast-math:-D__FAST_MATH__} %{fshort-wchar:-U__WCHAR_TYPE__ -D__WCHAR_TYPE__=short\ unsigned\ int} %{ffreestanding:-D__STDC_HOSTED__=0} %{fno-hosted:-D__STDC_HOSTED__=0} %{!ffreestanding:%{!fno-hosted:-D__STDC_HOSTED__=1}} %{fshow-column} %{fno-show-column} %{fleading-underscore} %{fno-leading-underscore} %{fno-operator-names} %{ftabstop=*} %{remap} %{g3:-dD} %{W*} %{w} %{pedantic*} %{H} %{d*} %C %{D*&U*&A*} %{i*} %Z %i %{E:%{!M*:%W{o*}}}
+
+*trad_capable_cpp:
+%{traditional|ftraditional|traditional-cpp:trad}cpp0
+
+*cc1:
+%(cc1_cpu) 
+
+*cc1_options:
+%{pg:%{fomit-frame-pointer:%e-pg and -fomit-frame-pointer are incompatible}} %1 %{!Q:-quiet} -dumpbase %B %{d*} %{m*} %{a*} %{g*} %{O*} %{W*} %{w} %{pedantic*} %{std*} %{ansi} %{traditional} %{v:-version} %{pg:-p} %{p} %{f*} %{Qn:-fno-ident} %{--help:--help} %{--target-help:--target-help} %{!fsyntax-only:%{S:%W{o*}%{!o*:-o %b.s}}} %{fsyntax-only:-o %j} %{-param*}
+
+*cc1plus:
+
+
+*endfile:
+-lcrtend.o
+
+*link:
+%{Z} %{M} %{F*} %{execute*} %{preload*} %{fvmlib*} %{segalign*} %{seg1addr*} %{segaddr*} %{segprot*} %{pagezero_size*} %{undefined*} %{dylib_file*} %{seglinkedit*} %{noseglinkedit*} %{read_only_relocs} %{sectcreate*} %{sectalign*} %{sectobjectsymbols}%{segcreate*} %{Mach*} %{whyload} %{w} %{sectorder*} %{whatsloaded} %{ObjC} %{all_load} %{object} %{dylinker} %{dylinker_install_name*} %{output_for_dyld} %{keep_private_externs} %{prebind} %{noprebind}
+
+*lib:
+%{static:%{!dynamiclib:%{!pg:-lsys_s}%{pg:-lsys_p}}}       %{!static:%{!pg:-framework System}%{pg:-framework System,_profile}}
+
+*libgcc:
+-lgcc %{!shared:%{static:%{!dynamiclib:-lcc}} %{!static:-lcc_dynamic}}
+
+*startfile:
+%{!dynamiclib:%{bundle:%{!static:-lbundle1.o}} %{!bundle:%{pg:%{static:-lgcrt0.o} %{!static:%{object:-lgcrt0.o} %{!object:%{preload:-lgcrt0.o} %{!preload:-lgcrt1.o}}}} %{!pg:%{static:-lcrt0.o} %{!static:%{object:-lcrt0.o} %{!object:%{preload:-lcrt0.o} %{!preload:-lcrt1.o}}}}}} -lcrtbegin.o
+
+*switches_need_spaces:
+
+
+*signed_char:
+%{funsigned-char:-D__CHAR_UNSIGNED__}
+
+*predefines:
+-DNeXT -Dunix -D__MACH__ -D__LITTLE_ENDIAN__ -Di386 -D__i386 -D__i386__ -D__ARCHITECTURE__=i386 -Asystem=unix -Asystem=mach
+
+*cross_compile:
+0
+
+*version:
+3.3
+
+*multilib:
+. ;
+
+*multilib_defaults:
+
+
+*multilib_extra:
+
+
+*multilib_matches:
+
+
+*multilib_exclusions:
+
+
+*linker:
+collect2
+
+*link_libgcc:
+%D
+
+*md_exec_prefix:
+
+
+*md_startfile_prefix:
+
+
+*md_startfile_prefix_1:
+
+
+*cpp_cpu_default:
+-D__tune_i386__
+
+*cpp_cpu:
+-Acpu=i386 -Amachine=i386 %{!ansi:%{!std=c*:%{!std=i*:-Di386}}} -D__i386 -D__i386__ %{march=i386:%{!mcpu*:-D__tune_i386__ }}%{march=i486:-D__i486 -D__i486__ %{!mcpu*:-D__tune_i486__ }}%{march=pentium|march=i586:-D__i586 -D__i586__ -D__pentium -D__pentium__   %{!mcpu*:-D__tune_i586__ -D__tune_pentium__ }}%{march=pentiumpro|march=i686:-D__i686 -D__i686__   -D__pentiumpro -D__pentiumpro__   %{!mcpu*:-D__tune_i686__ -D__tune_pentiumpro__ }}%{march=k6:-D__k6 -D__k6__ %{!mcpu*:-D__tune_k6__ }}%{march=athlon:-D__athlon -D__athlon__ %{!mcpu*:-D__tune_athlon__ }}%{m386|mcpu=i386:-D__tune_i386__ }%{m486|mcpu=i486:-D__tune_i486__ }%{mpentium|mcpu=pentium|mcpu=i586:-D__tune_i586__ -D__tune_pentium__ }%{mpentiumpro|mcpu=pentiumpro|mcpu=i686:-D__tune_i686__ -D__tune_pentiumpro__ }%{mcpu=k6:-D__tune_k6__ }%{mcpu=athlon:-D__tune_athlon__ }%{!march*:%{!mcpu*:%{!m386:%{!m486:%{!mpentium*:%(cpp_cpu_default)}}}}}
+
+*cc1_cpu:
+%{!mcpu*: %{m386:-mcpu=i386 %n`-m386' is deprecated. Use `-march=i386' or `-mcpu=i386' instead.
+} %{m486:-mcpu=i486 %n`-m486' is deprecated. Use `-march=i486' or `-mcpu=i486' instead.
+} %{mpentium:-mcpu=pentium %n`-mpentium' is deprecated. Use `-march=pentium' or `-mcpu=pentium' instead.
+} %{mpentiumpro:-mcpu=pentiumpro %n`-mpentiumpro' is deprecated. Use `-march=pentiumpro' or `-mcpu=pentiumpro' instead.
+}}
+
+*link_command:
+%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:    %(linker) %l %X %{o*} %{A} %{d} %{e*} %{m} %{N} %{n} %{r} %{s} %{t}    %{u*} %{x} %{z} %{Z} %{!A:%{!nostdlib:%{!nostartfiles:%S}}}    %{static:} %{L*} %(link_libgcc) %o %{!nostdlib:%{!nodefaultlibs:%G %L %G}}    %{!A:%{!nostdlib:%{!nostartfiles:%E}}} %{T*} }}}}}}

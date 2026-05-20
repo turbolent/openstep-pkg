@@ -1,6 +1,0 @@
-../gcc/gcc-2.95.3.tar.gz bootstrap
-../gcc/gcc-2.95.3.next.patch bootstrap/gcc-2.95.3
-specs.gcc295
-gcc-3.0.4.tar.gz
-gcc-3.0.4.next.patch gcc-3.0.4
-specs.gcc3 gcc-3.0.4

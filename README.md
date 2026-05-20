@@ -84,7 +84,7 @@ Example:
 ```text
 make
 grep
-!gcc
+!gcc33
 ```
 
 Behavior:

@@ -1,4 +1,4 @@
-gcc3
+gcc33
 make
 netsurf-buildsystem
 bison
