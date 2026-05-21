@@ -1,0 +1,95 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libpng-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+SED=/bin/sed
+GREP=/usr/local/bin/grep
+EGREP="/usr/local/bin/grep -E"
+AWK=/usr/local/bin/gawk
+CPPFLAGS="-DNeXT -I/usr/local/include"
+LDFLAGS="-L/usr/local/lib"
+
+export DESTDIR VERSION PREFIX PATH CC SED GREP EGREP AWK CPPFLAGS LDFLAGS
+
+ensure_dir() {
+    dir=$1
+
+    test -d "$dir" && return 0
+
+    case $dir in
+        /*) current=/ ;;
+         *) current=. ;;
+    esac
+
+    old_ifs=$IFS
+    IFS=/
+    set -- $dir
+    IFS=$old_ifs
+
+    for part
+    do
+        test -n "$part" || continue
+
+        if [ "$current" = / ]; then
+            current=/$part
+        else
+            current=$current/$part
+        fi
+
+        test -d "$current" || mkdir "$current"
+    done
+}
+
+if [ -d "libpng-$VERSION" ]; then
+    cd "libpng-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+/usr/local/bin/bash ./configure \
+    --prefix="$PREFIX" \
+    --disable-shared \
+    --enable-static \
+    --disable-dependency-tracking \
+    --disable-hardware-optimizations
+
+gnumake SHELL=/usr/local/bin/bash libpng16.la pngfix png-fix-itxt
+
+for dir in \
+    "$DESTDIR$PREFIX/include" \
+    "$DESTDIR$PREFIX/lib" \
+    "$DESTDIR$PREFIX/lib/pkgconfig" \
+    "$DESTDIR$PREFIX/bin" \
+    "$DESTDIR$PREFIX/share/man/man3" \
+    "$DESTDIR$PREFIX/share/man/man5"
+do
+    ensure_dir "$dir"
+done
+
+/usr/bin/install -c -m 644 png.h "$DESTDIR$PREFIX/include/png.h"
+/usr/bin/install -c -m 644 pngconf.h "$DESTDIR$PREFIX/include/pngconf.h"
+/usr/bin/install -c -m 644 pnglibconf.h "$DESTDIR$PREFIX/include/pnglibconf.h"
+
+/usr/bin/install -c -m 644 .libs/libpng16.a "$DESTDIR$PREFIX/lib/libpng16.a"
+/usr/bin/install -c -m 644 .libs/libpng16.a "$DESTDIR$PREFIX/lib/libpng.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libpng16.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libpng.a"
+
+/usr/bin/install -c -m 644 libpng.pc "$DESTDIR$PREFIX/lib/pkgconfig/libpng.pc"
+/usr/bin/install -c -m 644 libpng.pc "$DESTDIR$PREFIX/lib/pkgconfig/libpng16.pc"
+
+/usr/bin/install -c -m 755 libpng-config "$DESTDIR$PREFIX/bin/libpng-config"
+/usr/bin/install -c -m 755 libpng-config "$DESTDIR$PREFIX/bin/libpng16-config"
+/usr/bin/install -c -m 755 pngfix "$DESTDIR$PREFIX/bin/pngfix"
+/usr/bin/install -c -m 755 png-fix-itxt "$DESTDIR$PREFIX/bin/png-fix-itxt"
+
+/usr/bin/install -c -m 644 libpng.3 "$DESTDIR$PREFIX/share/man/man3/libpng.3"
+/usr/bin/install -c -m 644 libpngpf.3 "$DESTDIR$PREFIX/share/man/man3/libpngpf.3"
+/usr/bin/install -c -m 644 png.5 "$DESTDIR$PREFIX/share/man/man5/png.5"

@@ -1,0 +1,28 @@
+diff --git a/pngconf.h b/pngconf.h
+index 3eda9d0..491eba7 100644
+--- a/pngconf.h
++++ b/pngconf.h
+@@ -352,6 +352,23 @@
+ #      define PNG_RESTRICT __restrict
+ #    endif
+ 
++#  elif defined(NeXT)
++#    ifndef PNG_USE_RESULT
++#      define PNG_USE_RESULT
++#    endif
++#    ifndef PNG_NORETURN
++#      define PNG_NORETURN
++#    endif
++#    ifndef PNG_ALLOCATED
++#      define PNG_ALLOCATED
++#    endif
++#    ifndef PNG_DEPRECATED
++#      define PNG_DEPRECATED
++#    endif
++#    ifndef PNG_PRIVATE
++#      define PNG_PRIVATE
++#    endif
++
+ #  elif defined(__GNUC__)
+ #    ifndef PNG_USE_RESULT
+ #      define PNG_USE_RESULT __attribute__((__warn_unused_result__))
