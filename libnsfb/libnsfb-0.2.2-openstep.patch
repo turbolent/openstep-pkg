@@ -1,0 +1,176 @@
+diff --git a/include/libnsfb.h b/include/libnsfb.h
+index 674df65..6d48eae 100644
+--- a/include/libnsfb.h
++++ b/include/libnsfb.h
+@@ -11,7 +11,27 @@
+ #ifndef _LIBNSFB_H
+ #define _LIBNSFB_H 1
+ 
++#ifdef NeXT
++#ifndef NSFB_OPENSTEP_STDINT_TYPES
++#define NSFB_OPENSTEP_STDINT_TYPES 1
++typedef unsigned char uint8_t;
++typedef unsigned short uint16_t;
++typedef unsigned int uint32_t;
++typedef signed int int32_t;
++#endif
++#ifndef __bool_true_false_are_defined
++typedef unsigned char bool;
++#define true 1
++#define false 0
++#define __bool_true_false_are_defined 1
++#endif
++#ifndef restrict
++#define restrict
++#endif
++#else
+ #include <stdint.h>
++#include <stdbool.h>
++#endif
+ 
+ typedef struct nsfb_palette_s nsfb_palette_t;
+ typedef struct nsfb_cursor_s nsfb_cursor_t;
+diff --git a/include/stdbool.h b/include/stdbool.h
+new file mode 100644
+index 0000000..b0a8e32
+--- /dev/null
++++ b/include/stdbool.h
+@@ -0,0 +1,15 @@
++#ifndef NSFB_OPENSTEP_STDBOOL_H
++#define NSFB_OPENSTEP_STDBOOL_H 1
++
++#ifdef NeXT
++#ifndef __bool_true_false_are_defined
++typedef unsigned char bool;
++#define true 1
++#define false 0
++#define __bool_true_false_are_defined 1
++#endif
++#else
++#include_next <stdbool.h>
++#endif
++
++#endif
+diff --git a/include/stdint.h b/include/stdint.h
+new file mode 100644
+index 0000000..deb0ebd
+--- /dev/null
++++ b/include/stdint.h
+@@ -0,0 +1,16 @@
++#ifndef NSFB_OPENSTEP_STDINT_H
++#define NSFB_OPENSTEP_STDINT_H 1
++
++#ifdef NeXT
++#ifndef NSFB_OPENSTEP_STDINT_TYPES
++#define NSFB_OPENSTEP_STDINT_TYPES 1
++typedef unsigned char uint8_t;
++typedef unsigned short uint16_t;
++typedef unsigned int uint32_t;
++typedef signed int int32_t;
++#endif
++#else
++#include_next <stdint.h>
++#endif
++
++#endif
+diff --git a/src/libnsfb.c b/src/libnsfb.c
+index 4d652c1..ec0823a 100644
+--- a/src/libnsfb.c
++++ b/src/libnsfb.c
+@@ -19,6 +19,23 @@
+ #include "palette.h"
+ #include "surface.h"
+ 
++#ifdef NeXT
++static char *nsfb_strdup(const char *s)
++{
++    size_t len;
++    char *copy;
++
++    len = strlen(s) + 1;
++    copy = malloc(len);
++    if (copy != NULL) {
++        memcpy(copy, s, len);
++    }
++
++    return copy;
++}
++#define strdup nsfb_strdup
++#endif
++
+ /* exported interface documented in libnsfb.h */
+ nsfb_t*
+ nsfb_new(const enum nsfb_type_e surface_type)
+@@ -159,4 +176,3 @@ nsfb_get_buffer(nsfb_t *nsfb, uint8_t **ptr, int *linelen)
+  *  tab-width: 8
+  * End:
+  */
+-
+diff --git a/src/plot.h b/src/plot.h
+index db60ea9..cce70b5 100644
+--- a/src/plot.h
++++ b/src/plot.h
+@@ -29,6 +29,8 @@
+     #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+         #define NSFB_BE_BYTE_ORDER
+     #endif
++#elif defined(NeXT)
++    /* OPENSTEP on i386 is little endian. */
+ #elif defined(__APPLE__)
+     /* mac os x has the include somewhere different */
+     #include <machine/endian.h>
+diff --git a/src/surface/surface.c b/src/surface/surface.c
+index 426efa9..abc4a9b 100644
+--- a/src/surface/surface.c
++++ b/src/surface/surface.c
+@@ -28,6 +28,17 @@ struct nsfb_surface_s {
+ static struct nsfb_surface_s surfaces[MAX_SURFACES];
+ static int surface_count = 0;
+ 
++#ifdef NeXT
++extern const nsfb_surface_rtns_t ram_rtns;
++
++static void nsfb_register_openstep_surfaces(void)
++{
++    if (surface_count == 0) {
++        _nsfb_register_surface(NSFB_SURFACE_RAM, &ram_rtns, "ram");
++    }
++}
++#endif
++
+ /* internal routine which lets surfaces register their presence at runtime */
+ void _nsfb_register_surface(const enum nsfb_type_e type, 
+                              const nsfb_surface_rtns_t *rtns, 
+@@ -91,6 +102,10 @@ nsfb_surface_get_rtns(enum nsfb_type_e type)
+     int fend_loop;
+     nsfb_surface_rtns_t *rtns = NULL;
+ 
++#ifdef NeXT
++    nsfb_register_openstep_surfaces();
++#endif
++
+     for (fend_loop = 0; fend_loop < surface_count; fend_loop++) {
+ 	/* surface type must match and have a initialisor, finaliser
+ 	 * and input method 
+@@ -144,6 +159,10 @@ nsfb_type_from_name(const char *name)
+ {
+     int fend_loop;
+ 
++#ifdef NeXT
++    nsfb_register_openstep_surfaces();
++#endif
++
+     for (fend_loop = 0; fend_loop < surface_count; fend_loop++) {
+         if (strcmp(surfaces[fend_loop].name, name) == 0)
+             return surfaces[fend_loop].type;
+@@ -157,6 +176,10 @@ nsfb_enumerate_surface_types(surface_enumeration_cb cb, void *context)
+ {
+     int fend_loop;
+ 
++#ifdef NeXT
++    nsfb_register_openstep_surfaces();
++#endif
++
+     for (fend_loop = 0; fend_loop < surface_count; fend_loop++) {
+ 	cb(context, surfaces[fend_loop].name, surfaces[fend_loop].type);
+     }

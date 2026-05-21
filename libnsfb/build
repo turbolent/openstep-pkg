@@ -1,0 +1,55 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libnsfb-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=/usr/local/bin/pkg-config
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+INSTALLFLAGS=-c
+
+export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP
+export INSTALL INSTALLFLAGS
+
+if [ -d "libnsfb-$VERSION" ]; then
+    cd "libnsfb-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config <<'EOF'
+CFLAGS := $(CFLAGS) -DNeXT
+EOF
+
+gnumake Q= PREFIX="$PREFIX" WARNFLAGS= \
+    NSFB_SDL_AVAILABLE=no \
+    NSFB_XCB_AVAILABLE=no \
+    NSFB_VNC_AVAILABLE=no \
+    NSFB_WLD_AVAILABLE=no
+
+for lib in build-*-release-lib-static/libnsfb.a; do
+    test -f "$lib" || continue
+    /bin/ranlib "$lib"
+done
+
+gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS= \
+    NSFB_SDL_AVAILABLE=no \
+    NSFB_XCB_AVAILABLE=no \
+    NSFB_VNC_AVAILABLE=no \
+    NSFB_WLD_AVAILABLE=no
+
+if [ -f "$DESTDIR$PREFIX/lib/libnsfb.a" ]; then
+    /bin/ranlib "$DESTDIR$PREFIX/lib/libnsfb.a"
+fi

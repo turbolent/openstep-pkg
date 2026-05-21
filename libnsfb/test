@@ -1,0 +1,44 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/libnsfb-test.$$
+
+cat > "$TMP.c" <<'EOF'
+#include <libnsfb.h>
+#include <libnsfb_plot.h>
+
+int main(void)
+{
+    nsfb_t *fb;
+    nsfb_bbox_t box;
+
+    fb = nsfb_new(NSFB_SURFACE_RAM);
+    if (fb == 0)
+        return 1;
+
+    if (nsfb_set_geometry(fb, 16, 16, NSFB_FMT_XRGB8888) != 0)
+        return 2;
+
+    if (nsfb_init(fb) != 0)
+        return 3;
+
+    box.x0 = 0;
+    box.y0 = 0;
+    box.x1 = 16;
+    box.y1 = 16;
+
+    if (!nsfb_plot_clg(fb, 0xff000000))
+        return 4;
+
+    nsfb_free(fb);
+    return 0;
+}
+EOF
+
+/usr/local/bin/gcc -DNeXT -I"$LOCAL_ROOT/include" "$TMP.c" \
+    "$LOCAL_ROOT/lib/libnsfb.a" -lm -o "$TMP"
+
+"$TMP"
+
+rm -f "$TMP.c" "$TMP"
