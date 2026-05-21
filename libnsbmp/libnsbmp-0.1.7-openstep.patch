@@ -1,0 +1,102 @@
+diff --git a/Makefile b/Makefile
+index e456758..6a0d3f8 100644
+--- a/Makefile
++++ b/Makefile
+@@ -30,6 +30,9 @@ endif
+ CFLAGS := -D_BSD_SOURCE -D_DEFAULT_SOURCE \
+ 	-I$(CURDIR)/include/ -I$(CURDIR)/src \
+ 	$(WARNFLAGS) $(CFLAGS)
++ifeq ($(BUILD),i386-next-openstep4)
++  CFLAGS := -DNeXT $(CFLAGS)
++endif
+ ifneq ($(GCCVER),2)
+   CFLAGS := $(CFLAGS) -std=c99
+ else
+diff --git a/include/libnsbmp.h b/include/libnsbmp.h
+index ad683f0..d248f4b 100644
+--- a/include/libnsbmp.h
++++ b/include/libnsbmp.h
+@@ -15,8 +15,32 @@
+ #ifndef libnsbmp_h_
+ #define libnsbmp_h_
+ 
++#ifdef NeXT
++#ifndef NSBMP_OPENSTEP_STDINT_TYPES
++#define NSBMP_OPENSTEP_STDINT_TYPES 1
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef signed short int16_t;
++typedef unsigned short uint16_t;
++typedef signed int int32_t;
++typedef unsigned int uint32_t;
++typedef signed long intptr_t;
++typedef unsigned long uintptr_t;
++typedef unsigned long long uint64_t;
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#endif
++#ifndef __bool_true_false_are_defined
++typedef unsigned char bool;
++#define true 1
++#define false 0
++#define __bool_true_false_are_defined 1
++#endif
++#else
+ #include <stdbool.h>
+ #include <stdint.h>
++#endif
+ #include <stddef.h>
+ 
+ /* bmp flags */
+diff --git a/include/stdbool.h b/include/stdbool.h
+new file mode 100644
+index 0000000..af357a9
+--- /dev/null
++++ b/include/stdbool.h
+@@ -0,0 +1,15 @@
++#ifndef NSBMP_OPENSTEP_STDBOOL_H
++#define NSBMP_OPENSTEP_STDBOOL_H 1
++
++#ifdef NeXT
++#ifndef __bool_true_false_are_defined
++typedef unsigned char bool;
++#define true 1
++#define false 0
++#define __bool_true_false_are_defined 1
++#endif
++#else
++#include_next <stdbool.h>
++#endif
++
++#endif
+diff --git a/include/stdint.h b/include/stdint.h
+new file mode 100644
+index 0000000..20d7c1f
+--- /dev/null
++++ b/include/stdint.h
+@@ -0,0 +1,24 @@
++#ifndef NSBMP_OPENSTEP_STDINT_H
++#define NSBMP_OPENSTEP_STDINT_H 1
++
++#ifdef NeXT
++#ifndef NSBMP_OPENSTEP_STDINT_TYPES
++#define NSBMP_OPENSTEP_STDINT_TYPES 1
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef signed short int16_t;
++typedef unsigned short uint16_t;
++typedef signed int int32_t;
++typedef unsigned int uint32_t;
++typedef signed long intptr_t;
++typedef unsigned long uintptr_t;
++typedef unsigned long long uint64_t;
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#endif
++#else
++#include_next <stdint.h>
++#endif
++
++#endif
