@@ -1,0 +1,26 @@
+diff --git a/include/freetype/internal/compiler-macros.h b/include/freetype/internal/compiler-macros.h
+index 4863d6d..932c25f 100644
+--- a/include/freetype/internal/compiler-macros.h
++++ b/include/freetype/internal/compiler-macros.h
+@@ -315,7 +315,7 @@ FT_BEGIN_HEADER
+ #define FT_CALLBACK_DEF( x )  static  x
+ #endif
+ 
+-#if defined( __GNUC__ ) && defined( __i386__ )
++#if defined( __GNUC__ ) && defined( __i386__ ) && !defined( NeXT )
+ #define FT_COMPARE_DEF( x )  FT_CALLBACK_DEF( x ) __attribute__(( cdecl ))
+ #elif defined( _MSC_VER ) && defined( _M_IX86 )
+ #define FT_COMPARE_DEF( x )  FT_CALLBACK_DEF( x ) __cdecl
+diff --git a/src/tools/vms_shorten_symbol.c b/src/tools/vms_shorten_symbol.c
+index 81f2a71..3abf87e 100644
+--- a/src/tools/vms_shorten_symbol.c
++++ b/src/tools/vms_shorten_symbol.c
+@@ -46,7 +46,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#ifdef __VMS
++#if defined( __VMS ) || defined( NeXT )
+ #define UINT32 unsigned int
+ #else
+ #include <inttypes.h>

@@ -1,0 +1,131 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/bin/cc
+CFLAGS="-O2 -DNeXT -DFT_CONFIG_OPTION_NO_ASSEMBLER"
+CPPFLAGS="-I/usr/local/include"
+LDFLAGS="-L/usr/local/lib"
+MAKE=gnumake
+SED=/bin/sed
+GREP=/usr/local/bin/grep
+EGREP="/usr/local/bin/grep -E"
+ZLIB_CFLAGS="-I/usr/local/include"
+ZLIB_LIBS="-L/usr/local/lib -lz"
+LIBPNG_CFLAGS="-I/usr/local/include/libpng16 -I/usr/local/include"
+LIBPNG_LIBS="-L/usr/local/lib -lpng16 -lz"
+PATCHFILE="freetype-$VERSION-openstep.patch"
+
+export DESTDIR VERSION PREFIX PATH CC CFLAGS CPPFLAGS LDFLAGS MAKE
+export SED GREP EGREP ZLIB_CFLAGS ZLIB_LIBS LIBPNG_CFLAGS LIBPNG_LIBS
+
+ensure_dir() {
+    dir=$1
+
+    test -d "$dir" && return 0
+
+    case $dir in
+        /*) current=/ ;;
+         *) current=. ;;
+    esac
+
+    old_ifs=$IFS
+    IFS=/
+    set -- $dir
+    IFS=$old_ifs
+
+    for part
+    do
+        test -n "$part" || continue
+
+        if [ "$current" = / ]; then
+            current=/$part
+        else
+            current=$current/$part
+        fi
+
+        test -d "$current" || mkdir "$current"
+    done
+}
+
+if [ -d "freetype-$VERSION" ]; then
+    cd "freetype-$VERSION"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+/usr/local/bin/ksh ./configure \
+    --prefix="$PREFIX" \
+    --disable-shared \
+    --enable-static \
+    --enable-freetype-config \
+    --with-zlib=yes \
+    --with-bzip2=no \
+    --with-png=yes \
+    --with-harfbuzz=no \
+    --with-brotli=no \
+    --with-librsvg=no
+
+# OPENSTEP gnumake 3.81 expands FreeType's public-header wildcard to
+# repeated directory names.  Static builds do not need an export-symbol file.
+/bin/sed '/^EXPORTS_LIST  :=/s|:=.*|:=|' builds/unix/unix-cc.mk > builds/unix/unix-cc.new
+mv builds/unix/unix-cc.new builds/unix/unix-cc.mk
+/bin/sed '/-export-symbols/d' builds/unix/unix-cc.mk > builds/unix/unix-cc.new
+mv builds/unix/unix-cc.new builds/unix/unix-cc.mk
+
+gnumake
+
+/bin/sed 's|^[ 	]*--atleast-pkgconfig-version.*|false >/dev/null 2>\&1|' \
+    builds/unix/freetype-config > builds/unix/freetype-config.new
+mv builds/unix/freetype-config.new builds/unix/freetype-config
+chmod 755 builds/unix/freetype-config
+
+for dir in \
+    "$DESTDIR$PREFIX/bin" \
+    "$DESTDIR$PREFIX/include/freetype2/freetype/config" \
+    "$DESTDIR$PREFIX/lib" \
+    "$DESTDIR$PREFIX/lib/pkgconfig" \
+    "$DESTDIR$PREFIX/share/aclocal" \
+    "$DESTDIR$PREFIX/share/man/man1"
+do
+    ensure_dir "$dir"
+done
+
+cp objs/.libs/libfreetype.a "$DESTDIR$PREFIX/lib/libfreetype.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libfreetype.a"
+chmod 644 "$DESTDIR$PREFIX/lib/libfreetype.a"
+
+cp include/ft2build.h "$DESTDIR$PREFIX/include/freetype2/ft2build.h"
+chmod 644 "$DESTDIR$PREFIX/include/freetype2/ft2build.h"
+
+for header in include/freetype/*.h
+do
+    cp "$header" "$DESTDIR$PREFIX/include/freetype2/freetype"
+    chmod 644 "$DESTDIR$PREFIX/include/freetype2/freetype/`basename "$header"`"
+done
+
+for header in include/freetype/config/*.h
+do
+    cp "$header" "$DESTDIR$PREFIX/include/freetype2/freetype/config"
+    chmod 644 "$DESTDIR$PREFIX/include/freetype2/freetype/config/`basename "$header"`"
+done
+
+cp builds/unix/ftconfig.h "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftconfig.h"
+cp objs/ftmodule.h "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftmodule.h"
+cp builds/unix/ftoption.h "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftoption.h"
+chmod 644 "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftconfig.h"
+chmod 644 "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftmodule.h"
+chmod 644 "$DESTDIR$PREFIX/include/freetype2/freetype/config/ftoption.h"
+
+cp builds/unix/freetype2.pc "$DESTDIR$PREFIX/lib/pkgconfig/freetype2.pc"
+cp builds/unix/freetype2.m4 "$DESTDIR$PREFIX/share/aclocal/freetype2.m4"
+cp builds/unix/freetype-config "$DESTDIR$PREFIX/bin/freetype-config"
+cp docs/freetype-config.1 "$DESTDIR$PREFIX/share/man/man1/freetype-config.1"
+chmod 644 "$DESTDIR$PREFIX/lib/pkgconfig/freetype2.pc"
+chmod 644 "$DESTDIR$PREFIX/share/aclocal/freetype2.m4"
+chmod 755 "$DESTDIR$PREFIX/bin/freetype-config"
+chmod 644 "$DESTDIR$PREFIX/share/man/man1/freetype-config.1"
