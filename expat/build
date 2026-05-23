@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="expat-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/usr/local/bin/gcc
+CFLAGS="-O2 -DNeXT -std=gnu99"
+GREP=/usr/local/bin/grep
+EGREP="/usr/local/bin/grep -E"
+SED=/bin/sed
+ac_cv_prog_cc_c99=
+
+export DESTDIR VERSION PREFIX PATCHFILE PATH CC CFLAGS GREP EGREP SED
+export ac_cv_prog_cc_c99
+. "$PKG_BUILD_HELPERS"
+
+if [ -d "expat-$VERSION" ]; then
+    cd "expat-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+  --prefix="$PREFIX" --disable-shared --enable-static --without-docbook \
+  --without-tests --disable-dependency-tracking
+
+cd lib
+rm -f *.o libexpat.a
+"$CC" -DHAVE_CONFIG_H -I. -I.. $CFLAGS -c \
+  xmlparse.c xmltok.c xmlrole.c random_dev_urandom.c
+ar cr libexpat.a xmlparse.o xmltok.o xmlrole.o random_dev_urandom.o
+ranlib libexpat.a
+cd ..
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/include" || mkdir "$DESTDIR/usr/local/include"
+test -d "$DESTDIR/usr/local/lib" || mkdir "$DESTDIR/usr/local/lib"
+test -d "$DESTDIR/usr/local/lib/pkgconfig" || mkdir "$DESTDIR/usr/local/lib/pkgconfig"
+
+cp lib/expat.h "$DESTDIR$PREFIX/include/expat.h"
+cp lib/expat_external.h "$DESTDIR$PREFIX/include/expat_external.h"
+cp lib/expat_openstep.h "$DESTDIR$PREFIX/include/expat_openstep.h"
+cp lib/libexpat.a "$DESTDIR$PREFIX/lib/libexpat.a"
+ranlib "$DESTDIR$PREFIX/lib/libexpat.a"
+cp expat.pc "$DESTDIR$PREFIX/lib/pkgconfig/expat.pc"

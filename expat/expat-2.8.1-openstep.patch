@@ -1,0 +1,129 @@
+diff --git a/lib/expat.h b/lib/expat.h
+index ec3f585..5aa25c5 100644
+--- a/lib/expat.h
++++ b/lib/expat.h
+@@ -45,7 +45,11 @@
+ #ifndef Expat_INCLUDED
+ #  define Expat_INCLUDED 1
+ 
+-#  include <stdint.h> // for uint8_t
++#  ifdef NeXT
++#    include <expat_openstep.h>
++#  else
++#    include <stdint.h> // for uint8_t
++#  endif
+ #  include <stdlib.h>
+ #  include "expat_external.h"
+ 
+diff --git a/lib/expat_openstep.h b/lib/expat_openstep.h
+new file mode 100644
+index 0000000..95e0501
+--- /dev/null
++++ b/lib/expat_openstep.h
+@@ -0,0 +1,33 @@
++#ifndef EXPAT_OPENSTEP_H
++#define EXPAT_OPENSTEP_H 1
++
++#include <limits.h>
++#include <stddef.h>
++
++typedef unsigned char bool;
++#ifndef true
++# define true 1
++#endif
++#ifndef false
++# define false 0
++#endif
++#ifndef __bool_true_false_are_defined
++# define __bool_true_false_are_defined 1
++#endif
++
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef short int16_t;
++typedef unsigned short uint16_t;
++typedef int int32_t;
++typedef unsigned int uint32_t;
++typedef long long int64_t;
++typedef unsigned long long uint64_t;
++typedef long intptr_t;
++typedef unsigned long uintptr_t;
++
++#ifndef SIZE_MAX
++# define SIZE_MAX ((size_t)-1)
++#endif
++
++#endif
+diff --git a/lib/internal.h b/lib/internal.h
+index 420d421..430a681 100644
+--- a/lib/internal.h
++++ b/lib/internal.h
+@@ -55,7 +55,8 @@
+    USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+ 
+-#if defined(__GNUC__) && defined(__i386__) && ! defined(__MINGW32__)
++#if defined(__GNUC__) && defined(__i386__) && ! defined(__MINGW32__)          \
++    && ! defined(NeXT)
+ /* We'll use this version by default only where we know it helps.
+ 
+    regparm() generates warnings on Solaris boxes.   See SF bug #692878.
+diff --git a/lib/random_dev_urandom.c b/lib/random_dev_urandom.c
+index e508fe9..be83447 100644
+--- a/lib/random_dev_urandom.c
++++ b/lib/random_dev_urandom.c
+@@ -41,6 +41,13 @@
+ #include <fcntl.h>  // open
+ #include <unistd.h> // close
+ 
++#ifdef NeXT
++#  ifndef O_CLOEXEC
++#    define O_CLOEXEC 0
++#  endif
++typedef long ssize_t;
++#endif
++
+ /* Extract entropy from /dev/urandom */
+ bool
+ writeRandomBytes_dev_urandom(void *target, size_t count) {
+diff --git a/lib/stdbool.h b/lib/stdbool.h
+new file mode 100644
+index 0000000..91580ad
+--- /dev/null
++++ b/lib/stdbool.h
+@@ -0,0 +1,6 @@
++#ifndef EXPAT_STDBOOL_H
++#define EXPAT_STDBOOL_H 1
++
++#include "expat_openstep.h"
++
++#endif
+diff --git a/lib/stdint.h b/lib/stdint.h
+new file mode 100644
+index 0000000..0516331
+--- /dev/null
++++ b/lib/stdint.h
+@@ -0,0 +1,6 @@
++#ifndef EXPAT_STDINT_H
++#define EXPAT_STDINT_H 1
++
++#include "expat_openstep.h"
++
++#endif
+diff --git a/lib/xmlparse.c b/lib/xmlparse.c
+index 890a938..4aecbef 100644
+--- a/lib/xmlparse.c
++++ b/lib/xmlparse.c
+@@ -97,6 +97,12 @@
+ #include <math.h>   /* isnan */
+ #include <errno.h>
+ 
++#ifdef NeXT
++#  ifndef isnan
++#    define isnan(x) ((x) != (x))
++#  endif
++#endif
++
+ #ifdef _WIN32
+ #  define getpid GetCurrentProcessId
+ #else
