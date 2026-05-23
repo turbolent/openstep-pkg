@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PREFIX=/usr/local
+PATCHFILE="libsvgtiny-$VERSION-openstep.patch"
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+NSSHARED=/usr/local/share/netsurf-buildsystem
+CC=/usr/local/bin/gcc
+BUILD_CC=/usr/local/bin/gcc
+MAKE=gnumake
+CCACHE=
+PKGCONFIG=
+CC_CAN_BUILD_AND_DEP=no
+CC_CANNOT_DEP=yes
+INSTALL=/usr/bin/install
+INSTALLFLAGS=-c
+CFLAGS=-DNeXT
+
+export DESTDIR VERSION PREFIX PATCHFILE PATH NSSHARED CC BUILD_CC MAKE
+export CCACHE PKGCONFIG CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP INSTALL INSTALLFLAGS
+export CFLAGS
+
+if [ -d "libsvgtiny-$VERSION" ]; then
+    cd "libsvgtiny-$VERSION"
+    PATCHFILE="../$PATCHFILE"
+fi
+
+patch -p1 < "$PATCHFILE"
+
+cat > Makefile.config.override <<'EOF'
+CFLAGS := $(CFLAGS) -DNeXT -I/NextDeveloper/Headers
+EOF
+
+gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib build-*-release-lib-static/libsvgtiny.a
+
+gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
+/bin/ranlib "$DESTDIR$PREFIX/lib/libsvgtiny.a"

@@ -1,0 +1,10 @@
+gcc33
+make
+netsurf-buildsystem
+gperf
+libdom
+libhubbub
+libparserutils
+libwapcaplet
+expat
+patch
