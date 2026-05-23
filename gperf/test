@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -e
+
+GPERF="$LOCAL_ROOT/bin/gperf"
+TMPDIR=/tmp/gperf-test-$$
+
+test -x "$GPERF"
+mkdir "$TMPDIR"
+trap 'rm -rf "$TMPDIR"' 0 1 2 3 15
+
+"$GPERF" --version >/dev/null
+
+{
+  echo '%{'
+  echo '#include <string.h>'
+  echo '%}'
+  echo 'struct word { const char *name; int token; };'
+  echo '%%'
+  echo 'alpha, 1'
+  echo 'beta, 2'
+} > "$TMPDIR/conftest.gperf"
+
+"$GPERF" --struct-type --language=ANSI-C \
+  --lookup-function-name=in_word_set "$TMPDIR/conftest.gperf" \
+  > "$TMPDIR/conftest.c"
+/bin/cc -c "$TMPDIR/conftest.c" -o "$TMPDIR/conftest.o"
+test -s "$TMPDIR/conftest.o"

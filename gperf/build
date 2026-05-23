@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+CC=/usr/local/bin/gcc
+CXX=/usr/local/bin/gcc
+CFLAGS="-O2 -DNeXT"
+CXXFLAGS="-O2 -DNeXT -fno-rtti -fno-exceptions"
+GREP=/usr/local/bin/grep
+EGREP="/usr/local/bin/grep -E"
+SED=/bin/sed
+ac_cv_func_getdtablesize=yes
+ac_cv_have_decl_getdtablesize=yes
+gl_cv_func_getdtablesize_works=yes
+PATCHFILE="gperf-$VERSION-openstep.patch"
+
+export DESTDIR VERSION PATH CC CXX CFLAGS CXXFLAGS GREP EGREP SED
+export ac_cv_func_getdtablesize ac_cv_have_decl_getdtablesize
+export gl_cv_func_getdtablesize_works PATCHFILE
+. "$PKG_BUILD_HELPERS"
+
+patch -p1 < "$PATCHFILE"
+run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+  --disable-dependency-tracking --prefix=/usr/local
+gnumake
+gnumake install DESTDIR="$DESTDIR"

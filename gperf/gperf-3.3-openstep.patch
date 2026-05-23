@@ -1,0 +1,105 @@
+diff --git a/lib/getprogname.c b/lib/getprogname.c
+index 4fe7c90..4ae5e73 100644
+--- a/lib/getprogname.c
++++ b/lib/getprogname.c
+@@ -297,6 +297,8 @@ getprogname (void)
+       close (fd);
+     }
+   return "?";
++# elif defined NeXT                                             /* OPENSTEP */
++  return "?";
+ # else
+ #  error "getprogname module not ported to this OS"
+ # endif
+diff --git a/src/arraylist.cc b/src/arraylist.cc
+index e23d7d7..9f471f6 100644
+--- a/src/arraylist.cc
++++ b/src/arraylist.cc
+@@ -25,7 +25,47 @@
+ /* Specification. */
+ #include "arraylist.h"
+ 
+-#include <new>
++#ifndef NeXT
++# include <new>
++#endif
++
++#ifdef NeXT
++void *
++operator new (size_t size)
++{
++  void *p = malloc (size ? size : 1);
++  if (p == NULL)
++    abort ();
++  return p;
++}
++
++void *
++operator new[] (size_t size)
++{
++  void *p = malloc (size ? size : 1);
++  if (p == NULL)
++    abort ();
++  return p;
++}
++
++void
++operator delete (void *p)
++{
++  free (p);
++}
++
++void
++operator delete[] (void *p)
++{
++  free (p);
++}
++
++extern "C" void
++__cxa_pure_virtual (void)
++{
++  abort ();
++}
++#endif
+ 
+ void ArrayListRepresentation::ensure_capacity (size_t n, size_t size_of_T)
+ {
+@@ -34,7 +74,11 @@ void ArrayListRepresentation::ensure_capacity (size_t n, size_t size_of_T)
+     new_max = n;
+   void *new_item = realloc (_item, new_max * size_of_T);
+   if (new_item == NULL)
++#ifdef NeXT
++    abort ();
++#else
+     throw std::bad_alloc();
++#endif
+   /* The realloc() call has moved the elements from the old storage to the
+      new storage. The old storage is thus now considered uninitialized.  */
+   _item = new_item;
+diff --git a/src/arraylist.h b/src/arraylist.h
+index 9b287e3..b76646b 100644
+--- a/src/arraylist.h
++++ b/src/arraylist.h
+@@ -24,11 +24,21 @@
+ #define arraylist_h 1
+ 
+ #include <stdlib.h>  /* defines size_t, malloc(), realloc(), free(), abort() */
+-#include <new>
++#ifndef NeXT
++# include <new>
++#endif
+ #if __cplusplus >= 201103L
+ # include <type_traits>
+ #endif
+ 
++#ifdef NeXT
++inline void *
++operator new (size_t, void *p)
++{
++  return p;
++}
++#endif
++
+ /* ArrayList<T> is a list of elements of type T, stored contiguously in memory
+    (in order to make good use of memory caches in a CPU).
+    T must be a type whose contents may be freely moved in memory (i.e. without
