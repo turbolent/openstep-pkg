@@ -5,12 +5,25 @@ set -e
 TMP=/usr/tmp/libdom-test.$$
 
 cat > "$TMP.c" <<'EOF'
+#include <string.h>
+#include <stdarg.h>
 #include <dom/dom.h>
+#include <dom/bindings/xml/xmlparser.h>
+
+static void msg(uint32_t level, void *ctx, const char *fmt, ...)
+{
+    (void)level;
+    (void)ctx;
+    (void)fmt;
+}
 
 int main(void)
 {
     dom_document *doc = 0;
     dom_exception err;
+    dom_xml_parser *parser;
+    dom_xml_error xmlerr;
+    uint8_t xml[] = "<root/>";
 
     err = dom_implementation_create_document(
         DOM_IMPLEMENTATION_CORE, 0, 0, 0, 0, 0, &doc);
@@ -18,13 +31,32 @@ int main(void)
         return 1;
 
     dom_node_unref(doc);
+
+    doc = 0;
+    parser = dom_xml_parser_create(0, 0, msg, 0, &doc);
+    if (parser == 0)
+        return 2;
+
+    xmlerr = dom_xml_parser_parse_chunk(parser, xml, strlen((char *)xml));
+    if (xmlerr != DOM_XML_OK)
+        return 3;
+
+    xmlerr = dom_xml_parser_completed(parser);
+    if (xmlerr != DOM_XML_OK)
+        return 4;
+
+    dom_xml_parser_destroy(parser);
+    if (doc != 0)
+        dom_node_unref(doc);
+
     return 0;
 }
 EOF
 
 /usr/local/bin/gcc -DNeXT -I/NextDeveloper/Headers -I"$LOCAL_ROOT/include" "$TMP.c" \
     "$LOCAL_ROOT/lib/libdom.a" "$LOCAL_ROOT/lib/libhubbub.a" \
-    "$LOCAL_ROOT/lib/libparserutils.a" "$LOCAL_ROOT/lib/libwapcaplet.a" -o "$TMP"
+    "$LOCAL_ROOT/lib/libparserutils.a" "$LOCAL_ROOT/lib/libwapcaplet.a" \
+    "$LOCAL_ROOT/lib/libexpat.a" -o "$TMP"
 
 "$TMP"
 

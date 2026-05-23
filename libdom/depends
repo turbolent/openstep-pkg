@@ -4,4 +4,5 @@ netsurf-buildsystem
 libwapcaplet
 libparserutils
 libhubbub
+expat
 patch

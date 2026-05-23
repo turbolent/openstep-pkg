@@ -32,10 +32,11 @@ fi
 patch -p1 < "$PATCHFILE"
 
 cat > Makefile.config.override <<'EOF'
-WITH_EXPAT_BINDING := no
+WITH_EXPAT_BINDING := yes
 WITH_LIBXML_BINDING := no
 WITH_HUBBUB_BINDING := yes
 CFLAGS := $(CFLAGS) -DNeXT -I/NextDeveloper/Headers
+LDFLAGS := $(LDFLAGS) -lexpat
 EOF
 
 gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
