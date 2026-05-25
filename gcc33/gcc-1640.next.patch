@@ -148,10 +148,10 @@ index d1c19fd..34e30a9 100644
  				    chainon ($1, $7)); }
 diff --git a/gcc/config/i386/next.h b/gcc/config/i386/next.h
 new file mode 100644
-index 0000000..5da1a12
+index 0000000..deb6cf7
 --- /dev/null
 +++ b/gcc/config/i386/next.h
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,198 @@
 +/* Target definitions for GNU compiler for Intel x86 CPU running NeXTSTEP
 +   Copyright (C) 1993, 1995, 1996, 1999 Free Software Foundation, Inc.
 +
@@ -232,6 +232,9 @@ index 0000000..5da1a12
 +
 +/* Print opcodes the way that GAS expects them.  */
 +#define GAS_MNEMONICS 1
++
++/* OPENSTEP's stock assembler does not understand .quad.  */
++#undef ASM_QUAD
 +
 +#ifndef ASM_DECLARE_FUNCTION_NAME
 +#define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL) ASM_OUTPUT_LABEL (FILE, NAME)
