@@ -146,9 +146,30 @@ index d1c19fd..34e30a9 100644
  	  enumlist maybecomma_warn '}' maybe_attribute
  		{ $$ = finish_enum ($<ttype>3, nreverse ($4),
  				    chainon ($1, $7)); }
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 79f35ae..a18cedc 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -1081,6 +1081,16 @@ i[34567]86-ncr-sysv4*)		# NCR 3000 - ix86 running system V.4
+ 	extra_parts="crtbegin.o crtend.o"
+ 	tmake_file=i386/t-crtpic
+ 	;;
++i[34567]86-next-*)
++	tm_p_file="${tm_p_file} nextstep-protos.h"
++	tm_file="i386/i386.h i386/unix.h i386/bsd.h i386/gas.h nextstep.h i386/next.h"
++	tmake_file=i386/t-next
++	extra_objs=nextstep.o
++	extra_parts="crtbegin.o crtend.o"
++	if test x$enable_threads = xyes; then
++		thread_file='mach'
++	fi
++	;;
+ i[34567]86-*-netware)		# Intel 80386's running netware
+ 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h svr4.h i386/sysv4.h netware.h i386/netware.h"
+ 	tmake_file=i386/t-netware
 diff --git a/gcc/config/i386/next.h b/gcc/config/i386/next.h
 new file mode 100644
-index 0000000..deb6cf7
+index 0000000..27f071c
 --- /dev/null
 +++ b/gcc/config/i386/next.h
 @@ -0,0 +1,198 @@
@@ -536,10 +557,10 @@ index 0000000..855ad49
 +}
 diff --git a/gcc/config/nextstep.h b/gcc/config/nextstep.h
 new file mode 100644
-index 0000000..23493e9
+index 0000000..2ae7785
 --- /dev/null
 +++ b/gcc/config/nextstep.h
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,601 @@
 +/* Operating system specific defines to be used when targeting GCC
 +   for NeXTSTEP.
 +   Copyright (C) 1989, 1990, 1991, 1992, 1993, 1996, 1997,
@@ -686,6 +707,7 @@ index 0000000..23493e9
 +%{segalign*} %{seg1addr*} %{segaddr*} %{segprot*} \
 +%{pagezero_size*} %{undefined*} %{dylib_file*} \
 +%{seglinkedit*} %{noseglinkedit*} %{read_only_relocs} \
++%{!read_only_relocs:-read_only_relocs suppress} \
 +%{sectcreate*} %{sectalign*} %{sectobjectsymbols}\
 +%{segcreate*} %{Mach*} %{whyload} %{w} \
 +%{sectorder*} %{whatsloaded} %{ObjC} %{all_load} %{object} \
@@ -1210,27 +1232,6 @@ index 0000000..7827054
 +  assemble_name ((FILE), (NAME)),		\
 +  fprintf ((FILE), ",%u\n", (ROUNDED)))
 +
-diff --git a/gcc/config.gcc b/gcc/config.gcc
-index 79f35ae..a18cedc 100644
---- a/gcc/config.gcc
-+++ b/gcc/config.gcc
-@@ -1081,6 +1081,16 @@ i[34567]86-ncr-sysv4*)		# NCR 3000 - ix86 running system V.4
- 	extra_parts="crtbegin.o crtend.o"
- 	tmake_file=i386/t-crtpic
- 	;;
-+i[34567]86-next-*)
-+	tm_p_file="${tm_p_file} nextstep-protos.h"
-+	tm_file="i386/i386.h i386/unix.h i386/bsd.h i386/gas.h nextstep.h i386/next.h"
-+	tmake_file=i386/t-next
-+	extra_objs=nextstep.o
-+	extra_parts="crtbegin.o crtend.o"
-+	if test x$enable_threads = xyes; then
-+		thread_file='mach'
-+	fi
-+	;;
- i[34567]86-*-netware)		# Intel 80386's running netware
- 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h svr4.h i386/sysv4.h netware.h i386/netware.h"
- 	tmake_file=i386/t-netware
 diff --git a/gcc/cp/cp-parse.in b/gcc/cp/cp-parse.in
 index 0fda80a..bb4e437 100644
 --- a/gcc/cp/cp-parse.in

@@ -9,9 +9,10 @@ BIN=/tmp/pkg-gcc33-$$
 OBJC_SRC=/tmp/pkg-gcc33-$$.m
 OBJC_BIN=/tmp/pkg-gcc33-objc-$$
 OBJC_LOG=/tmp/pkg-gcc33-objc-$$.log
+LINK_LOG=/tmp/pkg-gcc33-link-$$.log
 
 [ -x "$CC" ]
-/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG"
+/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG"
 
 cat > "$SRC" <<'EOF'
 #include <stdio.h>
@@ -23,7 +24,16 @@ int main(void)
 }
 EOF
 
-"$CC" -Werror "$SRC" -o "$BIN"
+if "$CC" -Werror "$SRC" -o "$BIN" > "$LINK_LOG" 2>&1; then
+    :
+else
+    cat "$LINK_LOG"
+    exit 1
+fi
+if grep 'external relocation entries in non-writable section' "$LINK_LOG" >/dev/null 2>&1; then
+    cat "$LINK_LOG"
+    exit 1
+fi
 value=`"$BIN"`
 [ "$value" = ok ]
 
@@ -54,4 +64,4 @@ if [ -f "$COLLECT2" ] && /bin/nm "$COLLECT2" | grep '___umoddi3' >/dev/null 2>&1
     exit 1
 fi
 
-/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG"
+/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG"
