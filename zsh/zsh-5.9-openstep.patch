@@ -1,0 +1,75 @@
+diff --git a/Src/Builtins/rlimits.c b/Src/Builtins/rlimits.c
+index 5f9c84b..c52701a 100644
+--- a/Src/Builtins/rlimits.c
++++ b/Src/Builtins/rlimits.c
+@@ -193,7 +193,7 @@ set_resinfo(void)
+ 	    /* unknown resource */
+ 	    resinfo_T *info = (resinfo_T *)zshcalloc(sizeof(resinfo_T));
+ 	    char *buf = (char *)zalloc(12);
+-	    snprintf(buf, 12, "UNKNOWN-%d", i);
++	    sprintf(buf, "UNKNOWN-%d", i);
+ 	    info->res = - 1;	/* negative value indicates "unknown" */
+ 	    info->name = buf;
+ 	    info->type = ZLIMTYPE_UNKNOWN;
+diff --git a/Src/Zle/zle_refresh.c b/Src/Zle/zle_refresh.c
+index 30b5d44..4e392bd 100644
+--- a/Src/Zle/zle_refresh.c
++++ b/Src/Zle/zle_refresh.c
+@@ -2270,6 +2270,9 @@ moveto(int ln, int cl)
+ mod_export int
+ tcmultout(int cap, int multcap, int ct)
+ {
++    if (ct <= 0)
++	return 1;
++
+     if (tccan(multcap) && (!tccan(cap) || tclen[multcap] <= tclen[cap] * ct)) {
+ 	tcoutarg(multcap, ct);
+ 	return 1;
+diff --git a/Src/utils.c b/Src/utils.c
+index 62bd3e6..561d83d 100644
+--- a/Src/utils.c
++++ b/Src/utils.c
+@@ -1638,12 +1638,13 @@ checkmailpath(char **s)
+ 		pushheap();
+ 		l = newlinklist();
+ 		while ((fn = zreaddir(lock, 1)) && !errflag) {
++		    buflen = strlen(*s) + strlen(fn) + (u ? strlen(u) + 2 : 1);
++		    if (buflen >= (int)sizeof(buf))
++			continue;
+ 		    if (u)
+-			buflen = snprintf(buf, sizeof(buf), "%s/%s?%s", *s, fn, u);
++			sprintf(buf, "%s/%s?%s", *s, fn, u);
+ 		    else
+-			buflen = snprintf(buf, sizeof(buf), "%s/%s", *s, fn);
+-		    if (buflen < 0 || buflen >= (int)sizeof(buf))
+-			continue;
++			sprintf(buf, "%s/%s", *s, fn);
+ 		    addlinknode(l, dupstring(buf));
+ 		    ct++;
+ 		}
+diff --git a/Src/zsh_system.h b/Src/zsh_system.h
+index 6f4efce..27eba80 100644
+--- a/Src/zsh_system.h
++++ b/Src/zsh_system.h
+@@ -123,6 +123,10 @@ char *alloca _((size_t));
+ # include <sys/types.h>
+ #endif
+ 
++#if defined(__NeXT__) && !defined(_SSIZE_T)
++typedef long ssize_t;
++#endif
++
+ #ifdef HAVE_UNISTD_H
+ # include <unistd.h>
+ #endif
+@@ -235,6 +239,10 @@ char *alloca _((size_t));
+ # include <errno.h>
+ #endif
+ 
++#if defined(__NeXT__) && !defined(ENOSYS)
++# define ENOSYS EINVAL
++#endif
++
+ #include <sys/time.h>
+ #include <time.h>
+ 

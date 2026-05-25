@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/usr/local/bin/zsh -fc 'print zsh:$ZSH_VERSION'

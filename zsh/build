@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+
+PATH=/usr/local/bin:$PATH
+CONFIG_SHELL=/usr/local/bin/ksh
+CC=/usr/local/bin/gcc
+CPPFLAGS=-I/NextDeveloper/Headers/bsd
+GREP=/usr/local/bin/grep
+EGREP=/usr/local/bin/egrep
+AWK=/usr/local/bin/gawk
+
+export PATH
+export CONFIG_SHELL
+export CC
+export CPPFLAGS
+export GREP
+export EGREP
+export AWK
+
+patch -p1 < "zsh-$VERSION-openstep.patch"
+
+/usr/local/bin/ksh ./configure \
+    --build=i386-next-openstep4 \
+    --host=i386-next-openstep4 \
+    --prefix=/usr/local \
+    --disable-dynamic \
+    --disable-locale \
+    --disable-multibyte \
+    --disable-largefile \
+    --with-term-lib=termcap
+
+gnumake SHELL=/usr/local/bin/ksh EXELDFLAGS= LIBLDFLAGS=
+gnumake install SHELL=/usr/local/bin/ksh EXELDFLAGS= LIBLDFLAGS= DESTDIR="$DESTDIR"
