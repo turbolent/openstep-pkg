@@ -1,0 +1,6 @@
+gcc33
+make
+patch
+grep
+gawk
+zlib

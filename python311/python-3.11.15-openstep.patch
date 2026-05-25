@@ -1,0 +1,2326 @@
+diff --git a/Include/cpython/pthread_stubs.h b/Include/cpython/pthread_stubs.h
+index d95ee03..b54cd3e 100644
+--- a/Include/cpython/pthread_stubs.h
++++ b/Include/cpython/pthread_stubs.h
+@@ -37,6 +37,11 @@ typedef struct { unsigned __attr; } pthread_mutexattr_t;
+ typedef unsigned pthread_key_t;
+ typedef unsigned pthread_t;
+ typedef struct { unsigned __attr; } pthread_attr_t;
++typedef int clockid_t;
++struct timespec {
++    long tv_sec;
++    long tv_nsec;
++};
+ #endif
+ 
+ // mutex
+diff --git a/Include/internal/pycore_atomic.h b/Include/internal/pycore_atomic.h
+index 425d69f..7c46e96 100644
+--- a/Include/internal/pycore_atomic.h
++++ b/Include/internal/pycore_atomic.h
+@@ -131,7 +131,11 @@ static __inline__ void
+ _Py_atomic_thread_fence(_Py_memory_order order)
+ {
+     if (order != _Py_memory_order_relaxed)
+-        __asm__ volatile("mfence":::"memory");
++#ifdef NeXT
++        __asm__ volatile("" ::: "memory");
++#else
++        __asm__ volatile("mfence" ::: "memory");
++#endif
+ }
+ 
+ /* Tell the race checker about this operation's effects. */
+diff --git a/Include/internal/pycore_bitutils.h b/Include/internal/pycore_bitutils.h
+index e6bf61e..baf0746 100644
+--- a/Include/internal/pycore_bitutils.h
++++ b/Include/internal/pycore_bitutils.h
+@@ -94,7 +94,8 @@ _Py_bswap64(uint64_t word)
+ static inline int
+ _Py_popcount32(uint32_t x)
+ {
+-#if (defined(__clang__) || defined(__GNUC__))
++#if (defined(__clang__) || \
++     (defined(__GNUC__) && (__GNUC__ >= 4)))
+ 
+ #if SIZEOF_INT >= 4
+     Py_BUILD_ASSERT(sizeof(x) <= sizeof(unsigned int));
+@@ -145,7 +146,9 @@ _Py_popcount32(uint32_t x)
+ static inline int
+ _Py_bit_length(unsigned long x)
+ {
+-#if (defined(__clang__) || defined(__GNUC__))
++#if (defined(__clang__) || \
++     (defined(__GNUC__) && ((__GNUC__ > 3) || \
++                            (__GNUC__ == 3 && __GNUC_MINOR__ >= 4))))
+     if (x != 0) {
+         // __builtin_clzl() is available since GCC 3.4.
+         // Undefined behavior for x == 0.
+diff --git a/Include/pymacro.h b/Include/pymacro.h
+index 5840966..db6a526 100644
+--- a/Include/pymacro.h
++++ b/Include/pymacro.h
+@@ -65,6 +65,14 @@
+         (void)Py_BUILD_ASSERT_EXPR(cond);   \
+     } while(0)
+ 
++#ifndef static_assert
++#  define static_assert(cond, msg) Py_BUILD_ASSERT(cond)
++#endif
++
++#ifdef NeXT
++#  define snprintf PyOS_snprintf
++#endif
++
+ /* Get the number of elements in a visible array
+ 
+    This does not work on pointers, or arrays declared as [], or function
+diff --git a/Include/pymath.h b/Include/pymath.h
+index 772b67e..33db53b 100644
+--- a/Include/pymath.h
++++ b/Include/pymath.h
+@@ -37,6 +37,112 @@
+ 
+ // Py_IS_FINITE(X)
+ // Return 1 if float or double arg is neither infinite nor NAN, else 0.
++#ifdef NeXT
++extern double _Py_next_acos(double);
++extern double _Py_next_acosh(double);
++extern double _Py_next_asin(double);
++extern double _Py_next_asinh(double);
++extern double _Py_next_atan(double);
++extern double _Py_next_atan2(double, double);
++extern double _Py_next_atanh(double);
++extern double _Py_next_cbrt(double);
++extern double _Py_next_ceil(double);
++extern double _Py_next_copysign(double, double);
++extern double _Py_next_cos(double);
++extern double _Py_next_cosh(double);
++extern double _Py_next_exp(double);
++extern double _Py_next_expm1(double);
++extern double _Py_next_fabs(double);
++extern double _Py_next_floor(double);
++extern double _Py_next_fmod(double, double);
++extern double _Py_next_frexp(double, int *);
++extern double _Py_next_hypot(double, double);
++extern double _Py_next_ldexp(double, int);
++extern double _Py_next_log(double);
++extern double _Py_next_log1p(double);
++extern double _Py_next_log10(double);
++extern double _Py_next_modf(double, double *);
++extern double _Py_next_pow(double, double);
++extern double _Py_next_round(double);
++extern double _Py_next_sin(double);
++extern double _Py_next_sinh(double);
++extern double _Py_next_sqrt(double);
++extern double _Py_next_tan(double);
++extern double _Py_next_tanh(double);
++
++extern double acos(double);
++extern double acosh(double);
++extern double asin(double);
++extern double asinh(double);
++extern double atan(double);
++extern double atan2(double, double);
++extern double atanh(double);
++extern double cbrt(double);
++extern double ceil(double);
++extern double copysign(double, double);
++extern double cos(double);
++extern double cosh(double);
++extern double exp(double);
++extern double expm1(double);
++extern double fabs(double);
++extern int finite(double);
++extern double floor(double);
++extern double fmod(double, double);
++extern double frexp(double, int *);
++extern double hypot(double, double);
++extern double ldexp(double, int);
++extern double log(double);
++extern double log1p(double);
++extern double log10(double);
++extern double modf(double, double *);
++extern double pow(double, double);
++extern double round(double);
++extern double sin(double);
++extern double sinh(double);
++extern double sqrt(double);
++extern double tan(double);
++extern double tanh(double);
++#  ifndef isnan
++#    define isnan(X) ((X) != (X))
++#  endif
++#  ifndef isinf
++#    define isinf(X) (!isnan(X) && !finite(X))
++#  endif
++#  define isfinite(X) finite(X)
++#  ifndef _Py_BUILD_NEXT_LIBM_WRAPPERS
++#    define acos _Py_next_acos
++#    define acosh _Py_next_acosh
++#    define asin _Py_next_asin
++#    define asinh _Py_next_asinh
++#    define atan _Py_next_atan
++#    define atan2 _Py_next_atan2
++#    define atanh _Py_next_atanh
++#    define cbrt _Py_next_cbrt
++#    define ceil _Py_next_ceil
++#    define copysign _Py_next_copysign
++#    define cos _Py_next_cos
++#    define cosh _Py_next_cosh
++#    define exp _Py_next_exp
++#    define expm1 _Py_next_expm1
++#    define fabs _Py_next_fabs
++#    define floor _Py_next_floor
++#    define fmod _Py_next_fmod
++#    define frexp _Py_next_frexp
++#    define hypot _Py_next_hypot
++#    define ldexp _Py_next_ldexp
++#    define log _Py_next_log
++#    define log1p _Py_next_log1p
++#    define log10 _Py_next_log10
++#    define modf _Py_next_modf
++#    define pow _Py_next_pow
++#    define round _Py_next_round
++#    define sin _Py_next_sin
++#    define sinh _Py_next_sinh
++#    define sqrt _Py_next_sqrt
++#    define tan _Py_next_tan
++#    define tanh _Py_next_tanh
++#  endif
++#endif
+ #define Py_IS_FINITE(X) isfinite(X)
+ 
+ /* HUGE_VAL is supposed to expand to a positive double infinity.  Python
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+index 81d4d50..07e5853 100644
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -39,6 +39,7 @@ CXX=		@CXX@
+ MAINCC=		@MAINCC@
+ LINKCC=		@LINKCC@
+ AR=		@AR@
++RANLIB=		@RANLIB@
+ READELF=	@READELF@
+ SOABI=		@SOABI@
+ LDVERSION=	@LDVERSION@
+@@ -719,7 +720,7 @@ platform: $(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt
+ # initialization to succeed.  It will be overwritten by generate-posix-vars
+ # or removed in case of failure.
+ pybuilddir.txt: $(PYTHON_FOR_BUILD_DEPS)
+-	@echo "none" > ./pybuilddir.txt
++	@if test "$(MACHDEP)" = "openstep"; then : > ./pybuilddir.txt; else echo "none" > ./pybuilddir.txt; fi
+ 	$(RUNSHARED) $(PYTHON_FOR_BUILD) -S -m sysconfig --generate-posix-vars ;\
+ 	if test $$? -ne 0 ; then \
+ 		echo "generate-posix-vars failed" ; \
+@@ -752,6 +753,7 @@ sharedmods: $(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt @LIBMPDEC_INTERNAL@ @LIBEXPA
+ $(LIBRARY): $(LIBRARY_OBJS)
+ 	-rm -f $@
+ 	$(AR) $(ARFLAGS) $@ $(LIBRARY_OBJS)
++	$(RANLIB) $@
+ 
+ libpython$(LDVERSION).so: $(LIBRARY_OBJS) $(DTRACE_OBJS)
+ 	if test $(INSTSONAME) != $(LDLIBRARY); then \
+@@ -892,6 +894,7 @@ Modules/_decimal/libmpdec/transpose.o: $(srcdir)/Modules/_decimal/libmpdec/trans
+ $(LIBMPDEC_A): $(LIBMPDEC_OBJS)
+ 	-rm -f $@
+ 	$(AR) $(ARFLAGS) $@ $(LIBMPDEC_OBJS)
++	$(RANLIB) $@
+ 
+ ##########################################################################
+ # Build static libexpat.a
+@@ -913,6 +916,7 @@ Modules/expat/xmltok.o: $(srcdir)/Modules/expat/xmltok.c $(LIBEXPAT_HEADERS) $(P
+ $(LIBEXPAT_A): $(LIBEXPAT_OBJS)
+ 	-rm -f $@
+ 	$(AR) $(ARFLAGS) $@ $(LIBEXPAT_OBJS)
++	$(RANLIB) $@
+ 
+ # create relative links from build/lib.platform/egg.so to Modules/egg.so
+ # pybuilddir.txt is created too late. We cannot use it in Makefile
+@@ -1158,7 +1162,7 @@ regen-frozen: Tools/scripts/freeze_modules.py $(FROZEN_FILES_IN)
+ .PHONY: regen-deepfreeze
+ regen-deepfreeze: $(DEEPFREEZE_C)
+ 
+-DEEPFREEZE_DEPS=$(srcdir)/Tools/scripts/deepfreeze.py $(FREEZE_MODULE_DEPS) $(FROZEN_FILES_OUT)
++DEEPFREEZE_DEPS=$(srcdir)/Tools/scripts/deepfreeze.py $(PYTHON_FOR_FREEZE) $(FROZEN_FILES_OUT)
+ 
+ # BEGIN: deepfreeze modules
+ $(DEEPFREEZE_C): $(DEEPFREEZE_DEPS)
+diff --git a/Modules/_io/fileio.c b/Modules/_io/fileio.c
+index fee97f2..1b2c26b 100644
+--- a/Modules/_io/fileio.c
++++ b/Modules/_io/fileio.c
+@@ -279,6 +279,49 @@ _Py_COMP_DIAG_POP
+         if (widename == NULL)
+             return -1;
+ #else
++#ifdef NeXT
++        if (PyUnicode_Check(nameobj)) {
++            wchar_t *wide;
++            char *buf;
++            Py_ssize_t length;
++            Py_ssize_t i;
++
++            wide = PyUnicode_AsWideCharString(nameobj, &length);
++            if (wide == NULL) {
++                return -1;
++            }
++            if (wcslen(wide) != (size_t)length) {
++                PyMem_Free(wide);
++                PyErr_SetString(PyExc_ValueError,
++                                "embedded null character in path");
++                return -1;
++            }
++            buf = PyMem_Malloc((size_t)length + 1);
++            if (buf == NULL) {
++                PyMem_Free(wide);
++                PyErr_NoMemory();
++                return -1;
++            }
++            for (i = 0; i < length; i++) {
++                if (wide[i] < 0 || wide[i] > 255) {
++                    PyMem_Free(buf);
++                    PyMem_Free(wide);
++                    PyErr_SetString(PyExc_ValueError,
++                                    "path contains non-byte character");
++                    return -1;
++                }
++                buf[i] = (char)wide[i];
++            }
++            buf[length] = '\0';
++            stringobj = PyBytes_FromStringAndSize(buf, length);
++            PyMem_Free(buf);
++            PyMem_Free(wide);
++            if (stringobj == NULL) {
++                return -1;
++            }
++        }
++        else
++#endif
+         if (!PyUnicode_FSConverter(nameobj, &stringobj)) {
+             return -1;
+         }
+diff --git a/Modules/_posixsubprocess.c b/Modules/_posixsubprocess.c
+index d91bf21..04f2772 100644
+--- a/Modules/_posixsubprocess.c
++++ b/Modules/_posixsubprocess.c
+@@ -386,6 +386,10 @@ static void
+ _close_open_fds_maybe_unsafe(int start_fd, int *fds_to_keep,
+                              Py_ssize_t fds_to_keep_len)
+ {
++#ifdef NeXT
++    _close_range_except(start_fd, -1, fds_to_keep, fds_to_keep_len,
++                        _unsafe_closer);
++#else
+     DIR *proc_fd_dir;
+ #ifndef HAVE_DIRFD
+     while (_is_fd_in_sorted_fd_sequence(start_fd, fds_to_keep,
+@@ -436,6 +440,7 @@ _close_open_fds_maybe_unsafe(int start_fd, int *fds_to_keep,
+         }
+         closedir(proc_fd_dir);
+     }
++#endif
+ }
+ 
+ #define _close_open_fds_fallback _close_open_fds_maybe_unsafe
+diff --git a/Modules/getpath.c b/Modules/getpath.c
+index 61d6540..7f1ec3e 100644
+--- a/Modules/getpath.c
++++ b/Modules/getpath.c
+@@ -384,6 +384,40 @@ getpath_readlines(PyObject *Py_UNUSED(self), PyObject *args)
+     }
+     buffer[cb] = '\0';
+ 
++#ifdef NeXT
++    {
++        size_t start = 0;
++        size_t i;
++        for (i = 0; i < cb; i++) {
++            if (buffer[i] == '\n') {
++                size_t end = i;
++                PyObject *u;
++                while (end > start &&
++                       (buffer[end - 1] == '\n' || buffer[end - 1] == '\r')) {
++                    end--;
++                }
++                u = PyUnicode_FromStringAndSize(buffer + start, end - start);
++                if (!u || PyList_Append(r, u) < 0) {
++                    Py_XDECREF(u);
++                    Py_CLEAR(r);
++                    break;
++                }
++                Py_DECREF(u);
++                start = i + 1;
++            }
++        }
++        if (r && start < cb) {
++            PyObject *u = PyUnicode_FromStringAndSize(buffer + start, cb - start);
++            if (!u || PyList_Append(r, u) < 0) {
++                Py_CLEAR(r);
++            }
++            Py_XDECREF(u);
++        }
++        PyMem_Free((void *)buffer);
++        return r;
++    }
++#endif
++
+     size_t len;
+     wchar_t *wbuffer = _Py_DecodeUTF8_surrogateescape(buffer, cb, &len);
+     PyMem_Free((void *)buffer);
+@@ -961,4 +995,3 @@ _PyConfig_InitPathConfig(PyConfig *config, int compute_path_config)
+ 
+     return _PyStatus_OK();
+ }
+-
+diff --git a/Modules/main.c b/Modules/main.c
+index f6dade1..e7ef5ee 100644
+--- a/Modules/main.c
++++ b/Modules/main.c
+@@ -6,6 +6,7 @@
+ #include "pycore_interp.h"        // _PyInterpreterState.sysdict
+ #include "pycore_pathconfig.h"    // _PyPathConfig_ComputeSysPath0()
+ #include "pycore_pylifecycle.h"   // _Py_PreInitializeFromPyArgv()
++#include "pycore_pymem.h"         // _PyMem_SetupAllocators()
+ #include "pycore_pystate.h"       // _PyInterpreterState_GET()
+ 
+ /* Includes for exit_sigint() */
+@@ -718,6 +719,9 @@ pymain_main(_PyArgv *args)
+ int
+ Py_Main(int argc, wchar_t **argv)
+ {
++#ifdef NeXT
++    (void)_PyMem_SetupAllocators(PYMEM_ALLOCATOR_MALLOC);
++#endif
+     _PyArgv args = {
+         .argc = argc,
+         .use_bytes_argv = 0,
+@@ -730,6 +734,9 @@ Py_Main(int argc, wchar_t **argv)
+ int
+ Py_BytesMain(int argc, char **argv)
+ {
++#ifdef NeXT
++    (void)_PyMem_SetupAllocators(PYMEM_ALLOCATOR_MALLOC);
++#endif
+     _PyArgv args = {
+         .argc = argc,
+         .use_bytes_argv = 1,
+diff --git a/Modules/mathmodule.c b/Modules/mathmodule.c
+index 5f5b71c..fde41f8 100644
+--- a/Modules/mathmodule.c
++++ b/Modules/mathmodule.c
+@@ -70,6 +70,42 @@ raised for division by zero and mod by zero.
+ 
+ #include "clinic/mathmodule.c.h"
+ 
++#ifdef NeXT
++#ifndef isnan
++#  define isnan(X) ((X) != (X))
++#endif
++#ifndef isinf
++#  define isinf(X) (!isnan(X) && !finite(X))
++#endif
++
++static double
++next_exp2(double x)
++{
++    return pow(2.0, x);
++}
++
++static double
++next_nextafter(double x, double y)
++{
++    double step;
++
++    if (isnan(x) || isnan(y) || x == y) {
++        return x + y;
++    }
++    if (x == 0.0) {
++        return y > 0.0 ? DBL_MIN : -DBL_MIN;
++    }
++    step = fabs(x) * DBL_EPSILON;
++    if (step == 0.0) {
++        step = DBL_MIN;
++    }
++    return y > x ? x + step : x - step;
++}
++
++#define exp2 next_exp2
++#define nextafter next_nextafter
++#endif
++
+ /*[clinic input]
+ module math
+ [clinic start generated code]*/
+diff --git a/Modules/posixmodule.c b/Modules/posixmodule.c
+index 6fb2fc8..a0959ad 100644
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -254,6 +254,21 @@ corresponding Unix manual entries for more information on calls.");
+ #  include <fcntl.h>
+ #endif
+ 
++#ifdef NeXT
++#  ifndef HAVE_SSIZE_T
++typedef int ssize_t;
++#  endif
++#  define UNION_WAIT
++#  ifndef HAVE_WAITPID
++#    define HAVE_WAITPID 1
++static pid_t
++waitpid(pid_t pid, int *status, int options)
++{
++    return wait4(pid, status, options, NULL);
++}
++#  endif
++#endif
++
+ #ifdef HAVE_GRP_H
+ #  include <grp.h>
+ #endif
+@@ -466,6 +481,9 @@ extern char        *ctermid_r(char *);
+ #  ifndef WTERMSIG
+ #    define WTERMSIG(u_wait) ((u_wait).w_termsig)
+ #  endif
++#  ifndef WSTOPSIG
++#    define WSTOPSIG(u_wait) ((u_wait).w_stopsig)
++#  endif
+ #  define WAIT_TYPE union wait
+ #  define WAIT_STATUS_INT(s) (s.w_status)
+ #else
+@@ -1244,10 +1262,49 @@ _Py_COMP_DIAG_POP
+         wide = NULL;
+ #endif /* USE_UNICODE_WCHAR_CACHE */
+         goto success_exit;
++#else
++#ifdef NeXT
++        wchar_t *wide;
++        char *buf;
++        Py_ssize_t i;
++
++        wide = PyUnicode_AsWideCharString(o, &length);
++        if (!wide) {
++            goto error_exit;
++        }
++        if (wcslen(wide) != (size_t)length) {
++            PyMem_Free(wide);
++            FORMAT_EXCEPTION(PyExc_ValueError, "embedded null character in %s");
++            goto error_exit;
++        }
++        buf = PyMem_Malloc((size_t)length + 1);
++        if (buf == NULL) {
++            PyMem_Free(wide);
++            PyErr_NoMemory();
++            goto error_exit;
++        }
++        for (i = 0; i < length; i++) {
++            if (wide[i] < 0 || wide[i] > 255) {
++                PyMem_Free(buf);
++                PyMem_Free(wide);
++                FORMAT_EXCEPTION(PyExc_ValueError,
++                                 "%s contains non-byte character");
++                goto error_exit;
++            }
++            buf[i] = (char)wide[i];
++        }
++        buf[length] = '\0';
++        bytes = PyBytes_FromStringAndSize(buf, length);
++        PyMem_Free(buf);
++        PyMem_Free(wide);
++        if (bytes == NULL) {
++            goto error_exit;
++        }
+ #else
+         if (!PyUnicode_FSConverter(o, &bytes)) {
+             goto error_exit;
+         }
++#endif
+ #endif
+     }
+     else if (is_bytes) {
+@@ -3119,6 +3176,13 @@ os_ttyname_impl(PyObject *module, int fd)
+ /*[clinic end generated code: output=c424d2e9d1cd636a input=9ff5a58b08115c55]*/
+ {
+ 
++#ifdef NeXT
++    char *ret = ttyname(fd);
++    if (ret == NULL) {
++        return posix_error();
++    }
++    return PyUnicode_DecodeFSDefault(ret);
++#else
+     long size = sysconf(_SC_TTY_NAME_MAX);
+     if (size == -1) {
+         return posix_error();
+@@ -3136,6 +3200,7 @@ os_ttyname_impl(PyObject *module, int fd)
+     PyObject *res = PyUnicode_DecodeFSDefault(buffer);
+     PyMem_RawFree(buffer);
+     return res;
++#endif
+ }
+ #endif
+ 
+diff --git a/Modules/socketmodule.c b/Modules/socketmodule.c
+index f0c9b46..0a78920 100644
+--- a/Modules/socketmodule.c
++++ b/Modules/socketmodule.c
+@@ -431,6 +431,57 @@ remove_unusable_flags(PyObject *m)
+ #endif
+ 
+ /* I know this is a bad practice, but it is the easiest... */
++#ifdef NeXT
++#ifndef INET_ADDRSTRLEN
++#define INET_ADDRSTRLEN 16
++#endif
++#ifndef INET6_ADDRSTRLEN
++#define INET6_ADDRSTRLEN 46
++#endif
++
++static int
++next_inet_pton(int af, const char *src, void *dst)
++{
++    unsigned long addr;
++
++    if (af != AF_INET) {
++        return -1;
++    }
++    addr = inet_addr(src);
++    if (addr == (unsigned long)-1) {
++        return 0;
++    }
++    memcpy(dst, &addr, sizeof(addr));
++    return 1;
++}
++
++static const char *
++next_inet_ntop(int af, const void *src, char *dst, size_t size)
++{
++    struct in_addr addr;
++    char *text;
++    size_t len;
++
++    if (af != AF_INET) {
++        return NULL;
++    }
++    memcpy(&addr, src, sizeof(addr));
++    text = inet_ntoa(addr);
++    if (text == NULL) {
++        return NULL;
++    }
++    len = strlen(text);
++    if (len + 1 > size) {
++        return NULL;
++    }
++    memcpy(dst, text, len + 1);
++    return dst;
++}
++
++#define inet_pton next_inet_pton
++#define inet_ntop next_inet_ntop
++#endif
++
+ #if !defined(HAVE_GETADDRINFO)
+ /* avoid clashes with the C library definition of the symbol. */
+ #define getaddrinfo fake_getaddrinfo
+diff --git a/Modules/xxsubtype.c b/Modules/xxsubtype.c
+index 7f3a13f..25e3200 100644
+--- a/Modules/xxsubtype.c
++++ b/Modules/xxsubtype.c
+@@ -1,6 +1,10 @@
+ #include "Python.h"
+ #include "structmember.h"         // PyMemberDef
+ 
++#if defined(NeXT) && !defined(CLOCKS_PER_SEC)
++#  define CLOCKS_PER_SEC 1000000
++#endif
++
+ PyDoc_STRVAR(xxsubtype__doc__,
+ "xxsubtype is an example module showing how to subtype builtin types from C.\n"
+ "test_descr.py in the standard test suite requires it in order to complete.\n"
+diff --git a/Objects/longobject.c b/Objects/longobject.c
+index 487c062..c7c9327 100644
+--- a/Objects/longobject.c
++++ b/Objects/longobject.c
+@@ -3074,6 +3074,13 @@ PyLong_AsDouble(PyObject *v)
+ {
+     Py_ssize_t exponent;
+     double x;
++#ifdef NeXT
++    PyLongObject *lv;
++    Py_ssize_t i;
++    Py_ssize_t ndigits;
++    Py_ssize_t bits;
++    double base;
++#endif
+ 
+     if (v == NULL) {
+         PyErr_BadInternalCall();
+@@ -3083,6 +3090,32 @@ PyLong_AsDouble(PyObject *v)
+         PyErr_SetString(PyExc_TypeError, "an integer is required");
+         return -1.0;
+     }
++#ifdef NeXT
++    lv = (PyLongObject *)v;
++    ndigits = Py_ABS(Py_SIZE(lv));
++    if (ndigits == 0) {
++        return 0.0;
++    }
++    if (ndigits > DBL_MAX_EXP / PyLong_SHIFT + 2) {
++        PyErr_SetString(PyExc_OverflowError,
++                        "int too large to convert to float");
++        return -1.0;
++    }
++    bits = (ndigits - 1) * PyLong_SHIFT +
++           bit_length_digit(lv->ob_digit[ndigits - 1]);
++    if (bits > DBL_MAX_EXP) {
++        PyErr_SetString(PyExc_OverflowError,
++                        "int too large to convert to float");
++        return -1.0;
++    }
++    x = 0.0;
++    base = (double)PyLong_BASE;
++    i = ndigits;
++    while (i-- > 0) {
++        x = x * base + (double)lv->ob_digit[i];
++    }
++    return Py_SIZE(lv) < 0 ? -x : x;
++#else
+     if (IS_MEDIUM_VALUE(v)) {
+         /* Fast path; single digit long (31 bits) will cast safely
+            to double.  This improves performance of FP/long operations
+@@ -3097,6 +3130,7 @@ PyLong_AsDouble(PyObject *v)
+         return -1.0;
+     }
+     return ldexp(x, (int)exponent);
++#endif
+ }
+ 
+ /* Methods */
+diff --git a/Programs/_freeze_module.c b/Programs/_freeze_module.c
+index 7c4d60a..971e8bd 100644
+--- a/Programs/_freeze_module.c
++++ b/Programs/_freeze_module.c
+@@ -18,6 +18,12 @@
+ #include <stdlib.h>               // malloc()
+ #include <sys/types.h>
+ #include <sys/stat.h>
++#ifdef NeXT
++#include <fcntl.h>
++extern int close(int);
++extern int open(const char *, int, ...);
++extern int read(int, void *, unsigned int);
++#endif
+ #ifndef MS_WINDOWS
+ #include <unistd.h>
+ #endif
+@@ -83,6 +89,53 @@ runtime_init(void)
+ static const char *
+ read_text(const char *inpath)
+ {
++#ifdef NeXT
++    int fd = open(inpath, O_RDONLY);
++    if (fd < 0) {
++        fprintf(stderr, "cannot open '%s' for reading\n", inpath);
++        return NULL;
++    }
++
++    struct _Py_stat_struct stat;
++    if (_Py_fstat_noraise(fd, &stat)) {
++        fprintf(stderr, "cannot fstat '%s'\n", inpath);
++        close(fd);
++        return NULL;
++    }
++    size_t text_size = (size_t)stat.st_size;
++
++    char *text = (char *) malloc(text_size + 1);
++    if (text == NULL) {
++        fprintf(stderr, "could not allocate %ld bytes\n", (long) text_size);
++        close(fd);
++        return NULL;
++    }
++
++    size_t n = 0;
++    while (n < text_size) {
++        size_t chunk = text_size - n;
++        int got;
++        if (chunk > 8192) {
++            chunk = 8192;
++        }
++        got = read(fd, text + n, chunk);
++        if (got <= 0) {
++            break;
++        }
++        n += (size_t)got;
++    }
++    close(fd);
++
++    if (n < text_size) {
++        fprintf(stderr, "read too short: got %ld instead of %ld bytes\n",
++                (long) n, (long) text_size);
++        free(text);
++        return NULL;
++    }
++
++    text[text_size] = '\0';
++    return (const char *)text;
++#else
+     FILE *infile = fopen(inpath, "rb");
+     if (infile == NULL) {
+         fprintf(stderr, "cannot open '%s' for reading\n", inpath);
+@@ -115,6 +168,7 @@ read_text(const char *inpath)
+ 
+     text[text_size] = '\0';
+     return (const char *)text;
++#endif
+ }
+ 
+ static PyObject *
+@@ -247,4 +301,3 @@ error:
+     Py_Finalize();
+     return 1;
+ }
+-
+diff --git a/Programs/_testembed.c b/Programs/_testembed.c
+index 13eae17..d6f3e09 100644
+--- a/Programs/_testembed.c
++++ b/Programs/_testembed.c
+@@ -14,11 +14,82 @@
+ #include <inttypes.h>
+ #include <stdio.h>
+ #include <stdlib.h>               // putenv()
++#include <string.h>
+ #include <wchar.h>
+ 
+ int main_argc;
+ char **main_argv;
+ 
++#ifdef NeXT
++extern char **environ;
++
++static int
++next_putenv(char *entry)
++{
++    char *eq;
++    size_t namelen;
++    int count;
++    int i;
++    char **newenv;
++
++    eq = strchr(entry, '=');
++    if (eq == NULL) {
++        return -1;
++    }
++    namelen = (size_t)(eq - entry);
++    for (count = 0; environ != NULL && environ[count] != NULL; count++) {
++        if (strncmp(environ[count], entry, namelen) == 0 &&
++            environ[count][namelen] == '=') {
++            environ[count] = entry;
++            return 0;
++        }
++    }
++    newenv = malloc((count + 2) * sizeof(char *));
++    if (newenv == NULL) {
++        return -1;
++    }
++    for (i = 0; i < count; i++) {
++        newenv[i] = environ[i];
++    }
++    newenv[count] = entry;
++    newenv[count + 1] = NULL;
++    environ = newenv;
++    return 0;
++}
++
++static int
++next_swprintf(wchar_t *buf, size_t n, const wchar_t *fmt, const char *rawval)
++{
++    const char *prefix;
++    size_t i;
++    size_t pos;
++
++    (void)fmt;
++    if (n == 0) {
++        return -1;
++    }
++    prefix = "frozen_modules=";
++    pos = 0;
++    for (i = 0; prefix[i] != '\0'; i++) {
++        if (pos + 1 >= n) {
++            return -1;
++        }
++        buf[pos++] = (wchar_t)prefix[i];
++    }
++    for (i = 0; rawval[i] != '\0'; i++) {
++        if (pos + 1 >= n) {
++            return -1;
++        }
++        buf[pos++] = (wchar_t)rawval[i];
++    }
++    buf[pos] = L'\0';
++    return (int)pos;
++}
++
++#define putenv next_putenv
++#define swprintf next_swprintf
++#endif
++
+ /*********************************************************
+  * Embedded interpreter tests that need a custom exe
+  *
+diff --git a/Python/bootstrap_hash.c b/Python/bootstrap_hash.c
+index 3a2a731..ef62864 100644
+--- a/Python/bootstrap_hash.c
++++ b/Python/bootstrap_hash.c
+@@ -576,8 +576,13 @@ _Py_HashRandomization_Init(const PyConfig *config)
+            pyurandom() is non-blocking mode (blocking=0): see the PEP 524. */
+         res = pyurandom(secret, secret_size, 0, 0);
+         if (res < 0) {
++#ifdef NeXT
++            lcg_urandom((unsigned int)time(NULL) ^ (unsigned int)getpid(),
++                        secret, secret_size);
++#else
+             return _PyStatus_ERR("failed to get random numbers "
+                                  "to initialize Python");
++#endif
+         }
+     }
+     return _PyStatus_OK();
+diff --git a/Python/fileutils.c b/Python/fileutils.c
+index 24341dd..e9b6048 100644
+--- a/Python/fileutils.c
++++ b/Python/fileutils.c
+@@ -27,6 +27,142 @@ extern int winerror_to_errno(int);
+ #ifdef HAVE_FCNTL_H
+ #include <fcntl.h>
+ #endif /* HAVE_FCNTL_H */
++#ifdef NeXT
++#include <sys/fcntl.h>
++#ifndef FD_CLOEXEC
++#define FD_CLOEXEC 01
++#endif
++#ifndef O_NONBLOCK
++#define O_NONBLOCK 00004
++#endif
++
++extern char **environ;
++extern char *getwd(char *);
++static int next_environ_owned = 0;
++
++char *
++getcwd(char *buf, size_t size)
++{
++    char tmp[1024];
++
++    if (buf == NULL || size == 0) {
++        errno = EINVAL;
++        return NULL;
++    }
++    if (getwd(tmp) == NULL) {
++        return NULL;
++    }
++    if (strlen(tmp) >= size) {
++        errno = ERANGE;
++        return NULL;
++    }
++    strcpy(buf, tmp);
++    return buf;
++}
++
++static int
++next_wcs_to_chars(const wchar_t *src, char *dst, size_t size)
++{
++    size_t i;
++
++    if (size == 0) {
++        errno = ERANGE;
++        return -1;
++    }
++    for (i = 0; src[i] != 0; i++) {
++        if (i + 1 >= size || src[i] < 0 || src[i] > 255) {
++            errno = EINVAL;
++            return -1;
++        }
++        dst[i] = (char)src[i];
++    }
++    dst[i] = '\0';
++    return 0;
++}
++
++int
++setenv(const char *name, const char *value, int overwrite)
++{
++    char **new_environ;
++    char *entry;
++    int i;
++    size_t len;
++    size_t name_len;
++
++    if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
++        errno = EINVAL;
++        return -1;
++    }
++    if (!overwrite && getenv(name) != NULL) {
++        return 0;
++    }
++    if (value == NULL) {
++        value = "";
++    }
++    name_len = strlen(name);
++    len = strlen(name) + strlen(value) + 2;
++    entry = malloc(len);
++    if (entry == NULL) {
++        errno = ENOMEM;
++        return -1;
++    }
++    strcpy(entry, name);
++    strcat(entry, "=");
++    strcat(entry, value);
++
++    for (i = 0; environ[i] != NULL; i++) {
++        if (strncmp(environ[i], name, name_len) == 0 && environ[i][name_len] == '=') {
++            environ[i] = entry;
++            return 0;
++        }
++    }
++
++    if (next_environ_owned) {
++        new_environ = realloc(environ, (i + 2) * sizeof(char *));
++    }
++    else {
++        int j;
++        new_environ = malloc((i + 2) * sizeof(char *));
++        if (new_environ != NULL) {
++            for (j = 0; j < i; j++) {
++                new_environ[j] = environ[j];
++            }
++        }
++    }
++    if (new_environ == NULL) {
++        free(entry);
++        errno = ENOMEM;
++        return -1;
++    }
++    environ = new_environ;
++    environ[i] = entry;
++    environ[i + 1] = NULL;
++    next_environ_owned = 1;
++    return 0;
++}
++
++int
++unsetenv(const char *name)
++{
++    char **src;
++    char **dst;
++    size_t len;
++
++    if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
++        errno = EINVAL;
++        return -1;
++    }
++    len = strlen(name);
++    for (src = environ, dst = environ; *src != NULL; src++) {
++        if (strncmp(*src, name, len) == 0 && (*src)[len] == '=') {
++            continue;
++        }
++        *dst++ = *src;
++    }
++    *dst = NULL;
++    return 0;
++}
++#endif
+ 
+ #ifdef O_CLOEXEC
+ /* Does open() support the O_CLOEXEC flag? Possible values:
+@@ -650,6 +786,27 @@ _Py_DecodeLocaleEx(const char* arg, wchar_t **wstr, size_t *wlen,
+ wchar_t*
+ Py_DecodeLocale(const char* arg, size_t *wlen)
+ {
++#ifdef NeXT
++    size_t len;
++    size_t i;
++    wchar_t *wstr;
++
++    len = strlen(arg);
++    wstr = (wchar_t *)PyMem_RawMalloc((len + 1) * sizeof(wchar_t));
++    if (wstr == NULL) {
++        if (wlen != NULL) {
++            *wlen = (size_t)-1;
++        }
++        return NULL;
++    }
++    for (i = 0; i <= len; i++) {
++        wstr[i] = (unsigned char)arg[i];
++    }
++    if (wlen != NULL) {
++        *wlen = len;
++    }
++    return wstr;
++#else
+     wchar_t *wstr;
+     int res = _Py_DecodeLocaleEx(arg, &wstr, wlen,
+                                  NULL, 0,
+@@ -662,6 +819,7 @@ Py_DecodeLocale(const char* arg, size_t *wlen)
+         return NULL;
+     }
+     return wstr;
++#endif
+ }
+ 
+ 
+@@ -901,6 +1059,8 @@ _Py_GetLocaleEncoding(void)
+     swprintf(encoding, Py_ARRAY_LENGTH(encoding), L"cp%u", ansi_codepage);
+     encoding[Py_ARRAY_LENGTH(encoding) - 1] = 0;
+     return _PyMem_RawWcsdup(encoding);
++#elif defined(NeXT)
++    return _PyMem_RawWcsdup(L"utf-8");
+ #else
+     const char *encoding = nl_langinfo(CODESET);
+     if (!encoding || encoding[0] == '\0') {
+@@ -1218,6 +1378,13 @@ _Py_wstat(const wchar_t* path, struct stat *buf)
+     if (!err) {
+         buf->st_mode = wstatbuf.st_mode;
+     }
++#else
++#ifdef NeXT
++    char fname[MAXPATHLEN];
++    if (next_wcs_to_chars(path, fname, sizeof(fname)) < 0) {
++        return -1;
++    }
++    err = stat(fname, buf);
+ #else
+     char *fname;
+     fname = _Py_EncodeLocaleRaw(path, NULL);
+@@ -1227,6 +1394,7 @@ _Py_wstat(const wchar_t* path, struct stat *buf)
+     }
+     err = stat(fname, buf);
+     PyMem_RawFree(fname);
++#endif
+ #endif
+     return err;
+ }
+@@ -1257,6 +1425,17 @@ _Py_stat(PyObject *path, struct stat *statbuf)
+     PyMem_Free(wpath);
+ #endif /* USE_UNICODE_WCHAR_CACHE */
+     return err;
++#else
++#ifdef NeXT
++    int ret;
++    wchar_t *wpath;
++    wpath = PyUnicode_AsWideCharString(path, NULL);
++    if (wpath == NULL) {
++        return -2;
++    }
++    ret = _Py_wstat(wpath, statbuf);
++    PyMem_Free(wpath);
++    return ret;
+ #else
+     int ret;
+     PyObject *bytes;
+@@ -1276,6 +1455,7 @@ _Py_stat(PyObject *path, struct stat *statbuf)
+     Py_DECREF(bytes);
+     return ret;
+ #endif
++#endif
+ }
+ 
+ 
+@@ -1606,6 +1786,14 @@ _Py_wfopen(const wchar_t *path, const wchar_t *mode)
+     char *cpath;
+     char cmode[10];
+     size_t r;
++#ifdef NeXT
++    char next_path[MAXPATHLEN];
++    if (next_wcs_to_chars(path, next_path, sizeof(next_path)) < 0 ||
++        next_wcs_to_chars(mode, cmode, sizeof(cmode)) < 0) {
++        return NULL;
++    }
++    f = fopen(next_path, cmode);
++#else
+     r = wcstombs(cmode, mode, 10);
+     if (r == DECODE_ERROR || r >= 10) {
+         errno = EINVAL;
+@@ -1617,6 +1805,7 @@ _Py_wfopen(const wchar_t *path, const wchar_t *mode)
+     }
+     f = fopen(cpath, cmode);
+     PyMem_RawFree(cpath);
++#endif
+ #else
+     f = _wfopen(path, mode);
+ #endif
+@@ -1691,6 +1880,41 @@ _Py_fopen_obj(PyObject *path, const char *mode)
+ #if !USE_UNICODE_WCHAR_CACHE
+     PyMem_Free(wpath);
+ #endif /* USE_UNICODE_WCHAR_CACHE */
++#else
++#ifdef NeXT
++    char next_path[MAXPATHLEN];
++    wchar_t *wpath;
++
++    assert(PyGILState_Check());
++
++    if (!PyUnicode_Check(path)) {
++        PyErr_Format(PyExc_TypeError,
++                     "str file path expected under NeXT, got %R",
++                     Py_TYPE(path));
++        return NULL;
++    }
++    wpath = PyUnicode_AsWideCharString(path, NULL);
++    if (wpath == NULL) {
++        return NULL;
++    }
++    if (next_wcs_to_chars(wpath, next_path, sizeof(next_path)) < 0) {
++        PyMem_Free(wpath);
++        PyErr_SetFromErrno(PyExc_OSError);
++        return NULL;
++    }
++    PyMem_Free(wpath);
++
++    if (PySys_Audit("open", "Osi", path, mode, 0) < 0) {
++        return NULL;
++    }
++
++    do {
++        Py_BEGIN_ALLOW_THREADS
++        f = fopen(next_path, mode);
++        Py_END_ALLOW_THREADS
++    } while (f == NULL
++             && errno == EINTR && !(async_err = PyErr_CheckSignals()));
++    int saved_errno = errno;
+ #else
+     PyObject *bytes;
+     const char *path_bytes;
+@@ -1714,6 +1938,7 @@ _Py_fopen_obj(PyObject *path, const char *mode)
+              && errno == EINTR && !(async_err = PyErr_CheckSignals()));
+     int saved_errno = errno;
+     Py_DECREF(bytes);
++#endif
+ #endif
+     if (async_err)
+         return NULL;
+@@ -2335,9 +2560,22 @@ _Py_wgetcwd(wchar_t *buf, size_t buflen)
+     char fname[MAXPATHLEN];
+     wchar_t *wname;
+     size_t len;
++#ifdef NeXT
++    size_t i;
++#endif
+ 
+     if (getcwd(fname, Py_ARRAY_LENGTH(fname)) == NULL)
+         return NULL;
++#ifdef NeXT
++    len = strlen(fname);
++    if (buflen <= len) {
++        return NULL;
++    }
++    for (i = 0; i <= len; i++) {
++        buf[i] = (unsigned char)fname[i];
++    }
++    return buf;
++#endif
+     wname = Py_DecodeLocale(fname, &len);
+     if (wname == NULL)
+         return NULL;
+diff --git a/Python/mysnprintf.c b/Python/mysnprintf.c
+index 2a505d1..c6617eb 100644
+--- a/Python/mysnprintf.c
++++ b/Python/mysnprintf.c
+@@ -68,6 +68,22 @@ PyOS_vsnprintf(char *str, size_t size, const char  *format, va_list va)
+ 
+ #if defined(_MSC_VER)
+     len = _vsnprintf(str, size, format, va);
++#elif defined(NeXT)
++    char *buffer;
++    size_t buffer_size;
++
++    buffer_size = (size < 65536) ? 65536 : size;
++    buffer = PyMem_RawMalloc(buffer_size);
++    if (buffer == NULL) {
++        len = -666;
++    }
++    else {
++        len = vsprintf(buffer, format, va);
++        if (len >= 0) {
++            strncpy(str, buffer, size - 1);
++        }
++        PyMem_RawFree(buffer);
++    }
+ #else
+     len = vsnprintf(str, size, format, va);
+ #endif
+@@ -78,3 +94,26 @@ Done:
+     }
+     return len;
+ }
++
++#ifdef NeXT
++#undef snprintf
++#undef vsnprintf
++
++int
++vsnprintf(char *str, size_t size, const char *format, va_list va)
++{
++    return PyOS_vsnprintf(str, size, format, va);
++}
++
++int
++snprintf(char *str, size_t size, const char *format, ...)
++{
++    int rc;
++    va_list va;
++
++    va_start(va, format);
++    rc = PyOS_vsnprintf(str, size, format, va);
++    va_end(va);
++    return rc;
++}
++#endif
+diff --git a/Python/preconfig.c b/Python/preconfig.c
+index 0deb07a..2e49f77 100644
+--- a/Python/preconfig.c
++++ b/Python/preconfig.c
+@@ -294,7 +294,11 @@ _PyPreConfig_InitCompatConfig(PyPreConfig *config)
+     config->coerce_c_locale_warn = 0;
+ 
+     config->dev_mode = -1;
++#ifdef NeXT
++    config->allocator = PYMEM_ALLOCATOR_MALLOC;
++#else
+     config->allocator = PYMEM_ALLOCATOR_NOT_SET;
++#endif
+ #ifdef MS_WINDOWS
+     config->legacy_windows_fs_encoding = -1;
+ #endif
+@@ -720,6 +724,11 @@ preconfig_init_allocator(PyPreConfig *config)
+             }
+             config->allocator = (int)name;
+         }
++#ifdef NeXT
++        else {
++            config->allocator = PYMEM_ALLOCATOR_MALLOC;
++        }
++#endif
+     }
+ 
+     if (config->dev_mode && config->allocator == PYMEM_ALLOCATOR_NOT_SET) {
+diff --git a/Python/pyarena.c b/Python/pyarena.c
+index ead0337..43496cc 100644
+--- a/Python/pyarena.c
++++ b/Python/pyarena.c
+@@ -78,10 +78,10 @@ block_new(size_t size)
+ {
+     /* Allocate header and block as one unit.
+        ab_mem points just past header. */
+-    block *b = (block *)PyMem_Malloc(sizeof(block) + size);
++    block *b = (block *)PyMem_Malloc(sizeof(block) + size + ALIGNMENT - 1);
+     if (!b)
+         return NULL;
+-    b->ab_size = size;
++    b->ab_size = size + ALIGNMENT - 1;
+     b->ab_mem = (void *)(b + 1);
+     b->ab_next = NULL;
+     b->ab_offset = (char *)_Py_ALIGN_UP(b->ab_mem, ALIGNMENT) -
+diff --git a/Python/pyhash.c b/Python/pyhash.c
+index d5ac9f8..32c0406 100644
+--- a/Python/pyhash.c
++++ b/Python/pyhash.c
+@@ -5,6 +5,10 @@
+ */
+ #include "Python.h"
+ 
++#ifdef NeXT
++#  include <float.h>
++#endif
++
+ #ifdef __APPLE__
+ #  include <libkern/OSByteOrder.h>
+ #elif defined(HAVE_LE64TOH) && defined(HAVE_ENDIAN_H)
+@@ -102,6 +106,12 @@ _Py_HashDouble(PyObject *inst, double v)
+             return _Py_HashPointer(inst);
+     }
+ 
++#ifdef NeXT
++    if (v == 0.0 || (-DBL_MIN < v && v < DBL_MIN)) {
++        return 0;
++    }
++#endif
++
+     m = frexp(v, &e);
+ 
+     sign = 1;
+@@ -113,7 +123,15 @@ _Py_HashDouble(PyObject *inst, double v)
+     /* process 28 bits at a time;  this should work well both for binary
+        and hexadecimal floating point. */
+     x = 0;
++#ifdef NeXT
++    int guard = 0;
++#endif
+     while (m) {
++#ifdef NeXT
++        if (++guard > 64) {
++            break;
++        }
++#endif
+         x = ((x << 28) & _PyHASH_MODULUS) | x >> (_PyHASH_BITS - 28);
+         m *= 268435456.0;  /* 2**28 */
+         e -= 28;
+diff --git a/Python/pymath.c b/Python/pymath.c
+index e7d0161..8ab7044 100644
+--- a/Python/pymath.c
++++ b/Python/pymath.c
+@@ -1,5 +1,201 @@
++#define _Py_BUILD_NEXT_LIBM_WRAPPERS
+ #include "Python.h"
+ 
++#ifdef NeXT
++typedef union {
++    double d;
++    struct {
++        unsigned int lo;
++        unsigned int hi;
++    } w;
++} next_double_words;
++
++#define NEXT_LIBM_UNARY(name, symbol) \
++double \
++_Py_next_##name(double x) \
++{ \
++    next_double_words arg; \
++    next_double_words result; \
++    arg.d = x; \
++    __asm__ volatile( \
++        "pushl %2\n\t" \
++        "pushl %1\n\t" \
++        "call " symbol "\n\t" \
++        "addl $8, %%esp\n\t" \
++        "fstpl %0" \
++        : "=m" (result.d) \
++        : "r" (arg.w.lo), "r" (arg.w.hi) \
++        : "eax", "edx", "cc", "memory"); \
++    return result.d; \
++}
++
++#define NEXT_LIBM_BINARY(name, symbol) \
++double \
++_Py_next_##name(double x, double y) \
++{ \
++    next_double_words arg0; \
++    next_double_words arg1; \
++    next_double_words result; \
++    arg0.d = x; \
++    arg1.d = y; \
++    __asm__ volatile( \
++        "pushl %4\n\t" \
++        "pushl %3\n\t" \
++        "pushl %2\n\t" \
++        "pushl %1\n\t" \
++        "call " symbol "\n\t" \
++        "addl $16, %%esp\n\t" \
++        "fstpl %0" \
++        : "=m" (result.d) \
++        : "r" (arg0.w.lo), "r" (arg0.w.hi), \
++          "r" (arg1.w.lo), "r" (arg1.w.hi) \
++        : "eax", "edx", "cc", "memory"); \
++    return result.d; \
++}
++
++NEXT_LIBM_UNARY(acos, "_acos")
++NEXT_LIBM_UNARY(asin, "_asin")
++NEXT_LIBM_UNARY(atan, "_atan")
++NEXT_LIBM_BINARY(atan2, "_atan2")
++NEXT_LIBM_UNARY(ceil, "_ceil")
++NEXT_LIBM_BINARY(copysign, "_copysign")
++NEXT_LIBM_UNARY(cos, "_cos")
++NEXT_LIBM_UNARY(cosh, "_cosh")
++NEXT_LIBM_UNARY(exp, "_exp")
++NEXT_LIBM_UNARY(fabs, "_fabs")
++NEXT_LIBM_UNARY(floor, "_floor")
++NEXT_LIBM_BINARY(fmod, "_fmod")
++NEXT_LIBM_BINARY(hypot, "_hypot")
++NEXT_LIBM_UNARY(log, "_log")
++NEXT_LIBM_UNARY(log10, "_log10")
++NEXT_LIBM_BINARY(pow, "_pow")
++NEXT_LIBM_UNARY(sin, "_sin")
++NEXT_LIBM_UNARY(sinh, "_sinh")
++NEXT_LIBM_UNARY(sqrt, "_sqrt")
++NEXT_LIBM_UNARY(tan, "_tan")
++NEXT_LIBM_UNARY(tanh, "_tanh")
++
++double
++_Py_next_acosh(double x)
++{
++    return _Py_next_log(x + _Py_next_sqrt(x * x - 1.0));
++}
++
++double
++_Py_next_asinh(double x)
++{
++    double ax;
++
++    ax = x < 0.0 ? -x : x;
++    if (x < 0.0) {
++        return -_Py_next_log(ax + _Py_next_sqrt(ax * ax + 1.0));
++    }
++    return _Py_next_log(x + _Py_next_sqrt(x * x + 1.0));
++}
++
++double
++_Py_next_atanh(double x)
++{
++    return 0.5 * _Py_next_log((1.0 + x) / (1.0 - x));
++}
++
++double
++_Py_next_cbrt(double x)
++{
++    if (x < 0.0) {
++        return -_Py_next_pow(-x, 1.0 / 3.0);
++    }
++    return _Py_next_pow(x, 1.0 / 3.0);
++}
++
++double
++_Py_next_expm1(double x)
++{
++    return _Py_next_exp(x) - 1.0;
++}
++
++double
++_Py_next_log1p(double x)
++{
++    return _Py_next_log(1.0 + x);
++}
++
++double
++_Py_next_frexp(double x, int *e)
++{
++    next_double_words arg;
++    next_double_words result;
++    arg.d = x;
++    __asm__ volatile(
++        "pushl %2\n\t"
++        "pushl %4\n\t"
++        "pushl %3\n\t"
++        "call _frexp\n\t"
++        "addl $12, %%esp\n\t"
++        "fstpl %0"
++        : "=m" (result.d)
++        : "r" (arg.w.lo), "r" (e), "r" (arg.w.lo), "r" (arg.w.hi)
++        : "eax", "edx", "cc", "memory");
++    return result.d;
++}
++
++double
++_Py_next_ldexp(double x, int e)
++{
++    next_double_words arg;
++    next_double_words result;
++    arg.d = x;
++    __asm__ volatile(
++        "pushl %2\n\t"
++        "pushl %4\n\t"
++        "pushl %3\n\t"
++        "call _ldexp\n\t"
++        "addl $12, %%esp\n\t"
++        "fstpl %0"
++        : "=m" (result.d)
++        : "r" (arg.w.lo), "r" (e), "r" (arg.w.lo), "r" (arg.w.hi)
++        : "eax", "edx", "cc", "memory");
++    return result.d;
++}
++
++double
++_Py_next_modf(double x, double *iptr)
++{
++    next_double_words arg;
++    next_double_words result;
++    arg.d = x;
++    __asm__ volatile(
++        "pushl %2\n\t"
++        "pushl %4\n\t"
++        "pushl %3\n\t"
++        "call _modf\n\t"
++        "addl $12, %%esp\n\t"
++        "fstpl %0"
++        : "=m" (result.d)
++        : "r" (arg.w.lo), "r" (iptr), "r" (arg.w.lo), "r" (arg.w.hi)
++        : "eax", "edx", "cc", "memory");
++    return result.d;
++}
++
++double
++_Py_next_round(double x)
++{
++    if (x >= 0.0) {
++        return _Py_next_floor(x + 0.5);
++    }
++    return _Py_next_ceil(x - 0.5);
++}
++
++double
++round(double x)
++{
++    if (x >= 0.0) {
++        return _Py_next_floor(x + 0.5);
++    }
++    return _Py_next_ceil(x - 0.5);
++}
++#endif
++
+ 
+ #ifdef HAVE_GCC_ASM_FOR_X87
+ // Inline assembly for getting and setting the 387 FPU control word on
+diff --git a/Python/pytime.c b/Python/pytime.c
+index f4f112f..721bb41 100644
+--- a/Python/pytime.c
++++ b/Python/pytime.c
+@@ -1128,6 +1128,11 @@ py_get_monotonic_clock(_PyTime_t *tp, _Py_clock_info_t *info, int raise_exc)
+         info->adjustable = 0;
+     }
+ 
++#elif defined(NeXT)
++    if (py_get_system_clock(tp, info, raise_exc) < 0) {
++        return -1;
++    }
++
+ #else
+ 
+ #ifdef CLOCK_HIGHRES
+@@ -1318,6 +1323,17 @@ _PyTime_localtime(time_t t, struct tm *tm)
+ #endif
+ 
+     errno = 0;
++#ifdef NeXT
++    struct tm *local = localtime(&t);
++    if (local == NULL) {
++        if (errno == 0) {
++            errno = EINVAL;
++        }
++        PyErr_SetFromErrno(PyExc_OSError);
++        return -1;
++    }
++    *tm = *local;
++#else
+     if (localtime_r(&t, tm) == NULL) {
+         if (errno == 0) {
+             errno = EINVAL;
+@@ -1325,6 +1341,7 @@ _PyTime_localtime(time_t t, struct tm *tm)
+         PyErr_SetFromErrno(PyExc_OSError);
+         return -1;
+     }
++#endif
+     return 0;
+ #endif /* MS_WINDOWS */
+ }
+@@ -1344,6 +1361,19 @@ _PyTime_gmtime(time_t t, struct tm *tm)
+     }
+     return 0;
+ #else /* !MS_WINDOWS */
++#ifdef NeXT
++    struct tm *utc = gmtime(&t);
++    if (utc == NULL) {
++#ifdef EINVAL
++        if (errno == 0) {
++            errno = EINVAL;
++        }
++#endif
++        PyErr_SetFromErrno(PyExc_OSError);
++        return -1;
++    }
++    *tm = *utc;
++#else
+     if (gmtime_r(&t, tm) == NULL) {
+ #ifdef EINVAL
+         if (errno == 0) {
+@@ -1353,6 +1383,7 @@ _PyTime_gmtime(time_t t, struct tm *tm)
+         PyErr_SetFromErrno(PyExc_OSError);
+         return -1;
+     }
++#endif
+     return 0;
+ #endif /* MS_WINDOWS */
+ }
+diff --git a/configure b/configure
+index a1ad0ae..1d9722a 100644
+--- a/configure
++++ b/configure
+@@ -882,6 +882,8 @@ MKDIR_P
+ INSTALL_DATA
+ INSTALL_SCRIPT
+ INSTALL_PROGRAM
++ac_ct_RANLIB
++RANLIB
+ ac_ct_READELF
+ READELF
+ ARFLAGS
+@@ -3300,6 +3302,13 @@ else
+     FREEZE_MODULE_BOOTSTRAP_DEPS="Programs/_freeze_module"
+     FREEZE_MODULE='$(PYTHON_FOR_FREEZE) $(srcdir)/Programs/_freeze_module.py'
+     FREEZE_MODULE_DEPS="_bootstrap_python \$(srcdir)/Programs/_freeze_module.py"
++    case $host in #(
++  *-next-openstep*|*-next-nextstep*) :
++
++        FREEZE_MODULE='./Programs/_freeze_module'
++        FREEZE_MODULE_DEPS='Programs/_freeze_module'
++       ;;
++esac
+     PYTHON_FOR_BUILD_DEPS='$(BUILDPYTHON)'
+ 
+ 
+@@ -3832,6 +3841,9 @@ then
+ 	*-*-wasi)
+ 	    ac_sys_system=WASI
+ 	    ;;
++	*-next-openstep*|*-next-nextstep*)
++	    ac_sys_system=OpenStep
++	    ;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -3840,10 +3852,18 @@ then
+ 	ac_sys_release=
+     else
+ 	ac_sys_system=`uname -s`
+-	if test "$ac_sys_system" = "AIX" \
++	if test -z "$ac_sys_system"; then
++	    case "$host" in
++	    *-next-openstep*|*-next-nextstep*)
++		ac_sys_system=OpenStep
++		ac_sys_release=4
++		;;
++	    esac
++	fi
++	if test -z "$ac_sys_release" -a "$ac_sys_system" = "AIX" \
+ 	-o "$ac_sys_system" = "UnixWare" -o "$ac_sys_system" = "OpenUNIX"; then
+ 		ac_sys_release=`uname -v`
+-	else
++	elif test -z "$ac_sys_release"; then
+ 		ac_sys_release=`uname -r`
+ 	fi
+     fi
+@@ -3858,6 +3878,7 @@ then
+ 	linux*) MACHDEP="linux";;
+ 	cygwin*) MACHDEP="cygwin";;
+ 	darwin*) MACHDEP="darwin";;
++	openstep*) MACHDEP="openstep";;
+ 	'')	MACHDEP="unknown";;
+     esac
+ 
+@@ -7117,7 +7138,114 @@ fi
+ 
+ if test -z "$ARFLAGS"
+ then
++    case $ac_sys_system in
++    OpenStep*|NextStep*)
++        ARFLAGS="rc"
++        ;;
++    *)
+         ARFLAGS="rcs"
++        ;;
++    esac
++fi
++
++if test -n "$ac_tool_prefix"; then
++  for ac_prog in ranlib
++  do
++    # Extract the first word of "$ac_tool_prefix$ac_prog", so it can be a program name with args.
++set dummy $ac_tool_prefix$ac_prog; ac_word=$2
++{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
++$as_echo_n "checking for $ac_word... " >&6; }
++if ${ac_cv_prog_RANLIB+:} false; then :
++  $as_echo_n "(cached) " >&6
++else
++  if test -n "$RANLIB"; then
++  ac_cv_prog_RANLIB="$RANLIB" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++    for ac_exec_ext in '' $ac_executable_extensions; do
++  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
++    ac_cv_prog_RANLIB="$ac_tool_prefix$ac_prog"
++    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++  done
++IFS=$as_save_IFS
++
++fi
++fi
++RANLIB=$ac_cv_prog_RANLIB
++if test -n "$RANLIB"; then
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $RANLIB" >&5
++$as_echo "$RANLIB" >&6; }
++else
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
++$as_echo "no" >&6; }
++fi
++
++
++    test -n "$RANLIB" && break
++  done
++fi
++if test -z "$RANLIB"; then
++  ac_ct_RANLIB=$RANLIB
++  for ac_prog in ranlib
++do
++  # Extract the first word of "$ac_prog", so it can be a program name with args.
++set dummy $ac_prog; ac_word=$2
++{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
++$as_echo_n "checking for $ac_word... " >&6; }
++if ${ac_cv_prog_ac_ct_RANLIB+:} false; then :
++  $as_echo_n "(cached) " >&6
++else
++  if test -n "$ac_ct_RANLIB"; then
++  ac_cv_prog_ac_ct_RANLIB="$ac_ct_RANLIB" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++    for ac_exec_ext in '' $ac_executable_extensions; do
++  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
++    ac_cv_prog_ac_ct_RANLIB="$ac_prog"
++    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++  done
++IFS=$as_save_IFS
++
++fi
++fi
++ac_ct_RANLIB=$ac_cv_prog_ac_ct_RANLIB
++if test -n "$ac_ct_RANLIB"; then
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_RANLIB" >&5
++$as_echo "$ac_ct_RANLIB" >&6; }
++else
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
++$as_echo "no" >&6; }
++fi
++
++
++  test -n "$ac_ct_RANLIB" && break
++done
++
++  if test "x$ac_ct_RANLIB" = x; then
++    RANLIB=":"
++  else
++    case $cross_compiling:$ac_tool_warned in
++yes:)
++{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: using cross tools not prefixed with host triplet" >&5
++$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
++ac_tool_warned=yes ;;
++esac
++    RANLIB=$ac_ct_RANLIB
++  fi
+ fi
+ 
+ if test -n "$ac_tool_prefix"; then
+@@ -8270,7 +8398,12 @@ UNIVERSAL_ARCH_FLAGS=
+ # tweak BASECFLAGS based on compiler and platform
+ case $GCC in
+ yes)
+-    CFLAGS_NODIST="$CFLAGS_NODIST -std=c11"
++    case $ac_sys_system in #(
++  OpenStep|OPENSTEP|openstep|NextStep|NEXTSTEP|nextstep) :
++    CFLAGS_NODIST="$CFLAGS_NODIST -std=gnu99" ;; #(
++  *) :
++    CFLAGS_NODIST="$CFLAGS_NODIST -std=c11" ;;
++esac
+ 
+ 
+ 
+@@ -14397,7 +14530,7 @@ if test "x$ac_cv_lib_cma_pthread_create" = xyes; then :
+ else
+ 
+     case $ac_sys_system in #(
+-  WASI) :
++  WASI|OpenStep|OPENSTEP|openstep|NextStep|NEXTSTEP|nextstep) :
+     posix_threads=stub ;; #(
+   *) :
+     as_fn_error $? "could not find pthreads on your system" "$LINENO" 5
+@@ -14969,7 +15102,14 @@ fi
+ 
+ if test -z "$with_freelists"
+ then
+-    with_freelists="yes"
++    case $host in
++    *-next-openstep*|*-next-nextstep*)
++        with_freelists="no"
++        ;;
++    *)
++        with_freelists="yes"
++        ;;
++    esac
+ fi
+ if test "$with_freelists" != "no"
+ then
+@@ -20145,7 +20285,7 @@ fi
+ LIBS_SAVE=$LIBS
+ LIBS="$LIBS $LIBM"
+ 
+-for ac_func in acosh asinh atanh erf erfc expm1 log1p log2
++for ac_func in acosh asinh atanh erf erfc expm1 log1p
+ do :
+   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+@@ -20160,6 +20300,17 @@ else
+ fi
+ done
+ 
++for ac_func in log2
++do :
++  ac_fn_c_check_func "$LINENO" "log2" "ac_cv_func_log2"
++if test "x$ac_cv_func_log2" = xyes; then :
++  cat >>confdefs.h <<_ACEOF
++#define HAVE_LOG2 1
++_ACEOF
++
++fi
++done
++
+ LIBS=$LIBS_SAVE
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether POSIX semaphores are enabled" >&5
+diff --git a/configure.ac b/configure.ac
+index 7b4000f..8406a55 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -193,6 +193,11 @@ AS_VAR_IF([cross_compiling], [yes],
+     FREEZE_MODULE_BOOTSTRAP_DEPS="Programs/_freeze_module"
+     FREEZE_MODULE='$(PYTHON_FOR_FREEZE) $(srcdir)/Programs/_freeze_module.py'
+     FREEZE_MODULE_DEPS="_bootstrap_python \$(srcdir)/Programs/_freeze_module.py"
++    AS_CASE([$host],
++      [*-next-openstep*|*-next-nextstep*], [
++        FREEZE_MODULE='./Programs/_freeze_module'
++        FREEZE_MODULE_DEPS='Programs/_freeze_module'
++      ])
+     PYTHON_FOR_BUILD_DEPS='$(BUILDPYTHON)'
+   ]
+ )
+@@ -554,6 +559,9 @@ then
+ 	*-*-wasi)
+ 	    ac_sys_system=WASI
+ 	    ;;
++	*-next-openstep*|*-next-nextstep*)
++	    ac_sys_system=OpenStep
++	    ;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -562,10 +570,18 @@ then
+ 	ac_sys_release=
+     else
+ 	ac_sys_system=`uname -s`
+-	if test "$ac_sys_system" = "AIX" \
++	if test -z "$ac_sys_system"; then
++	    case "$host" in
++	    *-next-openstep*|*-next-nextstep*)
++		ac_sys_system=OpenStep
++		ac_sys_release=4
++		;;
++	    esac
++	fi
++	if test -z "$ac_sys_release" -a "$ac_sys_system" = "AIX" \
+ 	-o "$ac_sys_system" = "UnixWare" -o "$ac_sys_system" = "OpenUNIX"; then
+ 		ac_sys_release=`uname -v`
+-	else
++	elif test -z "$ac_sys_release"; then
+ 		ac_sys_release=`uname -r`
+ 	fi
+     fi
+@@ -580,6 +596,7 @@ then
+ 	linux*) MACHDEP="linux";;
+ 	cygwin*) MACHDEP="cygwin";;
+ 	darwin*) MACHDEP="darwin";;
++	openstep*) MACHDEP="openstep";;
+ 	'')	MACHDEP="unknown";;
+     esac
+ 
+@@ -1625,12 +1642,20 @@ AC_SUBST(LINK_PYTHON_OBJS)
+ # ar program
+ AC_SUBST(AR)
+ AC_CHECK_TOOLS(AR, ar aal, ar)
++AC_PROG_RANLIB
+ 
+ # tweak ARFLAGS only if the user didn't set it on the command line
+ AC_SUBST(ARFLAGS)
+ if test -z "$ARFLAGS"
+ then
++    case $ac_sys_system in
++    OpenStep*|NextStep*)
++        ARFLAGS="rc"
++        ;;
++    *)
+         ARFLAGS="rcs"
++        ;;
++    esac
+ fi
+ 
+ AC_CHECK_TOOLS([READELF], [readelf], [:])
+@@ -2203,7 +2228,10 @@ AC_DEFUN([PY_CHECK_CC_WARNING], [
+ # tweak BASECFLAGS based on compiler and platform
+ case $GCC in
+ yes)
+-    CFLAGS_NODIST="$CFLAGS_NODIST -std=c11"
++    AS_CASE([$ac_sys_system],
++      [OpenStep|OPENSTEP|openstep|NextStep|NEXTSTEP|nextstep],
++        [CFLAGS_NODIST="$CFLAGS_NODIST -std=gnu99"],
++        [CFLAGS_NODIST="$CFLAGS_NODIST -std=c11"])
+ 
+     PY_CHECK_CC_WARNING([enable], [extra], [if we can add -Wextra])
+     AS_VAR_IF([ac_cv_enable_extra_warning], [yes],
+@@ -4144,7 +4172,7 @@ pthread_create (NULL, NULL, start_routine, NULL)]])],[
+     LIBS="$LIBS -lcma"
+     ],[
+     AS_CASE([$ac_sys_system],
+-      [WASI], [posix_threads=stub],
++      [WASI|OpenStep|OPENSTEP|openstep|NextStep|NEXTSTEP|nextstep], [posix_threads=stub],
+       [AC_MSG_ERROR([could not find pthreads on your system])]
+     )
+     ])])])])])])
+@@ -4449,7 +4477,14 @@ AC_ARG_WITH(freelists,
+ 
+ if test -z "$with_freelists"
+ then
+-    with_freelists="yes"
++    case $host in
++    *-next-openstep*|*-next-nextstep*)
++        with_freelists="no"
++        ;;
++    *)
++        with_freelists="yes"
++        ;;
++    esac
+ fi
+ if test "$with_freelists" != "no"
+ then
+@@ -5510,10 +5545,11 @@ LIBS_SAVE=$LIBS
+ LIBS="$LIBS $LIBM"
+ 
+ AC_CHECK_FUNCS(
+-  [acosh asinh atanh erf erfc expm1 log1p log2],
++  [acosh asinh atanh erf erfc expm1 log1p],
+   [],
+   [AC_MSG_ERROR([Python requires C99 compatible libm])]
+ )
++AC_CHECK_FUNCS([log2])
+ LIBS=$LIBS_SAVE
+ 
+ dnl For multiprocessing module, check that sem_open
+diff --git a/work/Python-3.11.15/inttypes.h b/inttypes.h
+new file mode 100644
+index 0000000..345480f
+--- /dev/null
++++ b/inttypes.h
+@@ -0,0 +1,52 @@
++#ifndef PY_OPENSTEP_INTTYPES_H
++#define PY_OPENSTEP_INTTYPES_H
++
++#include "stdint.h"
++
++#ifndef PRId32
++#define PRId32 "d"
++#endif
++#ifndef PRIi32
++#define PRIi32 "i"
++#endif
++#ifndef PRIu32
++#define PRIu32 "u"
++#endif
++#ifndef PRIx32
++#define PRIx32 "x"
++#endif
++#ifndef PRIX32
++#define PRIX32 "X"
++#endif
++#ifndef PRId64
++#define PRId64 "lld"
++#endif
++#ifndef PRIi64
++#define PRIi64 "lli"
++#endif
++#ifndef PRIu64
++#define PRIu64 "llu"
++#endif
++#ifndef PRIx64
++#define PRIx64 "llx"
++#endif
++#ifndef PRIX64
++#define PRIX64 "llX"
++#endif
++#ifndef PRIdPTR
++#define PRIdPTR "ld"
++#endif
++#ifndef PRIiPTR
++#define PRIiPTR "li"
++#endif
++#ifndef PRIuPTR
++#define PRIuPTR "lu"
++#endif
++#ifndef PRIxPTR
++#define PRIxPTR "lx"
++#endif
++#ifndef PRIXPTR
++#define PRIXPTR "lX"
++#endif
++
++#endif
+diff --git a/setup.py b/setup.py
+index ad8fb81..dc84288 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1379,6 +1379,9 @@ class PyBuildExt(build_ext):
+ 
+     def detect_ctypes(self):
+         # Thomas Heller's _ctypes module
++        if HOST_PLATFORM.startswith('openstep') or HOST_PLATFORM.startswith('nextstep'):
++            self.missing.extend(['_ctypes', '_ctypes_test'])
++            return
+ 
+         if (not sysconfig.get_config_var("LIBFFI_INCLUDEDIR") and MACOS):
+             self.use_system_libffi = True
+diff --git a/work/Python-3.11.15/stdint.h b/stdint.h
+new file mode 100644
+index 0000000..3b1f7b3
+--- /dev/null
++++ b/stdint.h
+@@ -0,0 +1,80 @@
++#ifndef PY_OPENSTEP_STDINT_H
++#define PY_OPENSTEP_STDINT_H
++
++#include <limits.h>
++
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef short int16_t;
++typedef unsigned short uint16_t;
++typedef int int32_t;
++typedef unsigned int uint32_t;
++typedef long long int64_t;
++typedef unsigned long long uint64_t;
++
++typedef long intptr_t;
++typedef unsigned long uintptr_t;
++
++#ifndef UINT8_C
++#define UINT8_C(c) c ## U
++#endif
++#ifndef UINT16_C
++#define UINT16_C(c) c ## U
++#endif
++#ifndef UINT32_C
++#define UINT32_C(c) c ## U
++#endif
++#ifndef UINT64_C
++#define UINT64_C(c) c ## ULL
++#endif
++
++#ifndef INT32_MAX
++#define INT32_MAX 2147483647
++#endif
++#ifndef UINT8_MAX
++#define UINT8_MAX 255U
++#endif
++#ifndef INT8_MAX
++#define INT8_MAX 127
++#endif
++#ifndef INT8_MIN
++#define INT8_MIN (-INT8_MAX - 1)
++#endif
++#ifndef UINT16_MAX
++#define UINT16_MAX 65535U
++#endif
++#ifndef INT16_MAX
++#define INT16_MAX 32767
++#endif
++#ifndef INT16_MIN
++#define INT16_MIN (-INT16_MAX - 1)
++#endif
++#ifndef UINT32_MAX
++#define UINT32_MAX 4294967295U
++#endif
++#ifndef INT32_MIN
++#define INT32_MIN (-INT32_MAX - 1)
++#endif
++#ifndef INT64_MAX
++#define INT64_MAX 9223372036854775807LL
++#endif
++#ifndef INT64_MIN
++#define INT64_MIN (-INT64_MAX - 1LL)
++#endif
++#ifndef UINT64_MAX
++#define UINT64_MAX 18446744073709551615ULL
++#endif
++#ifndef INTPTR_MAX
++#define INTPTR_MAX LONG_MAX
++#endif
++#ifndef INTPTR_MIN
++#define INTPTR_MIN LONG_MIN
++#endif
++#ifndef UINTPTR_MAX
++#define UINTPTR_MAX ULONG_MAX
++#endif
++#ifndef SIZE_MAX
++#define SIZE_MAX ULONG_MAX
++#endif
++
++#endif
+diff --git a/work/Python-3.11.15/wchar.h b/wchar.h
+new file mode 100644
+index 0000000..6b88052
+--- /dev/null
++++ b/wchar.h
+@@ -0,0 +1,147 @@
++#ifndef PY_OPENSTEP_WCHAR_H
++#define PY_OPENSTEP_WCHAR_H
++
++#include <stddef.h>
++#include <stdlib.h>
++
++typedef wchar_t wint_t;
++
++#ifndef WCHAR_MAX
++#define WCHAR_MAX 2147483647
++#endif
++#ifndef WCHAR_MIN
++#define WCHAR_MIN (-WCHAR_MAX - 1)
++#endif
++
++#ifndef WEOF
++#define WEOF ((wint_t)-1)
++#endif
++
++static inline size_t
++wcslen(const wchar_t *s)
++{
++    const wchar_t *p = s;
++    while (*p) {
++        p++;
++    }
++    return (size_t)(p - s);
++}
++
++static inline int
++wcscmp(const wchar_t *a, const wchar_t *b)
++{
++    while (*a && *a == *b) {
++        a++;
++        b++;
++    }
++    return (*a > *b) - (*a < *b);
++}
++
++static inline int
++wcsncmp(const wchar_t *a, const wchar_t *b, size_t n)
++{
++    while (n && *a && *a == *b) {
++        a++;
++        b++;
++        n--;
++    }
++    if (!n) {
++        return 0;
++    }
++    return (*a > *b) - (*a < *b);
++}
++
++static inline wchar_t *
++wcschr(const wchar_t *s, wchar_t c)
++{
++    while (*s) {
++        if (*s == c) {
++            return (wchar_t *)s;
++        }
++        s++;
++    }
++    return c == 0 ? (wchar_t *)s : NULL;
++}
++
++static inline wchar_t *
++wcsrchr(const wchar_t *s, wchar_t c)
++{
++    const wchar_t *last = NULL;
++    do {
++        if (*s == c) {
++            last = s;
++        }
++    } while (*s++);
++    return (wchar_t *)last;
++}
++
++static inline wchar_t *
++wcscpy(wchar_t *dst, const wchar_t *src)
++{
++    wchar_t *p = dst;
++    while ((*p++ = *src++) != 0) {
++        ;
++    }
++    return dst;
++}
++
++static inline wchar_t *
++wcsncpy(wchar_t *dst, const wchar_t *src, size_t n)
++{
++    size_t i;
++    for (i = 0; i < n && src[i]; i++) {
++        dst[i] = src[i];
++    }
++    for (; i < n; i++) {
++        dst[i] = 0;
++    }
++    return dst;
++}
++
++static inline long
++wcstol(const wchar_t *nptr, wchar_t **endptr, int base)
++{
++    char buf[64];
++    size_t i;
++    for (i = 0; i < sizeof(buf) - 1 && nptr[i]; i++) {
++        buf[i] = (char)nptr[i];
++    }
++    buf[i] = '\0';
++    if (endptr) {
++        *endptr = (wchar_t *)(nptr + i);
++    }
++    return strtol(buf, NULL, base);
++}
++
++static inline wchar_t *
++wcstok(wchar_t *str, const wchar_t *delim, wchar_t **saveptr)
++{
++    wchar_t *start;
++    wchar_t *p;
++
++    if (str == NULL) {
++        str = *saveptr;
++    }
++    if (str == NULL) {
++        return NULL;
++    }
++    while (*str && wcschr(delim, *str) != NULL) {
++        str++;
++    }
++    if (*str == 0) {
++        *saveptr = NULL;
++        return NULL;
++    }
++    start = str;
++    for (p = str; *p; p++) {
++        if (wcschr(delim, *p) != NULL) {
++            *p = 0;
++            *saveptr = p + 1;
++            return start;
++        }
++    }
++    *saveptr = NULL;
++    return start;
++}
++
++#endif
