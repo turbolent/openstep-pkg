@@ -1,5 +1,5 @@
 diff --git a/include/libwapcaplet/libwapcaplet.h b/include/libwapcaplet/libwapcaplet.h
-index 57e2e48..7e1e76a 100644
+index 57e2e48..8407be7 100644
 --- a/include/libwapcaplet/libwapcaplet.h
 +++ b/include/libwapcaplet/libwapcaplet.h
 @@ -14,10 +14,41 @@ extern "C"
@@ -44,6 +44,29 @@ index 57e2e48..7e1e76a 100644
 +#endif
  #include <assert.h>
  
+ /**
+@@ -156,13 +187,15 @@ lwc_string_ref(lwc_string *str)
+  *       freed. (Ref count of 1 where string is its own insensitve match
+  *       will also result in the string being freed.)
+  */
+-#define lwc_string_unref(str) {						\
+-		lwc_string *__lwc_s = (str);				\
+-		assert(__lwc_s != NULL);				\
+-		__lwc_s->refcnt--;						\
+-		if ((__lwc_s->refcnt == 0) ||					\
+-		    ((__lwc_s->refcnt == 1) && (__lwc_s->insensitive == __lwc_s)))	\
+-			lwc_string_destroy(__lwc_s);				\
++#define lwc_string_unref(str) {                                  \
++		lwc_string *__lwc_s = (str);                     \
++		if (__lwc_s != NULL) {                           \
++			__lwc_s->refcnt--;                       \
++			if ((__lwc_s->refcnt == 0) ||            \
++			    ((__lwc_s->refcnt == 1) &&           \
++			     (__lwc_s->insensitive == __lwc_s))) \
++				lwc_string_destroy(__lwc_s);     \
++		}                                                \
+ 	}
+ 	
  /**
 diff --git a/src/libwapcaplet.c b/src/libwapcaplet.c
 index 34a72cd..83d994f 100644
