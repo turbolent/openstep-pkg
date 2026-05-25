@@ -28,12 +28,16 @@ TARGET="$HOST_ALIAS"
 FINAL_PREFIX=/usr/local
 STAGE_PREFIX="$DESTDIR$FINAL_PREFIX"
 SPECS_DIR="$STAGE_PREFIX/lib/gcc-lib/$TARGET/$GCC3_VERSION"
+GXX_INCLUDE_DIR="$STAGE_PREFIX/include/c++/$GCC3_VERSION"
+GXX_BITS_DIR="$GXX_INCLUDE_DIR/bits"
 GCC3_CFLAGS='-g -O0'
+LIBSTDCXX_SUBDIRS='include libio libmath libsupc++ src po'
 
 export DESTDIR VERSION ROOTDIR BOOTSTRAP_VERSION BOOTSTRAP_SRC BOOTSTRAP_PREFIX
 export BOOTSTRAP_PATCH BOOTSTRAP_SPECSFILE GCC3_SRC GCC3_VERSION PATCHFILE SPECSFILE BUILD_SUBDIR
 export PATH CONFIG_SHELL MAKEINFO FLEX HOST_ALIAS BOOTSTRAP_TARGET TARGET FINAL_PREFIX STAGE_PREFIX SPECS_DIR
-export GCC3_CFLAGS
+export GXX_INCLUDE_DIR GXX_BITS_DIR
+export GCC3_CFLAGS LIBSTDCXX_SUBDIRS
 
 cd "$BOOTSTRAP_SRC"
 patch -p1 < "$BOOTSTRAP_PATCH"
@@ -95,6 +99,34 @@ if [ -f ../gcc/gengtype-lex.c ]; then
 fi
 /bin/gnumake CFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" all-gcc
 
+BUILD_GCC_INCLUDE_DIR="$BUILD_SUBDIR/gcc/include"
+test -d "$BUILD_GCC_INCLUDE_DIR/architecture" || mkdir "$BUILD_GCC_INCLUDE_DIR/architecture"
+cat > "$BUILD_GCC_INCLUDE_DIR/architecture/ARCH_INCLUDE.h" <<'EOF'
+#ifndef _ARCH_INCLUDE_H_
+#define _ARCH_INCLUDE_H_
+
+#define ARCH_INCLUDE(prefix, suffix) <prefix __next_i386__/suffix>
+
+#endif
+EOF
+
+for header_i386_dir in /NextDeveloper/Headers/*/i386; do
+    if [ -d "$header_i386_dir" ]; then
+        header_family=`echo "$header_i386_dir" | sed 's#^/NextDeveloper/Headers/##; s#/i386$##'`
+        test -d "$BUILD_GCC_INCLUDE_DIR/$header_family" || mkdir "$BUILD_GCC_INCLUDE_DIR/$header_family"
+        test -d "$BUILD_GCC_INCLUDE_DIR/$header_family/__next_i386__" || mkdir "$BUILD_GCC_INCLUDE_DIR/$header_family/__next_i386__"
+        (
+            cd "$header_i386_dir"
+            for staged_header in *.h; do
+                /bin/rm -f "$BUILD_GCC_INCLUDE_DIR/$header_family/__next_i386__/$staged_header"
+                /bin/cp "$staged_header" "$BUILD_GCC_INCLUDE_DIR/$header_family/__next_i386__/"
+            done
+        )
+    fi
+done
+
+/bin/gnumake CFLAGS="$GCC3_CFLAGS" CXXFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" SUBDIRS="$LIBSTDCXX_SUBDIRS" all-target-libstdc++-v3
+
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
 test -d "$STAGE_PREFIX" || mkdir "$STAGE_PREFIX"
@@ -127,6 +159,44 @@ test -d "$STAGE_PREFIX/$TARGET/include" || mkdir "$STAGE_PREFIX/$TARGET/include"
     mandir="$STAGE_PREFIX/man" \
     man1dir="$STAGE_PREFIX/man/man1"
 
+/bin/gnumake DESTDIR= CFLAGS="$GCC3_CFLAGS" CXXFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" SUBDIRS="$LIBSTDCXX_SUBDIRS" install-target-libstdc++-v3 \
+    prefix="$STAGE_PREFIX" \
+    exec_prefix="$STAGE_PREFIX" \
+    bindir="$STAGE_PREFIX/bin" \
+    libdir="$STAGE_PREFIX/lib" \
+    includedir="$STAGE_PREFIX/include" \
+    gcc_tooldir="$STAGE_PREFIX/$TARGET" \
+    tooldir="$STAGE_PREFIX/$TARGET" \
+    infodir="$STAGE_PREFIX/info" \
+    mandir="$STAGE_PREFIX/man"
+
+LIBSTDCXX_A="$STAGE_PREFIX/lib/libstdc++.a"
+LIBSUPCXX_A="$STAGE_PREFIX/lib/libsupc++.a"
+LIBSTDCXX_MERGE_DIR="$BUILD_SUBDIR/next-libstdcxx-merge"
+if [ -f "$LIBSTDCXX_A" ] && [ -f "$LIBSUPCXX_A" ]; then
+    /bin/rm -rf "$LIBSTDCXX_MERGE_DIR"
+    mkdir "$LIBSTDCXX_MERGE_DIR"
+    (
+        cd "$LIBSTDCXX_MERGE_DIR"
+        /bin/ar x "$LIBSUPCXX_A"
+        /bin/rm -f __.SYMDEF*
+        /bin/ar r "$LIBSTDCXX_A" *
+        /bin/ranlib "$LIBSTDCXX_A"
+    )
+fi
+
+test -d "$GXX_BITS_DIR" || mkdir "$GXX_BITS_DIR"
+for target_bits_dir in "$GXX_INCLUDE_DIR/$TARGET/bits" "$BUILD_SUBDIR/$TARGET/libstdc++-v3/include/$TARGET/bits"; do
+    if [ -d "$target_bits_dir" ]; then
+        for target_header in atomicity.h basic_file.h c++config.h c++io.h c++locale.h codecvt_specializations.h ctype_base.h ctype_inline.h ctype_noninline.h gthr.h gthr-default.h gthr-posix.h gthr-single.h messages_members.h os_defines.h time_members.h; do
+            if [ -f "$target_bits_dir/$target_header" ]; then
+                /bin/rm -f "$GXX_BITS_DIR/$target_header"
+                /bin/cp "$target_bits_dir/$target_header" "$GXX_BITS_DIR/$target_header"
+            fi
+        done
+    fi
+done
+
 /bin/rm -f "$SPECS_DIR/specs"
 
 test -d "$SPECS_DIR/include/architecture" || mkdir "$SPECS_DIR/include/architecture"
@@ -153,7 +223,10 @@ for header_i386_dir in /NextDeveloper/Headers/*/i386; do
         test -d "$SPECS_DIR/include/$header_family/__next_i386__" || mkdir "$SPECS_DIR/include/$header_family/__next_i386__"
         (
             cd "$header_i386_dir"
-            /bin/cp *.h "$SPECS_DIR/include/$header_family/__next_i386__/"
+            for staged_header in *.h; do
+                /bin/rm -f "$SPECS_DIR/include/$header_family/__next_i386__/$staged_header"
+                /bin/cp "$staged_header" "$SPECS_DIR/include/$header_family/__next_i386__/"
+            done
         )
     fi
 done

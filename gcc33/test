@@ -3,16 +3,21 @@
 set -e
 
 CC="$ROOT_DIR/usr/local/bin/gcc"
+CXX="$ROOT_DIR/usr/local/bin/g++"
 GCC_VERSION=3.3
 SRC=/tmp/pkg-gcc33-$$.c
 BIN=/tmp/pkg-gcc33-$$
+CXX_SRC=/tmp/pkg-gcc33-$$.cc
+CXX_BIN=/tmp/pkg-gcc33-cxx-$$
 OBJC_SRC=/tmp/pkg-gcc33-$$.m
 OBJC_BIN=/tmp/pkg-gcc33-objc-$$
 OBJC_LOG=/tmp/pkg-gcc33-objc-$$.log
 LINK_LOG=/tmp/pkg-gcc33-link-$$.log
+CXX_LOG=/tmp/pkg-gcc33-cxx-$$.log
 
 [ -x "$CC" ]
-/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG"
+[ -x "$CXX" ]
+/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG"
 
 cat > "$SRC" <<'EOF'
 #include <stdio.h>
@@ -36,6 +41,25 @@ if grep 'external relocation entries in non-writable section' "$LINK_LOG" >/dev/
 fi
 value=`"$BIN"`
 [ "$value" = ok ]
+
+cat > "$CXX_SRC" <<'EOF'
+#include <iostream>
+
+int main()
+{
+    std::cout << "cxx ok" << std::endl;
+    return 0;
+}
+EOF
+
+if "$CXX" "$CXX_SRC" -o "$CXX_BIN" > "$CXX_LOG" 2>&1; then
+    :
+else
+    cat "$CXX_LOG"
+    exit 1
+fi
+cxx_value=`"$CXX_BIN"`
+[ "$cxx_value" = "cxx ok" ]
 
 cat > "$OBJC_SRC" <<'EOF'
 #import <Foundation/Foundation.h>
@@ -64,4 +88,4 @@ if [ -f "$COLLECT2" ] && /bin/nm "$COLLECT2" | grep '___umoddi3' >/dev/null 2>&1
     exit 1
 fi
 
-/bin/rm -f "$SRC" "$BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG"
+/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG"

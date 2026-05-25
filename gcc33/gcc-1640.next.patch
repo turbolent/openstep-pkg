@@ -4717,3 +4717,284 @@ index 1f6600a..d5017f1 100644
  __extension__ typedef unsigned long long gcc_uint64_t;
  #else
  typedef unsigned long gcc_uint64_t;
+diff --git a/libstdc++-v3/include/c_std/std_cstring.h b/libstdc++-v3/include/c_std/std_cstring.h
+index 066342a..e4bd9ea 100644
+--- a/libstdc++-v3/include/c_std/std_cstring.h
++++ b/libstdc++-v3/include/c_std/std_cstring.h
+@@ -50,6 +50,10 @@
+ 
+ #include <string.h>
+ 
++#ifdef NeXT
++extern "C" size_t strxfrm(char*, const char*, size_t);
++#endif
++
+ // Get rid of those macros defined in <string.h> in lieu of real functions.
+ #undef memcpy
+ #undef memmove
+diff --git a/libstdc++-v3/libsupc++/pure.cc b/libstdc++-v3/libsupc++/pure.cc
+index 8234c7b..85fd7d9 100644
+--- a/libstdc++-v3/libsupc++/pure.cc
++++ b/libstdc++-v3/libsupc++/pure.cc
+@@ -36,6 +36,9 @@
+ 
+ #ifdef _GLIBCPP_HAVE_UNISTD_H
+ # include <unistd.h>
++# ifdef NeXT
++extern "C" int write(int, const void*, unsigned int);
++# endif
+ # define writestr(str)	write(2, str, sizeof(str) - 1)
+ # ifdef __GNU_LIBRARY__
+   /* Avoid forcing the library's meaning of `write' on the user program
+diff --git a/libstdc++-v3/include/c_std/std_cstdio.h b/libstdc++-v3/include/c_std/std_cstdio.h
+index 6fb8c79..e7094b5 100644
+--- a/libstdc++-v3/include/c_std/std_cstdio.h
++++ b/libstdc++-v3/include/c_std/std_cstdio.h
+@@ -51,6 +51,12 @@
+ 
+ #include <stdio.h>
+ 
++#ifdef NeXT
++# ifdef FILE
++#  undef FILE
++# endif
++#endif
++
+ // Get rid of those macros defined in <stdio.h> in lieu of real functions.
+ #undef clearerr
+ #undef fclose
+@@ -96,7 +102,11 @@
+ 
+ namespace std 
+ {
++#ifdef NeXT
++  typedef ::_iobuf FILE;
++#else
+   using ::FILE;
++#endif
+   using ::fpos_t;
+ 
+   using ::clearerr;
+diff --git a/libstdc++-v3/src/debug.cc b/libstdc++-v3/src/debug.cc
+index 8f22c2f..b0c236f 100644
+--- a/libstdc++-v3/src/debug.cc
++++ b/libstdc++-v3/src/debug.cc
+@@ -39,6 +39,23 @@
+ #include <cstdio>
+ #include <cctype>
+ 
++#ifdef NeXT
++#include <cstdarg>
++
++static int
++snprintf(char* str, size_t size, const char* format, ...)
++{
++  int ret;
++  va_list ap;
++
++  (void) size;
++  va_start(ap, format);
++  ret = vsprintf(str, format, ap);
++  va_end(ap);
++  return ret;
++}
++#endif
++
+ using namespace std;
+ 
+ namespace std
+diff --git a/libstdc++-v3/include/c_std/std_cstring.h b/libstdc++-v3/include/c_std/std_cstring.h
+index e4bd9ea..1b1d957 100644
+--- a/libstdc++-v3/include/c_std/std_cstring.h
++++ b/libstdc++-v3/include/c_std/std_cstring.h
+@@ -51,6 +51,7 @@
+ #include <string.h>
+ 
+ #ifdef NeXT
++extern "C" char* strdup(const char*);
+ extern "C" size_t strxfrm(char*, const char*, size_t);
+ #endif
+ 
+diff --git a/libstdc++-v3/Makefile.in b/libstdc++-v3/Makefile.in
+index d6d3b9a..d6bea04 100644
+--- a/libstdc++-v3/Makefile.in
++++ b/libstdc++-v3/Makefile.in
+@@ -146,7 +146,7 @@ toplevel_srcdir = @toplevel_srcdir@
+ AUTOMAKE_OPTIONS = 1.3 cygnus
+ MAINT_CHARSET = latin1
+ 
+-SUBDIRS = include libio libmath libsupc++ src po testsuite 
++SUBDIRS = include libio libmath libsupc++ src po 
+ 
+ mkinstalldirs = $(SHELL) $(toplevel_srcdir)/mkinstalldirs
+ 
+diff --git a/libstdc++-v3/include/Makefile.in b/libstdc++-v3/include/Makefile.in
+index b7aef61..cb44fe8 100644
+--- a/libstdc++-v3/include/Makefile.in
++++ b/libstdc++-v3/include/Makefile.in
+@@ -503,9 +503,11 @@ install-data-local:
+ 	for file in ${std_headers_rename}; do \
+ 	  $(INSTALL_DATA) ${std_builddir}/$${file} $(DESTDIR)${gxx_include_dir}/${std_builddir}; done
+ 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${target_builddir}
++	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${bits_builddir}
+ 	for file in ${target_headers} ${target_headers_extra} \
+ 	 ${thread_target_headers}; do \
+-	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${target_builddir}; done
++	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${target_builddir}; \
++	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${bits_builddir}; done
+ 
+ # Stop implicit '.o' make rules from ever stomping on extensionless
+ # headers, in the improbable case where some foolish, crack-addled
+diff --git a/gcc/unwind-sjlj.c b/gcc/unwind-sjlj.c
+index ee1db97..7810f48 100644
+--- a/gcc/unwind-sjlj.c
++++ b/gcc/unwind-sjlj.c
+@@ -24,7 +24,7 @@
+ #include "unwind.h"
+ #include "gthr.h"
+ 
+-#ifdef __USING_SJLJ_EXCEPTIONS__
++#if defined(__USING_SJLJ_EXCEPTIONS__) || defined(NeXT)
+ 
+ #ifdef DONT_USE_BUILTIN_SETJMP
+ #ifndef inhibit_libc
+@@ -283,4 +283,4 @@ uw_identify_context (struct _Unwind_Context *context)
+ 
+ #include "unwind.inc"
+ 
+-#endif /* USING_SJLJ_EXCEPTIONS */
++#endif /* USING_SJLJ_EXCEPTIONS || NeXT */
+diff --git a/libstdc++-v3/src/locale.cc b/libstdc++-v3/src/locale.cc
+index 17ccdc2..aaca8f6 100644
+--- a/libstdc++-v3/src/locale.cc
++++ b/libstdc++-v3/src/locale.cc
+@@ -33,6 +33,21 @@
+ #include <locale>
+ #include <bits/atomicity.h>
+ 
++#ifdef NeXT
++static char*
++next_strdup(const char* s)
++{
++  size_t len = strlen(s) + 1;
++  char* copy = static_cast<char*>(malloc(len));
++
++  if (copy)
++    memcpy(copy, s, len);
++  return copy;
++}
++
++#define strdup next_strdup
++#endif
++
+ namespace __gnu_cxx
+ {
+   // Defined in globals.cc.
+@@ -564,4 +579,3 @@ namespace std
+     *__fptr = '\0';
+   }
+ } // namespace std
+-
+diff --git a/libstdc++-v3/config/locale/generic/collate_members.cc b/libstdc++-v3/config/locale/generic/collate_members.cc
+index 93767d9..71eaccb 100644
+--- a/libstdc++-v3/config/locale/generic/collate_members.cc
++++ b/libstdc++-v3/config/locale/generic/collate_members.cc
+@@ -43,7 +43,11 @@ namespace std
+     int 
+     collate<char>::_M_compare(const char* __one, const char* __two) const
+     { 
++#ifdef NeXT
++      int __cmp = strcmp(__one, __two);
++#else
+       int __cmp = strcoll(__one, __two);
++#endif
+       return (__cmp >> (8 * sizeof (int) - 2)) | (__cmp != 0);
+     }
+   
+@@ -51,7 +55,20 @@ namespace std
+     size_t
+     collate<char>::_M_transform(char* __to, const char* __from, 
+ 				size_t __n) const
+-    { return strxfrm(__to, __from, __n); }
++    {
++#ifdef NeXT
++      size_t __len = strlen(__from);
++      if (__to && __n)
++	{
++	  size_t __copy = __len < __n - 1 ? __len : __n - 1;
++	  memcpy(__to, __from, __copy);
++	  __to[__copy] = '\0';
++	}
++      return __len;
++#else
++      return strxfrm(__to, __from, __n);
++#endif
++    }
+ 
+ #ifdef _GLIBCPP_USE_WCHAR_T
+   template<>
+diff --git a/libiberty/cp-demangle.c b/libiberty/cp-demangle.c
+index f676c1a..a185da7 100644
+--- a/libiberty/cp-demangle.c
++++ b/libiberty/cp-demangle.c
+@@ -974,7 +974,7 @@ demangle_char (dm, c)
+   else
+     {
+       if (error_message == NULL)
+-	error_message = (char *) strdup ("Expected ?");
++	error_message = xstrdup ("Expected ?");
+       error_message[9] = c;
+       return error_message;
+     }
+diff --git a/libstdc++-v3/config/locale/generic/c_locale.cc b/libstdc++-v3/config/locale/generic/c_locale.cc
+index 23347cc..9f1bf30 100644
+--- a/libstdc++-v3/config/locale/generic/c_locale.cc
++++ b/libstdc++-v3/config/locale/generic/c_locale.cc
+@@ -35,6 +35,21 @@
+ 
+ #include <locale>
+ 
++#ifdef NeXT
++static char*
++next_strdup(const char* s)
++{
++  size_t len = strlen(s) + 1;
++  char* copy = static_cast<char*>(malloc(len));
++
++  if (copy)
++    memcpy(copy, s, len);
++  return copy;
++}
++
++#define strdup next_strdup
++#endif
++
+ #ifdef _GLIBCPP_HAVE_IEEEFP_H
+ #include <ieeefp.h>
+ #endif
+diff --git a/libstdc++-v3/config/locale/generic/time_members.cc b/libstdc++-v3/config/locale/generic/time_members.cc
+index df43f03..3366d71 100644
+--- a/libstdc++-v3/config/locale/generic/time_members.cc
++++ b/libstdc++-v3/config/locale/generic/time_members.cc
+@@ -36,6 +36,21 @@
+ 
+ #include <locale>
+ 
++#ifdef NeXT
++static char*
++next_strdup(const char* s)
++{
++  size_t len = strlen(s) + 1;
++  char* copy = static_cast<char*>(malloc(len));
++
++  if (copy)
++    memcpy(copy, s, len);
++  return copy;
++}
++
++#define strdup next_strdup
++#endif
++
+ namespace std
+ {
+   template<>
