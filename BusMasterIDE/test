@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+DRIVER="$ROOT_DIR/usr/local/Devices/BusMasterIDE.config"
+
+test -d "$DRIVER"
+test -f "$DRIVER/BusMasterIDE"
+test -f "$DRIVER/BusMasterIDE_reloc"
+test -f "$DRIVER/Default.table"
+test -d "$DRIVER/English.lproj"
+test -f "$DRIVER/English.lproj/Localizable.strings"
