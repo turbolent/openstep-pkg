@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+
+PATH=/usr/ucb:/bin:/usr/bin:/usr/local/bin:$PATH
+CC=/bin/cc
+export PATH CC
+
+cd RTL8139-ad5f6e68c4e08b7427894294d0da9f88076e84ff
+
+/bin/make CC=/bin/cc
+
+if [ ! -d RTL8139.config ]; then
+    echo "RTL8139.config was not built." >&2
+    exit 1
+fi
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/Devices" || mkdir "$DESTDIR/usr/local/Devices"
+test -d "$DESTDIR/usr/local/Devices/RTL8139.config" || mkdir "$DESTDIR/usr/local/Devices/RTL8139.config"
+
+(
+    cd RTL8139.config
+    tar cf - .
+) | (
+    cd "$DESTDIR/usr/local/Devices/RTL8139.config"
+    tar xpf -
+)

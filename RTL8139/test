@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+DRIVER="$ROOT_DIR/usr/local/Devices/RTL8139.config"
+
+test -d "$DRIVER"
+test -f "$DRIVER/RTL8139"
+test -f "$DRIVER/RTL8139_reloc"
+test -f "$DRIVER/Default.table"
+test -d "$DRIVER/English.lproj"
+test -f "$DRIVER/English.lproj/Localizable.strings"
