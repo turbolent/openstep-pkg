@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+
+PATH=/usr/ucb:/bin:/usr/bin:/usr/local/bin:$PATH
+CC=/bin/cc
+export PATH CC
+
+if [ -d IntelHDA-de41e0944740e81baac5ea4e205d12cc18f44fab ]; then
+    cd IntelHDA-de41e0944740e81baac5ea4e205d12cc18f44fab
+fi
+
+/bin/make CC=/bin/cc
+
+if [ ! -d IntelHDA.config ]; then
+    echo "IntelHDA.config was not built." >&2
+    exit 1
+fi
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/Devices" || mkdir "$DESTDIR/usr/local/Devices"
+test -d "$DESTDIR/usr/local/Devices/IntelHDA.config" || mkdir "$DESTDIR/usr/local/Devices/IntelHDA.config"
+
+(
+    cd IntelHDA.config
+    tar cf - .
+) | (
+    cd "$DESTDIR/usr/local/Devices/IntelHDA.config"
+    tar xpf -
+)
