@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+DRIVER="$ROOT_DIR/usr/local/Devices/NVMeSCSIDriver.config"
+
+test -d "$DRIVER"
+test -f "$DRIVER/NVMeSCSIDriver"
+test -f "$DRIVER/NVMeSCSIDriver_reloc"
+test -f "$DRIVER/Default.table"
+test -f "$DRIVER/THIRD_PARTY_NOTICES.md"
+test -d "$DRIVER/English.lproj"
+test -f "$DRIVER/English.lproj/Localizable.strings"

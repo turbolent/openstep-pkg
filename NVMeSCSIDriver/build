@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+
+PATH=/usr/ucb:/bin:/usr/bin:/usr/local/bin:$PATH
+CC=/bin/cc
+export PATH CC
+
+if [ -d NVMeSCSIDriver-fe95cee ]; then
+    cd NVMeSCSIDriver-fe95cee
+fi
+
+/bin/make CC=/bin/cc
+
+if [ ! -d NVMeSCSIDriver.config ]; then
+    echo "NVMeSCSIDriver.config was not built." >&2
+    exit 1
+fi
+
+if [ ! -f NVMeSCSIDriver.config/NVMeSCSIDriver ]; then
+    echo "NVMeSCSIDriver.config is incomplete." >&2
+    exit 1
+fi
+
+if [ ! -f NVMeSCSIDriver.config/NVMeSCSIDriver_reloc ]; then
+    echo "NVMeSCSIDriver.config is incomplete." >&2
+    exit 1
+fi
+
+test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
+test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
+test -d "$DESTDIR/usr/local/Devices" || mkdir "$DESTDIR/usr/local/Devices"
+test -d "$DESTDIR/usr/local/Devices/NVMeSCSIDriver.config" || mkdir "$DESTDIR/usr/local/Devices/NVMeSCSIDriver.config"
+
+(
+    cd NVMeSCSIDriver.config
+    tar cf - .
+) | (
+    cd "$DESTDIR/usr/local/Devices/NVMeSCSIDriver.config"
+    tar xpf -
+)
