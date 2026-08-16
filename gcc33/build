@@ -19,6 +19,7 @@ PATCHFILE="$GCC3_SRC/gcc-1640.next.patch"
 SPECSFILE="$GCC3_SRC/specs.gcc33"
 BUILD_SUBDIR="$GCC3_SRC/build-openstep"
 PATH=/usr/local/bin:/bin:/usr/bin
+TMPDIR=/tmp
 CONFIG_SHELL=/usr/local/bin/ksh
 MAKEINFO=/usr/local/bin/makeinfo
 FLEX=/usr/local/bin/flex
@@ -30,12 +31,12 @@ STAGE_PREFIX="$DESTDIR$FINAL_PREFIX"
 SPECS_DIR="$STAGE_PREFIX/lib/gcc-lib/$TARGET/$GCC3_VERSION"
 GXX_INCLUDE_DIR="$STAGE_PREFIX/include/c++/$GCC3_VERSION"
 GXX_BITS_DIR="$GXX_INCLUDE_DIR/bits"
-GCC3_CFLAGS='-g -O0'
+GCC3_CFLAGS='-O0'
 LIBSTDCXX_SUBDIRS='include libio libmath libsupc++ src po'
 
 export DESTDIR VERSION ROOTDIR BOOTSTRAP_VERSION BOOTSTRAP_SRC BOOTSTRAP_PREFIX
 export BOOTSTRAP_PATCH BOOTSTRAP_SPECSFILE GCC3_SRC GCC3_VERSION PATCHFILE SPECSFILE BUILD_SUBDIR
-export PATH CONFIG_SHELL MAKEINFO FLEX HOST_ALIAS BOOTSTRAP_TARGET TARGET FINAL_PREFIX STAGE_PREFIX SPECS_DIR
+export PATH TMPDIR CONFIG_SHELL MAKEINFO FLEX HOST_ALIAS BOOTSTRAP_TARGET TARGET FINAL_PREFIX STAGE_PREFIX SPECS_DIR
 export GXX_INCLUDE_DIR GXX_BITS_DIR
 export GCC3_CFLAGS LIBSTDCXX_SUBDIRS
 
@@ -44,7 +45,12 @@ patch -p1 < "$BOOTSTRAP_PATCH"
 CC=cc
 export CC
 "$CONFIG_SHELL" ./configure --prefix="$BOOTSTRAP_PREFIX" --enable-languages=c,c++,objc --disable-shared
-/bin/gnumake
+if /bin/gnumake CFLAGS='-O0'; then
+    :
+else
+    echo "==> retrying the GCC 2.95 bootstrap after a transient compiler failure"
+    /bin/gnumake CFLAGS='-O0' || /bin/gnumake CFLAGS='-O0'
+fi
 
 test -d "$ROOTDIR/bootstrap-root" || mkdir "$ROOTDIR/bootstrap-root"
 test -d "$ROOTDIR/bootstrap-root/usr" || mkdir "$ROOTDIR/bootstrap-root/usr"
@@ -97,7 +103,13 @@ FLEX="$FLEX" "$CONFIG_SHELL" ../configure --build="$HOST_ALIAS" --host="$HOST_AL
 if [ -f ../gcc/gengtype-lex.c ]; then
     /bin/cp ../gcc/gengtype-lex.c gcc/gengtype-lex.c
 fi
-/bin/gnumake CFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" all-gcc
+if /bin/gnumake CFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" all-gcc; then
+    :
+else
+    echo "==> retrying GCC 3.3 after a transient bootstrap-compiler failure"
+    /bin/gnumake CFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" all-gcc || \
+        /bin/gnumake CFLAGS="$GCC3_CFLAGS" FLEX="$FLEX" all-gcc
+fi
 
 BUILD_GCC_INCLUDE_DIR="$BUILD_SUBDIR/gcc/include"
 test -d "$BUILD_GCC_INCLUDE_DIR/architecture" || mkdir "$BUILD_GCC_INCLUDE_DIR/architecture"
@@ -169,6 +181,18 @@ test -d "$STAGE_PREFIX/$TARGET/include" || mkdir "$STAGE_PREFIX/$TARGET/include"
     tooldir="$STAGE_PREFIX/$TARGET" \
     infodir="$STAGE_PREFIX/info" \
     mandir="$STAGE_PREFIX/man"
+
+# The package installer's legacy tar cannot transport these four paths even
+# though the OPENSTEP filesystem accepts them.  Stage short-path copies for
+# post-install to restore after the image has been extracted.
+DRIVERKIT_FIXED="$STAGE_PREFIX/lib/gcc-lib/$TARGET/$GCC3_VERSION/include/driverkit/__next_i386__"
+DRIVERKIT_HOLD="$STAGE_PREFIX/lib/gcc33-header-hold"
+test -d "$DRIVERKIT_HOLD" || /usr/local/bin/mkdir -p "$DRIVERKIT_HOLD"
+for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+do
+    /bin/cp "$DRIVERKIT_FIXED/$header" "$DRIVERKIT_HOLD/$header"
+done
 
 LIBSTDCXX_A="$STAGE_PREFIX/lib/libstdc++.a"
 LIBSUPCXX_A="$STAGE_PREFIX/lib/libsupc++.a"

@@ -14,10 +14,25 @@ OBJC_BIN=/tmp/pkg-gcc33-objc-$$
 OBJC_LOG=/tmp/pkg-gcc33-objc-$$.log
 LINK_LOG=/tmp/pkg-gcc33-link-$$.log
 CXX_LOG=/tmp/pkg-gcc33-cxx-$$.log
+ATTR_SRC=/tmp/pkg-gcc33-attr-$$.c
+ATTR_OBJ=/tmp/pkg-gcc33-attr-$$.o
 
 [ -x "$CC" ]
 [ -x "$CXX" ]
-/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG"
+for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+do
+    [ -f "$ROOT_DIR/usr/local/lib/gcc-lib/i386-next-openstep4/$GCC_VERSION/include/driverkit/__next_i386__/$header" ]
+done
+/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG" "$ATTR_SRC" "$ATTR_OBJ"
+
+cat > "$ATTR_SRC" <<'EOF'
+#include <sys/cdefs.h>
+
+typedef float gcc33_df_type __attribute__((mode(DF)));
+typedef char gcc33_df_mode_must_be_8[sizeof(gcc33_df_type) == 8 ? 1 : -1];
+EOF
+"$CC" -c "$ATTR_SRC" -o "$ATTR_OBJ"
 
 cat > "$SRC" <<'EOF'
 #include <stdio.h>
@@ -88,4 +103,4 @@ if [ -f "$COLLECT2" ] && /bin/nm "$COLLECT2" | grep '___umoddi3' >/dev/null 2>&1
     exit 1
 fi
 
-/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG"
+/bin/rm -f "$SRC" "$BIN" "$CXX_SRC" "$CXX_BIN" "$OBJC_SRC" "$OBJC_BIN" "$OBJC_LOG" "$LINK_LOG" "$CXX_LOG" "$ATTR_SRC" "$ATTR_OBJ"

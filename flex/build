@@ -19,6 +19,8 @@ export DESTDIR VERSION PATH CC GREP EGREP AWK M4 SED lt_cv_path_SED
 
 patch -p1 < "$PATCHFILE"
 run_configure --disable-nls --prefix=/usr/local
+/bin/sed 's/$(LN_S) -f/$(LN_S)/' Makefile > Makefile.pkg
+/bin/mv Makefile.pkg Makefile
 gnumake
 touch doc/flex.1
 gnumake install DESTDIR="$DESTDIR"
