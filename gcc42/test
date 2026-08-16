@@ -1,0 +1,87 @@
+#!/bin/sh
+
+set -e
+
+CC="$ROOT_DIR/usr/local/bin/gcc-4.2"
+CXX="$ROOT_DIR/usr/local/bin/g++-4.2"
+CPP="$ROOT_DIR/usr/local/bin/cpp-4.2"
+GCOV="$ROOT_DIR/usr/local/bin/gcov-4.2"
+OLD_CC="$ROOT_DIR/usr/local/bin/gcc"
+TMP=/tmp/pkg-gcc42-$$
+
+[ -x "$CC" ]
+[ -x "$CXX" ]
+[ -x "$CPP" ]
+[ -x "$GCOV" ]
+[ -x "$OLD_CC" ]
+
+for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+do
+    [ -f "$ROOT_DIR/usr/local/lib/gcc/i386-next-openstep4/4.2.1/include/driverkit/__next_i386__/$header" ]
+done
+
+"$CC" --version | grep '4\.2\.1' >/dev/null 2>&1
+"$OLD_CC" --version | grep '3\.3' >/dev/null 2>&1
+
+/bin/rm -f "$TMP.c" "$TMP.cc" "$TMP.m" "$TMP.mm" "$TMP.s" \
+    "$TMP-c" "$TMP-cxx" "$TMP-objc" "$TMP-objcpp" "$TMP.log"
+
+cat > "$TMP.c" <<'EOF'
+#include <stdio.h>
+long long gcc42_quad_probe = 0x1122334455667788LL;
+int main(void) { puts("gcc42 c ok"); return 0; }
+EOF
+"$CC" -S "$TMP.c" -o "$TMP.s"
+if grep '\.quad' "$TMP.s" >/dev/null 2>&1; then
+    echo "gcc42 emitted unsupported .quad"
+    exit 1
+fi
+"$CC" "$TMP.c" -o "$TMP-c"
+[ "`"$TMP-c"`" = "gcc42 c ok" ]
+
+cat > "$TMP.cc" <<'EOF'
+#include <iostream>
+#include <string>
+#include <ext/pb_ds/assoc_container.hpp>
+#include <ext/pb_ds/priority_queue.hpp>
+int main()
+{
+  try { throw std::string("gcc42 cxx ok"); }
+  catch (const std::string& value) { std::cout << value << std::endl; }
+  return 0;
+}
+EOF
+"$CXX" "$TMP.cc" -o "$TMP-cxx"
+[ "`"$TMP-cxx"`" = "gcc42 cxx ok" ]
+
+cat > "$TMP.m" <<'EOF'
+#import <Foundation/Foundation.h>
+int main(void)
+{
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+  NSLog(@"gcc42 objc ok");
+  [pool release];
+  return 0;
+}
+EOF
+"$CC" "$TMP.m" -o "$TMP-objc" -framework Foundation
+"$TMP-objc" > "$TMP.log" 2>&1
+grep 'gcc42 objc ok' "$TMP.log" >/dev/null 2>&1
+
+cat > "$TMP.mm" <<'EOF'
+#import <Foundation/Foundation.h>
+#include <iostream>
+int main(void)
+{
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+  std::cout << "gcc42 objcpp ok" << std::endl;
+  [pool release];
+  return 0;
+}
+EOF
+"$CXX" "$TMP.mm" -o "$TMP-objcpp" -framework Foundation
+[ "`"$TMP-objcpp"`" = "gcc42 objcpp ok" ]
+
+/bin/rm -f "$TMP.c" "$TMP.cc" "$TMP.m" "$TMP.mm" "$TMP.s" \
+    "$TMP-c" "$TMP-cxx" "$TMP-objc" "$TMP-objcpp" "$TMP.log"

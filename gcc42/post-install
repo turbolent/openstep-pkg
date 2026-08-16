@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+TARGET=i386-next-openstep4
+DRIVERKIT_FIXED="$ROOT_DIR/usr/local/lib/gcc/$TARGET/4.2.1/include/driverkit/__next_i386__"
+DRIVERKIT_HOLD="$ROOT_DIR/usr/local/lib/gcc42-header-hold"
+
+test -d "$DRIVERKIT_FIXED" || /usr/local/bin/mkdir -p "$DRIVERKIT_FIXED"
+for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+do
+    /bin/cp "$DRIVERKIT_HOLD/$header" "$DRIVERKIT_FIXED/$header"
+    /bin/rm -f "$DRIVERKIT_HOLD/$header"
+done
+/bin/rmdir "$DRIVERKIT_HOLD" 2>/dev/null || :

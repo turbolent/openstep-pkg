@@ -1,0 +1,142 @@
+#!/bin/sh
+
+set -e
+
+ulimit -d 65536
+ulimit -s 8192
+
+DESTDIR=$1
+case "$DESTDIR" in
+//*) DESTDIR="/`echo "$DESTDIR" | sed 's#^/*##'`" ;;
+esac
+
+VERSION=$2
+BUILDROOT=`pwd`
+SRCDIR="$BUILDROOT/gcc-gcc-5666.3"
+PATCHFILE="$SRCDIR/gcc-5666.3-openstep.patch"
+BUILDDIR="$SRCDIR/build-openstep"
+TARGET=i386-next-openstep4
+PREFIX=/usr/local
+PATH=/usr/local/bin:/bin:/usr/bin
+TMPDIR=/tmp
+CONFIG_SHELL=/usr/local/bin/ksh
+CC=/usr/local/bin/gcc
+CXX=/usr/local/bin/g++
+AS=/bin/as
+LD=/bin/ld
+NM=/bin/nm
+AS_FOR_TARGET=$AS
+LD_FOR_TARGET=$LD
+NM_FOR_TARGET=$NM
+MAKEINFO=/usr/local/bin/makeinfo
+FLEX=/usr/local/bin/flex
+BISON=/usr/local/bin/bison
+BUILD_CFLAGS='-O0 -D_POSIX_SOURCE'
+CPPFLAGS='-D_POSIX_SOURCE'
+CFLAGS_FOR_BUILD=$BUILD_CFLAGS
+CXXFLAGS_FOR_BUILD=$BUILD_CFLAGS
+CFLAGS_FOR_TARGET=$BUILD_CFLAGS
+CXXFLAGS_FOR_TARGET=$BUILD_CFLAGS
+am_cv_CC_dependencies_compiler_type=none
+ac_cv_func_mmap=no
+
+export DESTDIR VERSION BUILDROOT SRCDIR PATCHFILE BUILDDIR TARGET PREFIX
+export PATH TMPDIR CONFIG_SHELL CC CXX AS LD NM AS_FOR_TARGET LD_FOR_TARGET NM_FOR_TARGET
+export MAKEINFO FLEX BISON BUILD_CFLAGS CPPFLAGS
+export CFLAGS_FOR_BUILD CXXFLAGS_FOR_BUILD CFLAGS_FOR_TARGET CXXFLAGS_FOR_TARGET
+export am_cv_CC_dependencies_compiler_type ac_cv_func_mmap
+
+cd "$SRCDIR"
+patch -p1 < "$PATCHFILE"
+
+# The source inputs are assembled on a modern host.  Normalize their mtimes
+# after extraction so Automake's clock-sanity check and make dependencies do
+# not inherit UTC/local-time skew from the transported archives.
+/usr/bin/find . -type f -exec /usr/bin/touch {} \;
+
+test -d "$BUILDDIR" || mkdir "$BUILDDIR"
+cd "$BUILDDIR"
+
+"$CONFIG_SHELL" ../configure \
+    --build="$TARGET" \
+    --host="$TARGET" \
+    --target="$TARGET" \
+    --prefix="$PREFIX" \
+    --with-as="$AS" \
+    --with-ld="$LD" \
+    --program-suffix=-4.2 \
+    --with-gxx-include-dir=/usr/local/include/c++/4.2.1 \
+    --enable-languages=c,c++,objc,obj-c++ \
+    --enable-sjlj-exceptions \
+    --enable-version-specific-runtime-libs \
+    --disable-bootstrap \
+    --disable-checking \
+    --disable-libgomp \
+    --disable-libmudflap \
+    --disable-libssp \
+    --disable-multilib \
+    --disable-nls \
+    --disable-shared \
+    --disable-symvers \
+    --disable-tls \
+    --disable-visibility
+
+/bin/gnumake SHELL="$CONFIG_SHELL" CFLAGS="$BUILD_CFLAGS" CXXFLAGS="$BUILD_CFLAGS" \
+    CFLAGS_FOR_BUILD="$BUILD_CFLAGS" CXXFLAGS_FOR_BUILD="$BUILD_CFLAGS" \
+    CFLAGS_FOR_TARGET="$BUILD_CFLAGS" CXXFLAGS_FOR_TARGET="$BUILD_CFLAGS" \
+    all-gcc
+/bin/gnumake SHELL="$CONFIG_SHELL" CFLAGS="$BUILD_CFLAGS" CXXFLAGS="$BUILD_CFLAGS" \
+    CFLAGS_FOR_BUILD="$BUILD_CFLAGS" CXXFLAGS_FOR_BUILD="$BUILD_CFLAGS" \
+    CFLAGS_FOR_TARGET="$BUILD_CFLAGS" CXXFLAGS_FOR_TARGET="$BUILD_CFLAGS" \
+    all-target-libstdc++-v3
+
+# OPENSTEP ar truncates long member names.  When libtool flattens the
+# libsupc++ convenience archive, the long-named exception objects otherwise
+# disappear from libstdc++.a.  Merge the complete standalone archive back in.
+LIBSTDCXX_A="$BUILDDIR/$TARGET/libstdc++-v3/src/.libs/libstdc++.a"
+LIBSUPCXX_A="$BUILDDIR/$TARGET/libstdc++-v3/libsupc++/.libs/libsupc++.a"
+LIBSTDCXX_MERGE_DIR="$BUILDDIR/next-libstdcxx-merge"
+test -d "$LIBSTDCXX_MERGE_DIR" || mkdir "$LIBSTDCXX_MERGE_DIR"
+(
+    cd "$LIBSTDCXX_MERGE_DIR"
+    /bin/ar x "$LIBSUPCXX_A"
+    /bin/rm -f __.SYMDEF*
+    /bin/ar r "$LIBSTDCXX_A" *
+    /bin/ranlib "$LIBSTDCXX_A"
+)
+
+/bin/gnumake SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR" \
+    CFLAGS="$BUILD_CFLAGS" CXXFLAGS="$BUILD_CFLAGS" \
+    CFLAGS_FOR_BUILD="$BUILD_CFLAGS" CXXFLAGS_FOR_BUILD="$BUILD_CFLAGS" \
+    CFLAGS_FOR_TARGET="$BUILD_CFLAGS" CXXFLAGS_FOR_TARGET="$BUILD_CFLAGS" \
+    install-gcc
+/bin/gnumake SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR" \
+    CFLAGS="$BUILD_CFLAGS" CXXFLAGS="$BUILD_CFLAGS" \
+    CFLAGS_FOR_BUILD="$BUILD_CFLAGS" CXXFLAGS_FOR_BUILD="$BUILD_CFLAGS" \
+    CFLAGS_FOR_TARGET="$BUILD_CFLAGS" CXXFLAGS_FOR_TARGET="$BUILD_CFLAGS" \
+    install-target-libstdc++-v3
+
+# The package installer's legacy tar cannot transport these four paths even
+# though the OPENSTEP filesystem accepts them.  Stage short-path copies for
+# post-install to restore after the image has been extracted.
+DRIVERKIT_FIXED="$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/include/driverkit/__next_i386__"
+DRIVERKIT_HOLD="$DESTDIR/usr/local/lib/gcc42-header-hold"
+test -d "$DRIVERKIT_HOLD" || /usr/local/bin/mkdir -p "$DRIVERKIT_HOLD"
+for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+do
+    /bin/cp "$DRIVERKIT_FIXED/$header" "$DRIVERKIT_HOLD/$header"
+done
+
+for archive in \
+    "$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/libgcc.a" \
+    "$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/libgcc_eh.a" \
+    "$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/libstdc++.a" \
+    "$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/libsupc++.a" \
+    "$DESTDIR/usr/local/lib/libstdc++.a" \
+    "$DESTDIR/usr/local/lib/libsupc++.a"
+do
+    if [ -f "$archive" ]; then
+        /bin/ranlib "$archive"
+    fi
+done
