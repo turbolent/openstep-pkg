@@ -15,8 +15,8 @@ if [ -d "$SRCDIR" ]; then
 fi
 
 patch -p1 < "$PATCHFILE"
-/bin/gnumake
-/bin/gnumake install_sw DESTDIR="$DESTDIR"
+/bin/gnumake CC=/bin/cc CFLAGS="-pipe -O"
+/bin/gnumake CC=/bin/cc CFLAGS="-pipe -O" install_sw DESTDIR="$DESTDIR"
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
