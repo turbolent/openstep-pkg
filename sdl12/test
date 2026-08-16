@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -e
+
+TMP=/usr/tmp/sdl12-test.$$
+
+test -f "$LOCAL_ROOT/lib/libSDL.a"
+test -f "$LOCAL_ROOT/include/SDL/SDL.h"
+test -x "$LOCAL_ROOT/bin/sdl-config"
+test -x "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype"
+test "`$LOCAL_ROOT/bin/sdl-config --version`" = 1.2.15
+
+/bin/cat > "$TMP.c" <<'EOF'
+#include <SDL.h>
+
+int main(void)
+{
+    Uint32 before;
+    Uint32 after;
+
+    if (SDL_Init(SDL_INIT_TIMER) != 0)
+        return 1;
+
+    before = SDL_GetTicks();
+    SDL_Delay(20);
+    after = SDL_GetTicks();
+    SDL_Quit();
+
+    if (after < before || (after - before) < 10)
+        return 2;
+
+    return 0;
+}
+EOF
+
+CFLAGS=`$LOCAL_ROOT/bin/sdl-config --cflags`
+LIBS=`$LOCAL_ROOT/bin/sdl-config --libs`
+
+/bin/cc -m486 $CFLAGS "$TMP.c" $LIBS -o "$TMP"
+/bin/csh -f "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype" "$TMP"
+"$TMP"
+
+/bin/rm -f "$TMP.c" "$TMP"

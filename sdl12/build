@@ -1,0 +1,140 @@
+#!/bin/sh
+
+set -e
+
+DESTDIR=$1
+VERSION=$2
+
+if test -d "openstep-sdl12-$VERSION"; then
+    cd "openstep-sdl12-$VERSION"
+fi
+
+SRCROOT=`pwd`
+BUILDROOT=$SRCROOT/SDL-1.2.15-openstep
+PREFIX=/usr/local
+
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
+export PATH
+
+ensure_dir() {
+    dir=$1
+
+    test -d "$dir" && return 0
+
+    case $dir in
+        /*) current=/ ;;
+         *) current=. ;;
+    esac
+
+    old_ifs=$IFS
+    IFS=/
+    set -- $dir
+    IFS=$old_ifs
+
+    for part
+    do
+        test -n "$part" || continue
+
+        if test "$current" = /; then
+            current=/$part
+        else
+            current=$current/$part
+        fi
+
+        test -d "$current" || /bin/mkdir "$current"
+    done
+}
+
+/bin/cp -R upstream/SDL-1.2.15 "$BUILDROOT"
+
+/bin/cp port/openstep/include/SDL_config_openstep.h "$BUILDROOT/include/"
+
+ensure_dir "$BUILDROOT/src/video/openstep"
+ensure_dir "$BUILDROOT/src/audio/openstep"
+ensure_dir "$BUILDROOT/src/thread/openstep"
+ensure_dir "$BUILDROOT/src/timer/openstep"
+
+/bin/cp port/openstep/src/video/openstep/* "$BUILDROOT/src/video/openstep/"
+/bin/cp port/openstep/src/audio/openstep/* "$BUILDROOT/src/audio/openstep/"
+/bin/cp port/openstep/src/thread/openstep/* "$BUILDROOT/src/thread/openstep/"
+/bin/cp port/openstep/src/timer/openstep/* "$BUILDROOT/src/timer/openstep/"
+/bin/cp port/openstep/build-openstep.csh "$BUILDROOT/"
+/bin/cp port/openstep/fix-macho-i486-subtype.csh "$BUILDROOT/"
+
+cd "$BUILDROOT"
+/usr/local/bin/patch -p0 < "$SRCROOT/port/openstep/patches/0001-openstep-video-bootstrap.patch"
+/usr/local/bin/patch -p0 < "$SRCROOT/port/openstep/patches/0002-openstep-audio-bootstrap.patch"
+/usr/local/bin/patch -p0 < "$SRCROOT/port/openstep/patches/0003-openstep-thread-bootstrap.patch"
+
+/bin/csh -f ./build-openstep.csh
+
+ensure_dir "$DESTDIR$PREFIX/include/SDL"
+ensure_dir "$DESTDIR$PREFIX/lib/pkgconfig"
+ensure_dir "$DESTDIR$PREFIX/bin"
+ensure_dir "$DESTDIR$PREFIX/share/doc/sdl12"
+
+for header in include/*.h
+do
+    /usr/bin/install -c -m 644 "$header" "$DESTDIR$PREFIX/include/SDL/"
+done
+
+/usr/bin/install -c -m 644 libSDL.a "$DESTDIR$PREFIX/lib/libSDL.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libSDL.a"
+/usr/bin/install -c -m 755 fix-macho-i486-subtype.csh \
+    "$DESTDIR$PREFIX/bin/sdl-fix-macho-i486-subtype"
+
+/bin/cat > "$DESTDIR$PREFIX/bin/sdl-config" <<'EOF'
+#!/bin/sh
+
+prefix=/usr/local
+version=1.2.15
+
+if test $# -eq 0; then
+    echo "usage: sdl-config [--prefix] [--version] [--cflags] [--libs] [--static-libs]" >&2
+    exit 1
+fi
+
+while test $# -gt 0
+do
+    case "$1" in
+        --prefix)
+            echo "$prefix"
+            ;;
+        --version)
+            echo "$version"
+            ;;
+        --cflags)
+            echo "-D__OPENSTEP__ -I${prefix}/include/SDL"
+            ;;
+        --libs|--static-libs)
+            echo "-L${prefix}/lib -lSDL -framework AppKit -framework Foundation -framework SoundKit"
+            ;;
+        *)
+            echo "sdl-config: unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+EOF
+/bin/chmod 755 "$DESTDIR$PREFIX/bin/sdl-config"
+
+/bin/cat > "$DESTDIR$PREFIX/lib/pkgconfig/sdl.pc" <<'EOF'
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: sdl
+Description: Simple DirectMedia Layer 1.2 for OPENSTEP
+Version: 1.2.15
+Libs: -L${libdir} -lSDL -framework AppKit -framework Foundation -framework SoundKit
+Cflags: -D__OPENSTEP__ -I${includedir}/SDL
+EOF
+
+/usr/bin/install -c -m 644 "$SRCROOT/README.md" \
+    "$DESTDIR$PREFIX/share/doc/sdl12/README.md"
+/usr/bin/install -c -m 644 "$SRCROOT/NOTICE" \
+    "$DESTDIR$PREFIX/share/doc/sdl12/NOTICE"
+/usr/bin/install -c -m 644 "$SRCROOT/upstream/SDL-1.2.15/COPYING" \
+    "$DESTDIR$PREFIX/share/doc/sdl12/COPYING"
