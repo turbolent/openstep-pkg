@@ -43,10 +43,6 @@ SEOF
 #include <sys/types.h>
 #include <sys/dir.h>
 #define dirent direct
-/* BSD <sys/dir.h> defines rewinddir() as a macro; gnulib declares a function. */
-#ifdef rewinddir
-# undef rewinddir
-#endif
 #endif
 SEOF
 
@@ -78,6 +74,10 @@ ac_cv_type_volatile_sig_atomic_t=yes
 # its own from getrlimit (RLIMIT_NOFILE), a limit this system does not define
 # under any name.  Use the system function.
 ac_cv_have_decl_getdtablesize=yes
+# BSD <sys/dir.h> defines rewinddir() as a macro (over seekdir), so configure's
+# link test misses it and gnulib builds a replacement that pokes at DIR
+# internals this system lacks.  Keep the macro.
+ac_cv_func_rewinddir=yes
 # getgroups(0, NULL) fails here, so gnulib wants to replace getgroups(); but its
 # replacement is declared with gid_t while this system's takes an int array, and
 # the two clash.  Nothing in wget calls it; keep the system one.  gnulib also
@@ -86,7 +86,7 @@ ac_cv_type_getgroups=gid_t
 ac_cv_func_getgroups_works=yes
 gl_cv_func_getgroups_works=yes
 export ac_cv_type_sig_atomic_t ac_cv_type_volatile_sig_atomic_t ac_cv_have_decl_getdtablesize
-export ac_cv_type_getgroups ac_cv_func_getgroups_works gl_cv_func_getgroups_works
+export ac_cv_func_rewinddir ac_cv_type_getgroups ac_cv_func_getgroups_works gl_cv_func_getgroups_works
 
 # HTTPS goes through the OpenSSL package; its default certificate bundle is
 # /usr/local/ssl/cert.pem, which the ca-certificates package installs.  The
