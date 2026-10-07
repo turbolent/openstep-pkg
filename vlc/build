@@ -8,7 +8,9 @@ CXX=/usr/local/bin/g++-4.2
 # Append caller flags so CPU tuning is opt-in; retain the portable defaults.
 CFLAGS="-std=gnu99 -O2 -fno-builtin-memset -fno-fast-math -march=i486 -DNeXT ${CFLAGS-}"
 CXXFLAGS="-O2 -fno-builtin-memset -fno-fast-math -march=i486 -DNeXT ${CXXFLAGS-}"
-CPPFLAGS='-I/usr/local/include/lua5.1 -I/usr/local/include -I/usr/local/include/libavutil'
+# pkg builds as root, and vlc refuses to run as root (including the --version
+# check below) unless this is defined; --enable-run-as-root does the same.
+CPPFLAGS='-I/usr/local/include/lua5.1 -I/usr/local/include -I/usr/local/include/libavutil -DALLOW_RUN_AS_ROOT=1'
 LDFLAGS='-L/usr/local/lib -F/NextLibrary/PrivateFrameworks'
 LIBS='-framework AppKit -framework Foundation -framework SoundKit -framework Interceptor -lgcrypt -lcurl -lssl -lcrypto -lz -lgpg-error'
 CONFIG_SHELL=/usr/local/bin/ksh
