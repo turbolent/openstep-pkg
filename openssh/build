@@ -29,3 +29,10 @@ run_configure \
 
 gnumake
 gnumake install-nokeys DESTDIR="$DESTDIR"
+
+# The boot-time script, its default settings and the README.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/etc" "$DESTDIR/usr/local/share/openssh"
+/bin/cp pkg-files/rc.sshd "$DESTDIR/usr/local/etc/rc.sshd"
+/bin/cp pkg-files/rc.sshd.conf.dist "$DESTDIR/usr/local/etc/rc.sshd.conf.dist"
+/bin/cp pkg-files/README "$DESTDIR/usr/local/share/openssh/README"
+/bin/chmod 755 "$DESTDIR/usr/local/etc/rc.sshd"

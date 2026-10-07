@@ -1,0 +1,102 @@
+#!/bin/sh
+# rc.sshd - prepare and start sshd at boot.
+#
+# Call it from /etc/rc.local (or /etc/rc) after the network is up:
+#
+#     /usr/local/etc/rc.sshd
+#
+# It checks what sshd needs and starts it, printing what it does:
+#   - /var/empty (the privilege-separation directory) is created if it is missing
+#   - the host keys are generated if there are none (ssh-keygen -A; this can take
+#     a while on a slow machine)
+#   - the "sshd" account must exist; creating it is left to you, see the README
+#   - the configuration is checked with sshd -t
+# If anything is wrong it prints an error and does not start sshd; /etc/rc then
+# carries on.  It returns 0 when sshd is running and 1 otherwise.
+#
+# Settings (shell syntax) come from /usr/local/etc/rc.sshd.conf:
+#   RC_SSHD_OPTS=      extra sshd options, e.g. "-p 2222"
+#   RC_SSHD_GENKEYS=yes   generate missing host keys (no: report them instead)
+
+PREFIX=${RC_SSHD_PREFIX:-/usr/local}
+RC_SSHD_OPTS=
+RC_SSHD_GENKEYS=yes
+[ -f $PREFIX/etc/rc.sshd.conf ] && . $PREFIX/etc/rc.sshd.conf
+
+SSHD=${SSHD:-$PREFIX/sbin/sshd}
+KEYGEN=${KEYGEN:-$PREFIX/bin/ssh-keygen}
+NIUTIL=${NIUTIL:-/usr/bin/niutil}
+EMPTY=${RC_SSHD_EMPTY:-/var/empty}
+ETC=${RC_SSHD_ETC:-$PREFIX/etc}
+VAR=${RC_SSHD_VAR:-$PREFIX/var/run}
+PIDFILE=$VAR/sshd.pid
+
+say() {
+    echo "$*"
+}
+
+fail() {
+    say "SSH: ERROR - $*"
+    say "SSH: sshd was not started"
+    exit 1
+}
+
+[ -x "$SSHD" ] || fail "$SSHD is not installed"
+
+# Already running (rc.sshd run twice)?
+if [ -f "$PIDFILE" ]; then
+    pid=`cat "$PIDFILE" 2>/dev/null`
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        say "SSH: sshd is already running (pid $pid)"
+        exit 0
+    fi
+    rm -f "$PIDFILE"
+fi
+
+# The privilege-separation directory: owned by root, not writable by others.
+if [ ! -d "$EMPTY" ]; then
+    say "SSH: creating $EMPTY"
+    mkdir -p "$EMPTY" || fail "cannot create $EMPTY"
+    chown root "$EMPTY" 2>/dev/null
+    chmod 755 "$EMPTY"
+fi
+
+# Host keys.
+set -- $ETC/ssh_host_*_key
+if [ ! -f "$1" ]; then
+    if [ "$RC_SSHD_GENKEYS" = yes ]; then
+        [ -x "$KEYGEN" ] || fail "no host keys and $KEYGEN is not installed"
+        say "SSH: generating host keys (this can take a while)..."
+        "$KEYGEN" -A > /dev/null 2>&1
+        set -- $ETC/ssh_host_*_key
+        [ -f "$1" ] || fail "ssh-keygen -A did not create any host keys in $ETC"
+        say "SSH: host keys created"
+    else
+        fail "there are no host keys in $ETC (run ssh-keygen -A, or set RC_SSHD_GENKEYS=yes)"
+    fi
+fi
+
+# The privilege-separation account.
+if [ -x "$NIUTIL" ]; then
+    "$NIUTIL" -read . /users/sshd > /dev/null 2>&1 ||
+        fail "the sshd account does not exist (see the README for the niutil commands)"
+fi
+
+# Configuration.
+test_out=`"$SSHD" -t $RC_SSHD_OPTS 2>&1` || fail "sshd -t: $test_out"
+
+mkdir -p "$VAR" 2>/dev/null
+say "SSH: starting sshd..."
+"$SSHD" -o "PidFile=$PIDFILE" $RC_SSHD_OPTS || fail "sshd did not start"
+
+# sshd forks into the background and then writes its pid file.
+i=0
+while [ $i -lt 5 ] && [ ! -f "$PIDFILE" ]; do
+    sleep 1
+    i=`expr $i + 1`
+done
+if [ -f "$PIDFILE" ]; then
+    say "SSH: sshd started (pid `cat "$PIDFILE"`)"
+    exit 0
+fi
+fail "sshd did not stay running"
