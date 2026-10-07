@@ -14,7 +14,7 @@ has not been attempted.
 | bison | validated | validated |
 | bzip2 | validated | validated |
 | ca-certificates | validated | validated |
-| cctools-as | — | — |
+| cctools-as | 806 validated | — |
 | class-dump | validated | — |
 | coreutils | validated | validated |
 | curl | validated | validated |
@@ -58,7 +58,7 @@ has not been attempted.
 | libwapcaplet | validated | — |
 | libxml2 | validated on x86 (2.15.4: build, install, test) | — |
 | lua | validated | — |
-| lua51 | — | — |
+| lua51 | 5.1.5 validated | — |
 | lz4 | validated | — |
 | m4 | validated | validated |
 | make | validated | validated |
