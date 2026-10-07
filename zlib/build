@@ -6,7 +6,7 @@ DESTDIR=$1
 PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/bin/cc
-CFLAGS="-O3 -D_POSIX_SOURCE"
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O3 -D_POSIX_SOURCE"
 
 export DESTDIR PREFIX PATH CC CFLAGS
 

@@ -12,7 +12,7 @@ AR=/bin/ar
 RANLIB=/bin/ranlib
 QJS_VERSION=`cat VERSION`
 OBJDIR=.obj
-CFLAGS='-pipe -O2 -std=gnu9x -Wall -D_GNU_SOURCE -DNeXT -D__ARCHITECTURE__="i386" -I. -I/NextDeveloper/Headers -I/NextDeveloper/Headers/bsd'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-pipe -O2 -std=gnu9x -Wall -D_GNU_SOURCE -DNeXT -D__ARCHITECTURE__="'"$PKG_ARCH"'" -I. -I/NextDeveloper/Headers -I/NextDeveloper/Headers/bsd'
 LIBS="-lm"
 
 export DESTDIR VERSION PATH PREFIX CC AR RANLIB QJS_VERSION OBJDIR CFLAGS LIBS

@@ -6,18 +6,25 @@ PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 export PATH
 if test -d "zstd-$VERSION"; then cd "zstd-$VERSION"; fi
 patch -p1 < "zstd-$VERSION-openstep.patch"
+# libzstd.mk finds the library sources with $(dir $(realpath $(lastword
+# $(MAKEFILE_LIST)))), which the system gnumake cannot evaluate; from the
+# programs directory that left the source list empty and the zstd program was
+# linked without the library.  Say where the sources are.
+zstd_libdir=.
 make_zstd() {
     /usr/local/bin/gnumake CC=/usr/local/bin/gcc-4.2 SHELL=/usr/local/bin/ksh \
-        CFLAGS='-O2 -march=i486 -DCLOCKS_PER_SEC=CLK_TCK -D_POSIX_SOURCE -I/usr/local/include' \
+        CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DCLOCKS_PER_SEC=CLK_TCK -D_POSIX_SOURCE -I/usr/local/include' \
         LDFLAGS=-L/usr/local/lib DEBUGFLAGS= DEPFLAGS= ZSTD_NO_ASM=1 ARFLAGS=rc \
         BUILD_DIR=obj/openstep UNAME=OPENSTEP LIBVER="$VERSION" \
         LIBVER_MAJOR=1 LIBVER_MINOR=5 LIBVER_PATCH=7 ZSTD_VERSION="$VERSION" \
-        LDFLAGS_DYNLIB= HAVE_ZLIB=1 HAVE_LZMA=1 INSTALL='/usr/bin/install -c' "$@"
+        LDFLAGS_DYNLIB= HAVE_ZLIB=1 HAVE_LZMA=1 INSTALL='/usr/bin/install -c' \
+        LIB_SRCDIR=$zstd_libdir LIB_BINDIR=$zstd_libdir "$@"
 }
 cd lib
 make_zstd libzstd.a
 /bin/ranlib libzstd.a
 cd ../programs
+zstd_libdir=../lib
 make_zstd zstd
 cd ..
 for dir in usr usr/local usr/local/bin usr/local/lib usr/local/lib/pkgconfig \
@@ -28,4 +35,5 @@ cd lib
 make_zstd install-static install-includes install-pc DESTDIR="$DESTDIR" PREFIX=/usr/local
 /bin/ranlib "$DESTDIR/usr/local/lib/libzstd.a"
 cd ../programs
+zstd_libdir=../lib
 make_zstd install DESTDIR="$DESTDIR" PREFIX=/usr/local

@@ -5,12 +5,12 @@ VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 export PATH
 patch -p1 < "bzip2-$VERSION-openstep.patch"
-/bin/gnumake CC=/bin/cc CFLAGS='-O2 -Wall -D_POSIX_SOURCE'
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS "'-O2 -Wall -D_POSIX_SOURCE'
 # Pre-create these directories for the stock mkdir implementation.
 for dir in usr usr/local usr/local/bin usr/local/lib usr/local/include usr/local/man usr/local/man/man1; do
     test -d "$DESTDIR/$dir" || mkdir "$DESTDIR/$dir"
 done
-/bin/gnumake install CC=/bin/cc CFLAGS='-O2 -Wall -D_POSIX_SOURCE' PREFIX="$DESTDIR/usr/local"
+/bin/gnumake install CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS "'-O2 -Wall -D_POSIX_SOURCE' PREFIX="$DESTDIR/usr/local"
 ranlib "$DESTDIR/usr/local/lib/libbz2.a"
 # Upstream constructs absolute symlinks from PREFIX, which includes DESTDIR.
 cd "$DESTDIR/usr/local/bin"

@@ -220,7 +220,7 @@
  	$(QUIET_CARGO)cargo build $(CARGO_ARGS)
 --- /dev/null
 +++ b/compat/openstep.c
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,281 @@
 +#include "../git-compat-util.h"
 +
 +extern int setpgrp(int, int);
@@ -459,6 +459,49 @@
 +    *out = v;
 +    return 1;
 +}
++/*
++ * NeXT's memcmp(), strcmp() and strncmp() may compare bytes as signed char
++ * (they do on SPARC), which sorts object ids with a first byte of 0x80 or more
++ * before all others and corrupts pack indexes.  Compare as unsigned bytes.
++ */
++#undef memcmp
++#undef strcmp
++#undef strncmp
++int git_next_memcmp(const void *a, const void *b, size_t n)
++{
++    const unsigned char *p = (const unsigned char *)a;
++    const unsigned char *q = (const unsigned char *)b;
++    while (n-- > 0) {
++        if (*p != *q)
++            return *p < *q ? -1 : 1;
++        p++;
++        q++;
++    }
++    return 0;
++}
++int git_next_strcmp(const char *a, const char *b)
++{
++    const unsigned char *p = (const unsigned char *)a;
++    const unsigned char *q = (const unsigned char *)b;
++    while (*p && *p == *q) {
++        p++;
++        q++;
++    }
++    return *p == *q ? 0 : (*p < *q ? -1 : 1);
++}
++int git_next_strncmp(const char *a, const char *b, size_t n)
++{
++    const unsigned char *p = (const unsigned char *)a;
++    const unsigned char *q = (const unsigned char *)b;
++    while (n > 0 && *p && *p == *q) {
++        p++;
++        q++;
++        n--;
++    }
++    if (n == 0)
++        return 0;
++    return *p == *q ? 0 : (*p < *q ? -1 : 1);
++}
 --- a/bundle-uri.c
 +++ b/bundle-uri.c
 @@ -217,7 +217,11 @@
@@ -637,7 +680,7 @@
  #ifdef NO_UNSETENV
 --- /dev/null
 +++ b/compat/openstep.h
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,74 @@
 +#ifndef GIT_OPENSTEP_H
 +#define GIT_OPENSTEP_H
 +#ifndef INET_ADDRSTRLEN
@@ -704,6 +747,13 @@
 +#define strtoll git_next_strtoll
 +#define localtime_r git_next_localtime_r
 +#define gmtime_r git_next_gmtime_r
++/* NeXT libc's memcmp/strcmp/strncmp can compare bytes as signed (SPARC). */
++int git_next_memcmp(const void *, const void *, size_t);
++int git_next_strcmp(const char *, const char *);
++int git_next_strncmp(const char *, const char *, size_t);
++#define memcmp git_next_memcmp
++#define strcmp git_next_strcmp
++#define strncmp git_next_strncmp
 +#endif
 --- /dev/null
 +++ b/compat/openstep/stdint.h
@@ -769,3 +819,20 @@
  	{
  		printf '%s' "$QUOTED_OUTPUT: "
  		printf '%s\n' "$SOURCE_DIR"/Documentation/*config.adoc \
+--- a/packfile.c
++++ b/packfile.c
+@@ -248,7 +248,13 @@
+ 		if (nr)
+ 			max_size = st_add(max_size, st_mult(nr - 1, 8));
+ 		if (idx_size < min_size || idx_size > max_size)
+-			return error("wrong index v2 file size in %s", path);
++			return error("wrong index v2 file size in %s "
++				     "(size %lu, objects %lu, hash size %lu, "
++				     "expected %lu to %lu)", path,
++				     (unsigned long)idx_size, (unsigned long)nr,
++				     (unsigned long)hashsz,
++				     (unsigned long)min_size,
++				     (unsigned long)max_size);
+ 		if (idx_size != min_size &&
+ 		    /*
+ 		     * make sure we can deal with large pack offsets.

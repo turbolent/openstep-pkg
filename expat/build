@@ -8,7 +8,7 @@ PREFIX=/usr/local
 PATCHFILE="expat-$VERSION-openstep.patch"
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS="-O2 -DNeXT -std=gnu99"
+CFLAGS="$PKG_GCC42_ARCH_FLAGS -O2 -DNeXT -std=gnu99"
 GREP=/usr/local/bin/grep
 EGREP="/usr/local/bin/grep -E"
 SED=/bin/sed
@@ -25,7 +25,7 @@ fi
 
 patch -p1 < "$PATCHFILE"
 
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix="$PREFIX" --disable-shared --enable-static --without-docbook \
   --without-tests --disable-dependency-tracking
 

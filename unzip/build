@@ -5,7 +5,7 @@ PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 export PATH
 patch -p1 < unzip-6.0-openstep.patch
 /bin/gnumake -f unix/Makefile unzips CC=/usr/local/bin/gcc-4.2 \
-    CFLAGS='-O2 -I/usr/local/include -DNO_LCHOWN -DNO_LCHMOD' \
+    CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -I/usr/local/include -DNO_LCHOWN -DNO_LCHMOD' \
     D_USE_BZ2=-DUSE_BZIP2 IZ_BZIP2=/usr/local/lib L_BZ2=-lbz2 LF2=
 for dir in usr usr/local usr/local/bin usr/local/man usr/local/man/man1; do
     test -d "$DESTDIR/$dir" || mkdir "$DESTDIR/$dir"

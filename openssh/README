@@ -1,4 +1,4 @@
-OpenSSH 7.9p1 for OPENSTEP
+OpenSSH 10.6p1 for OPENSTEP
 
 This package installs the OpenSSH binaries and config files, but it does
 not create host keys or the privilege-separation account automatically.
@@ -107,3 +107,26 @@ After installing the package, do the following on the OPENSTEP host.
    Instead, verify that inetd is listening on port 22:
 
    netstat -an | grep '\.22 '
+
+Upgrading from 7.9p1 to 10.6p1
+
+   The host keys, /var/empty, the sshd account and sshd_config from the 7.9p1
+   setup are used as they are; nothing above needs to be redone.  What changed:
+
+   - sshd is now two programs.  /usr/local/sbin/sshd listens and starts
+     /usr/local/libexec/sshd-session for each connection (and, when it
+     authenticates, sshd-auth).  Both are installed by the package and must
+     stay where they are.
+   - Restart sshd as soon as the package is installed.  A 7.9p1 sshd that is
+     still running starts each new connection by running the sshd on disk,
+     which no longer understands its arguments, so new logins fail until it
+     is restarted.  Test first with a second daemon on a spare port
+     (sshd -D -ddd -p 2222) before you stop the old one.  With inetd nothing
+     needs restarting: the next connection uses the new binary.
+   - Newer defaults: ssh-rsa (SHA-1) signatures are no longer accepted and DSA
+     keys are gone.  A client or server that only offers those will refuse to
+     connect; use rsa-sha2-256/512, ecdsa or ed25519 keys.
+   - ssh-agent cannot check which user connects to its socket, because
+     OPENSTEP has no getpeereid() or SO_PEERCRED; keep agent sockets private.
+   - Keys are held in ordinary memory (OPENSTEP has no munmap()), and the
+     PKCS#11 and FIDO helpers are not built.

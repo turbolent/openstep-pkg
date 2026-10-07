@@ -91,10 +91,12 @@ int main(int argc, char **argv)
 EOF
 
 SDL_LIBS=`"$LOCAL_ROOT/bin/sdl-config" --libs`
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -DNeXT -I"$LOCAL_ROOT/include" \
+/usr/local/bin/gcc-4.2 -O2 $PKG_GCC42_ARCH_FLAGS -DNeXT -I"$LOCAL_ROOT/include" \
     "$TMP.c" -L"$LOCAL_ROOT/lib" -lmpg123 -lout123 -lsyn123 \
     $SDL_LIBS -lm -o "$TMP"
-/bin/csh -f "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype" "$TMP" >/dev/null
+if [ "$PKG_ARCH" = i386 ]; then
+    /bin/csh -f "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype" "$TMP" >/dev/null
+fi
 "$TMP" "$SWEEP"
 
 if test "${MPG123_TEST_AUDIO-0}" = 1; then

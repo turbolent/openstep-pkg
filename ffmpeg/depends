@@ -9,4 +9,4 @@ coreutils
 curl
 zlib
 bzip2
-pkg-config
+pkgconf

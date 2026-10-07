@@ -7,7 +7,7 @@ VERSION=$2
 
 PATH=/usr/local/bin:$PATH
 CONFIG_SHELL=/usr/local/bin/ksh
-CC=/usr/local/bin/gcc-4.2
+CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS=-I/NextDeveloper/Headers/bsd
 GREP=/usr/local/bin/grep
 EGREP=/usr/local/bin/egrep
@@ -24,8 +24,8 @@ export AWK
 patch -p1 < "zsh-$VERSION-openstep.patch"
 
 /usr/local/bin/ksh ./configure \
-    --build=i386-next-openstep4 \
-    --host=i386-next-openstep4 \
+    --build=$PKG_TARGET \
+    --host=$PKG_TARGET \
     --prefix=/usr/local \
     --disable-dynamic \
     --disable-locale \

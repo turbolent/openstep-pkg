@@ -7,7 +7,7 @@ VERSION=$2
 PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -march=i486'
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS=-DNeXT
 CONFIG_SHELL=/usr/local/bin/ksh
 AWK=/usr/local/bin/gawk
@@ -31,7 +31,7 @@ patch -p1 < "mpg123-$VERSION-openstep.patch"
 # Keep our -O2 flags: upstream's fast-math bundle produces instructions
 # rejected by the OPENSTEP assembler. Use SDL's installed config helper.
 run_configure \
-    --build=i386-next-openstep4 \
+    --build=$PKG_TARGET \
     --prefix="$PREFIX" \
     --disable-shared \
     --enable-static \
@@ -48,10 +48,12 @@ run_configure \
 
 # Libtool does not propagate framework dependencies on this host.
 /bin/gnumake SHELL="$CONFIG_SHELL" LDFLAGS="$FRAMEWORKS"
-for app in mpg123 out123 mpg123-id3dump mpg123-strip
-do
-    /bin/csh -f /usr/local/bin/sdl-fix-macho-i486-subtype "src/$app"
-done
+if [ "$PKG_ARCH" = i386 ]; then
+    for app in mpg123 out123 mpg123-id3dump mpg123-strip
+    do
+        /bin/csh -f /usr/local/bin/sdl-fix-macho-i486-subtype "src/$app"
+    done
+fi
 /bin/gnumake SHELL="$CONFIG_SHELL" LDFLAGS="$FRAMEWORKS" install DESTDIR="$DESTDIR"
 
 for lib in mpg123 out123 syn123

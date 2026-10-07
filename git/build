@@ -5,7 +5,16 @@ VERSION=$2
 test -f Makefile || cd git-$VERSION
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -std=gnu99 -I/usr/local/include -Icompat/openstep'
+# gcc-4.2 on SPARC has miscompiled other packages at -O2 and above (gzip's
+# deflate.c, python's dictionary code), and git's pack index code failed there
+# with "wrong index v2 file size", so SPARC builds git unoptimized.
+# PKG_GIT_OPT overrides the optimization flags.
+case $PKG_ARCH in
+    sparc) git_opt=-O0 ;;
+    *)     git_opt=-O2 ;;
+esac
+git_opt=${PKG_GIT_OPT-$git_opt}
+CFLAGS="$PKG_GCC42_ARCH_FLAGS $git_opt "'-std=gnu99 -I/usr/local/include -Icompat/openstep'
 LDFLAGS='-L/usr/local/lib'
 CONFIG_SHELL=/usr/local/bin/ksh
 SHELL_PATH=/usr/local/bin/ksh
@@ -14,18 +23,115 @@ AWK=/usr/local/bin/gawk
 
 export PATH CC CFLAGS LDFLAGS CONFIG_SHELL SHELL_PATH GREP AWK
 
+# Report what this machine and compiler say about byte order, and tell git's
+# SHA-1 code (sha1dc) when the target is big-endian: its own detection looks
+# for __BYTE_ORDER__ (gcc 4.6+) or <endian.h> macros that gcc 4.2 on OPENSTEP
+# may not provide, and tigerbrew carries the same fix for big-endian PowerPC.
+/bin/cat > endian-probe.c <<'EPEOF'
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+static int probe_cmp(const void *a, const void *b)
+{
+    const unsigned char *p = *(unsigned char * const *) a;
+    const unsigned char *q = *(unsigned char * const *) b;
+    int k;
+
+    for (k = 0; k < 20; k++)
+        if (p[k] != q[k])
+            return p[k] < q[k] ? -1 : 1;
+    return 0;
+}
+int main(void)
+{
+    unsigned int x = 0x01020304;
+    unsigned char *p = (unsigned char *) &x;
+    printf("byte0=%d ntohl-identity=%d sizeof(int)=%d sizeof(long)=%d sizeof(off_t)=%d\n",
+        p[0], ntohl(x) == x, (int) sizeof(int), (int) sizeof(long), (int) sizeof(off_t));
+#ifdef __BYTE_ORDER__
+    printf("__BYTE_ORDER__ defined\n");
+#endif
+#ifdef BYTE_ORDER
+    printf("BYTE_ORDER=%d BIG_ENDIAN=%d\n", BYTE_ORDER, BIG_ENDIAN);
+#endif
+#ifdef __sparc
+    printf("__sparc defined\n");
+#endif
+    {
+        unsigned char hi[2], lo[2];
+        hi[0] = 0xff; hi[1] = 0;
+        lo[0] = 0x01; lo[1] = 0;
+        printf("libc: memcmp(0xff, 0x01) %s, strcmp %s\n",
+            memcmp(hi, lo, 1) > 0 ? "unsigned (correct)" : "SIGNED (wrong)",
+            strcmp((char *) hi, (char *) lo) > 0 ? "unsigned (correct)" : "SIGNED (wrong)");
+    }
+    {
+        /* longer, word-aligned inputs take a different path in some libcs; and
+         * qsort() must order 20-byte keys by their unsigned bytes */
+        static unsigned char ka[20], kb[20], keys[11][20];
+        unsigned char *ptrs[11];
+        int i, j, k, sorted = 1, seed = 12345;
+
+        memset(ka, 0, sizeof ka);
+        memset(kb, 0, sizeof kb);
+        ka[0] = 0xff;
+        kb[0] = 0x01;
+        printf("libc: memcmp(20 bytes, 0xff.. vs 0x01..) %s\n",
+            memcmp(ka, kb, 20) > 0 ? "unsigned (correct)" : "SIGNED (wrong)");
+        for (i = 0; i < 11; i++) {
+            for (j = 0; j < 20; j++) {
+                seed = seed * 1103515245 + 12345;
+                keys[i][j] = (unsigned char) (seed >> 16);
+            }
+            ptrs[i] = keys[i];
+        }
+        qsort(ptrs, 11, sizeof ptrs[0], probe_cmp);
+        for (i = 1; i < 11; i++) {
+            for (k = 0; k < 20 && ptrs[i - 1][k] == ptrs[i][k]; k++)
+                ;
+            if (k < 20 && ptrs[i - 1][k] > ptrs[i][k])
+                sorted = 0;
+        }
+        printf("libc: qsort of 11 pointers to 20-byte keys %s\n",
+            sorted ? "ok" : "BROKEN");
+    }
+    return p[0] == 1 ? 3 : 0;
+}
+EPEOF
+big_endian=0
+if $CC $CFLAGS endian-probe.c -o endian-probe; then
+    if ./endian-probe; then probe_rc=0; else probe_rc=$?; fi
+    if test "$probe_rc" = 3; then big_endian=1; fi
+fi
+/bin/rm -f endian-probe endian-probe.c
+if test "$big_endian" = 1; then
+    echo "git: big-endian target, building with -DSHA1DC_FORCE_BIGENDIAN"
+    CFLAGS="$CFLAGS -DSHA1DC_FORCE_BIGENDIAN"
+    export CFLAGS
+fi
+
 . "$PKG_BUILD_HELPERS"
 patch -p1 < "git-$VERSION-openstep.patch"
+# Python is only used for git-p4; WITH_PYTHON=0 in pkg.conf builds without it.
+if test "$WITH_PYTHON" = 0; then
+    python_conf=--without-python
+    python_make="NO_PYTHON=YesPlease"
+else
+    python_conf=--with-python=/usr/local/bin/python3.11
+    python_make="NO_PYTHON= PYTHON_PATH=/usr/local/bin/python3.11"
+fi
 run_configure \
-    --build=i386-next-openstep4 \
-    --host=i386-next-openstep4 \
+    --build=$PKG_TARGET \
+    --host=$PKG_TARGET \
     --prefix=/usr/local \
     --with-shell=/usr/local/bin/ksh \
     --with-curl=/usr/local \
     --with-iconv=/usr/local \
     --with-openssl=/usr/local \
     --with-expat=/usr/local \
-    --with-python=/usr/local/bin/python3.11 \
+    $python_conf \
     --without-tcltk \
     --disable-pthreads
 
@@ -33,13 +139,13 @@ make_git() {
 /usr/local/bin/gnumake -j2 \
     SHELL="$CONFIG_SHELL" \
     CC="$CC" \
-    CFLAGS="$CFLAGS" \
+    CFLAGS="$PKG_GCC42_ARCH_FLAGS $CFLAGS" \
     LDFLAGS="$LDFLAGS" \
     SHELL_PATH="$SHELL_PATH" \
     CURL_CONFIG=/usr/local/bin/curl-config \
     NO_GETTEXT=YesPlease \
     NO_PERL=YesPlease \
-    NO_PYTHON= PYTHON_PATH=/usr/local/bin/python3.11 \
+    $python_make \
     NO_TCLTK=YesPlease \
     NO_PTHREADS=YesPlease \
     NO_RUST=YesPlease \
@@ -48,14 +154,40 @@ make_git() {
     NEEDS_SOCKET= NEEDS_LIBGEN= CURL_LDFLAGS="-L/usr/local/lib -lcurl -lssl -lcrypto -lz" \
     MKDIR_WO_TRAILING_SLASH=YesPlease DEFAULT_PAGER=/usr/ucb/more DEFAULT_EDITOR=/usr/ucb/vi \
     ARFLAGS=rc OVERRIDE_STRDUP=YesPlease \
-    uname_S=NeXT uname_M=i386 uname_R=4.2 uname_V=Mach uname_O=NeXT NO_SETITIMER= NO_PREAD=YesPlease CSPRNG_METHOD=openssl \
+    uname_S=NeXT uname_M=$PKG_ARCH uname_R=4.2 uname_V=Mach uname_O=NeXT NO_SETITIMER= NO_PREAD=YesPlease CSPRNG_METHOD=openssl \
     NO_CURL= SOCKLEN_T= NO_INTTYPES_H= COCCI_GOALS= COCCI_GLOB= COCCI_TEST_RES= \
     INSTALL=/usr/local/bin/install INSTALL_STRIP=-s "$@"
 }
 
+echo "git: building with CC=$CC CFLAGS=$CFLAGS"
 make_git
+echo "git: GIT-CFLAGS used by the build:"
+/bin/cat GIT-CFLAGS
+# Known-answer checks of the SHA-1 and object code before anything else runs: a
+# wrong id here means byte order or compiler trouble, not a repository problem.
+# The last input is several 64-byte blocks long.
+check_blob_id() {
+    cb_want=$1
+    cb_got=`printf '%s' "$2" | ./git hash-object --stdin`
+    if test "$cb_got" != "$cb_want"; then
+        echo "git: hash-object of \"$3\" gave $cb_got, expected $cb_want" >&2
+        exit 1
+    fi
+}
+check_blob_id e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 '' 'an empty blob'
+check_blob_id bd9dbf5aae1a3862dd1526723246b20206e5fc37 'what is up, doc?' 'what is up, doc?'
+check_blob_id ce013625030ba8dba906f756967f9e9ca394464a 'hello
+' 'hello'
+long_in=
+i=0
+while test $i -lt 20; do
+    long_in="${long_in}0123456789abcdef"
+    i=`expr $i + 1`
+done
+check_blob_id 202c0e8e02e3897a75913f964d2fd3b0e50c95e7 "$long_in" 'a 320-byte string'
+echo "git: SHA-1 known-answer checks passed"
 # Exercise the platform behavior that repository storage and child processes need.
-"$CC" -O2 -Icompat/openstep -I/usr/local/include \
+"$CC" $PKG_GCC42_ARCH_FLAGS -O2 -Icompat/openstep -I/usr/local/include \
     compat/openstep-test.c compat/openstep.o compat/snprintf.o \
     compat/poll/poll.o ctype.o hex-ll.o \
     -L/usr/local/lib -lcurl -lssl -lcrypto -lz -o openstep-test

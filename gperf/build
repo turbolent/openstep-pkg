@@ -7,8 +7,8 @@ VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
 CXX=/usr/local/bin/g++-4.2
-CFLAGS="-O2 -DNeXT"
-CXXFLAGS="-O2 -DNeXT"
+CFLAGS="$PKG_GCC42_ARCH_FLAGS -O2 -DNeXT"
+CXXFLAGS="$PKG_GCC42_ARCH_FLAGS -O2 -DNeXT"
 GREP=/usr/local/bin/grep
 EGREP="/usr/local/bin/grep -E"
 SED=/bin/sed
@@ -23,7 +23,7 @@ export gl_cv_func_getdtablesize_works PATCHFILE
 . "$PKG_BUILD_HELPERS"
 
 patch -p1 < "$PATCHFILE"
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-dependency-tracking --prefix=/usr/local
 gnumake
 gnumake install DESTDIR="$DESTDIR"

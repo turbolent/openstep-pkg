@@ -1,8 +1,7 @@
-diff --git a/doio.c b/doio.c
-index fc249e6..2a2b46b 100644
---- a/doio.c
-+++ b/doio.c
-@@ -1789,7 +1789,12 @@ nothing in the core.
+diff -ruN pla/perl-5.8.9/doio.c plb/perl-5.8.9/doio.c
+--- a/doio.c	2008-10-29 07:36:21.000000000 +0000
++++ b/doio.c	2026-10-06 14:18:48.573655370 +0000
+@@ -1789,7 +1789,12 @@
              * "current time". */
  
             if ( accessed == &PL_sv_undef && modified == &PL_sv_undef )
@@ -15,11 +14,10 @@ index fc249e6..2a2b46b 100644
             else {
                  Zero(&utbuf, sizeof utbuf, char);
  #ifdef HAS_FUTIMES
-diff --git a/ext/Cwd/Cwd.xs b/ext/Cwd/Cwd.xs
-index 949b94c..9bc0d70 100644
---- a/ext/Cwd/Cwd.xs
-+++ b/ext/Cwd/Cwd.xs
-@@ -86,7 +86,11 @@ bsd_realpath(const char *path, char resolved[MAXPATHLEN])
+diff -ruN pla/perl-5.8.9/ext/Cwd/Cwd.xs plb/perl-5.8.9/ext/Cwd/Cwd.xs
+--- a/ext/Cwd/Cwd.xs	2008-10-30 22:39:26.000000000 +0000
++++ b/ext/Cwd/Cwd.xs	2026-10-06 14:18:48.574242703 +0000
+@@ -86,7 +86,11 @@
  		resolved_len = 1;
  		left_len = my_strlcpy(left, path + 1, sizeof(left));
  	} else {
@@ -31,10 +29,9 @@ index 949b94c..9bc0d70 100644
  			my_strlcpy(resolved, ".", MAXPATHLEN);
  		return (NULL);
  	}
-diff --git a/ext/POSIX/POSIX.xs b/ext/POSIX/POSIX.xs
-index ee00e9f..d9b2fa7 100644
---- a/ext/POSIX/POSIX.xs
-+++ b/ext/POSIX/POSIX.xs
+diff -ruN pla/perl-5.8.9/ext/POSIX/POSIX.xs plb/perl-5.8.9/ext/POSIX/POSIX.xs
+--- a/ext/POSIX/POSIX.xs	2008-05-25 23:01:44.000000000 +0000
++++ b/ext/POSIX/POSIX.xs	2026-10-06 14:18:48.574575361 +0000
 @@ -1,5 +1,9 @@
  #define PERL_EXT_POSIX
  
@@ -45,7 +42,7 @@ index ee00e9f..d9b2fa7 100644
  #ifdef NETWARE
  	#define _POSIX_
  	/*
-@@ -226,6 +230,63 @@ char *tzname[] = { "" , "" };
+@@ -226,6 +230,63 @@
  
  typedef int SysRet;
  typedef long SysRetLong;
@@ -109,22 +106,28 @@ index ee00e9f..d9b2fa7 100644
  typedef sigset_t* POSIX__SigSet;
  typedef HV* POSIX__SigAction;
  #ifdef I_TERMIOS
-diff --git a/perl.h b/perl.h
-index 1bab046..5f12f60 100644
---- a/perl.h
-+++ b/perl.h
-@@ -557,6 +557,18 @@ register struct op *Perl_op asm(stringify(OP_IN_REGISTER));
+diff -ruN pla/perl-5.8.9/perl.h plb/perl-5.8.9/perl.h
+--- a/perl.h	2008-12-13 22:22:28.000000000 +0000
++++ b/perl.h	2026-10-06 14:18:48.652745172 +0000
+@@ -557,6 +557,25 @@
  #   include <unistd.h>
  #endif
  
 +#ifdef NeXT
++#include <sys/param.h>	/* NGROUPS */
++#ifndef NGROUPS
++#  define NGROUPS 16
++#endif
 +extern char *getwd(char *);
++/* Declared without a prototype: <unistd.h> may already declare it, with a
++   different group type, and a prototype of ours would then conflict. */
++extern int getgroups();
 +/* BSD getgroups doesn't implement the POSIX zero-size query. */
 +static int
-+Perl_next_getgroups(int count, int *groups)
++Perl_next_getgroups(int count, void *groups)
 +{
 +    int query[NGROUPS];
-+    return getgroups(count ? count : NGROUPS, count ? groups : query);
++    return getgroups(count ? count : NGROUPS, count ? groups : (void *)query);
 +}
 +#define getgroups Perl_next_getgroups
 +#endif
@@ -132,11 +135,10 @@ index 1bab046..5f12f60 100644
  #if defined(HAS_SYSCALL) && !defined(HAS_SYSCALL_PROTO) && !defined(PERL_MICRO)
  EXTERN_C int syscall(int, ...);
  #endif
-diff --git a/util.c b/util.c
-index 6ac7c5e..7a76ba4 100644
---- a/util.c
-+++ b/util.c
-@@ -1603,7 +1603,12 @@ Perl_my_setenv(pTHX_ char *nam, char *val)
+diff -ruN pla/perl-5.8.9/util.c plb/perl-5.8.9/util.c
+--- a/util.c	2008-11-04 09:07:04.000000000 +0000
++++ b/util.c	2026-10-06 14:18:48.577071674 +0000
+@@ -1603,7 +1603,12 @@
  #endif
    {
  #ifndef PERL_USE_SAFE_PUTENV
@@ -149,7 +151,7 @@ index 6ac7c5e..7a76ba4 100644
      /* most putenv()s leak, so we manipulate environ directly */
      register I32 i=setenv_getix(nam);          /* where does it go? */
      int nlen, vlen;
-@@ -4256,14 +4261,18 @@ Perl_getcwd_sv(pTHX_ register SV *sv)
+@@ -4256,14 +4261,18 @@
      SvTAINTED_on(sv);
  #endif
  

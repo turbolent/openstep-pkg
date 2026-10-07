@@ -11,6 +11,10 @@ cd "$WORK"
 printf '<root><n>7</n><n>5</n></root>\n' > input.xml
 test "`"$XMLLINT" --xpath 'sum(/root/n)' input.xml`" = 12
 test "`"$XMLLINT" --xpath 'string(0 div 0)' input.xml`" = NaN
+# Number formatting goes through the snprintf() shim.
+test "`"$XMLLINT" --xpath 'string(1 div 3)' input.xml`" = 0.333333333333333
+test "`"$XMLLINT" --xpath 'string(-2.5)' input.xml`" = -2.5
+test "`"$XMLLINT" --xpath 'string(123456789.125)' input.xml`" = 123456789.125
 test "`"$XMLLINT" --xpath 'string(1 div 0)' input.xml`" = Infinity
 "$XMLLINT" --noout input.xml
 printf '<root><unclosed></root>\n' > bad.xml

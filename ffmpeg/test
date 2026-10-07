@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -DNeXT \
+/usr/local/bin/gcc-4.2 -O2 $PKG_GCC42_ARCH_FLAGS -DNeXT \
     `pkg-config --cflags libavformat libswscale libpostproc` "$TMP/test.c" \
     `pkg-config --libs libavformat libswscale libpostproc` -o "$TMP/test"
 "$TMP/test" "$TMP/input.yuv" "$TMP/input.pcm"

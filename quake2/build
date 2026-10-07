@@ -14,7 +14,7 @@ if [ ! -d openstep ]; then
 fi
 
 cd openstep
-/usr/local/bin/gnumake -f Makefile.openstep CC=/usr/local/bin/gcc-4.2
+/usr/local/bin/gnumake -f Makefile.openstep CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"

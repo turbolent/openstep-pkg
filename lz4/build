@@ -8,7 +8,7 @@ if test -d "lz4-$VERSION"; then cd "lz4-$VERSION"; fi
 patch -p1 < "lz4-$VERSION-openstep.patch"
 make_lz4() {
     /usr/local/bin/gnumake CC=/usr/local/bin/gcc-4.2 SHELL=/usr/local/bin/ksh \
-        CFLAGS='-O2 -march=i486 -D_POSIX_SOURCE -DCLOCKS_PER_SEC=CLK_TCK -I/NextDeveloper/Headers/bsd' \
+        CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -D_POSIX_SOURCE -DCLOCKS_PER_SEC=CLK_TCK -I/NextDeveloper/Headers/bsd' \
         DEBUGFLAGS= TARGET_OS=OPENSTEP UNAME=true POSIX_ENV=Yes ARFLAGS=rc \
         BUILD_SHARED=no INSTALL=/usr/local/bin/install "$@"
 }
@@ -18,5 +18,12 @@ make_lz4 liblz4.a
 make_lz4 install DESTDIR="$DESTDIR" PREFIX=/usr/local
 /bin/ranlib "$DESTDIR/usr/local/lib/liblz4.a"
 cd ../programs
-make_lz4 lz4
-make_lz4 install DESTDIR="$DESTDIR" PREFIX=/usr/local
+# The program's makefile builds its source list with $(wildcard), which came out
+# empty with the SPARC gnumake and left the link with no input files; name the
+# sources instead.
+lz4_srcs="../lib/lz4.c ../lib/lz4file.c ../lib/lz4frame.c ../lib/lz4hc.c ../lib/xxhash.c"
+for f in bench lorem lz4cli lz4io threadpool timefn util; do
+    lz4_srcs="$lz4_srcs $f.c"
+done
+make_lz4 lz4 SRCFILES="$lz4_srcs"
+make_lz4 install DESTDIR="$DESTDIR" PREFIX=/usr/local SRCFILES="$lz4_srcs"

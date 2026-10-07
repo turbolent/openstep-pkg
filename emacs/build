@@ -6,7 +6,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -g -D_POSIX_SOURCE -D_NEXT_SOURCE'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -g -D_POSIX_SOURCE -D_NEXT_SOURCE'
 CONFIG_SHELL=/usr/local/bin/ksh
 MAKE=/usr/local/bin/gnumake
 GREP=/usr/local/bin/grep
@@ -28,7 +28,7 @@ CPPFLAGS="-I`pwd`/openstep -I/usr/local/include"
 export CPPFLAGS
 # The patch updates both configure.ac and its generated configure.
 /usr/bin/touch configure
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
     --prefix=/usr/local --infodir="/usr/local/share/info/emacs-$VERSION" \
     --without-x --with-ns --disable-ns-self-contained \
     --without-file-notification --without-modules --without-gnutls \
