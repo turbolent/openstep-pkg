@@ -70,8 +70,8 @@ has not been attempted.
 | netsurf-buildsystem | validated | — |
 | neXtaw | validated | — |
 | nsgenbind | validated | — |
-| ntp | validated (build, install, test; ntpdate and ntpd run against a server) | — |
-| openssh | validated (10.6p1: sshd, ssh login by password and key, scp) | 10.6p1 untested (7.9p1 was validated) |
+| ntp | validated (build, install, test; ntpdate and ntpd run against a server); `rc.ntp` boot script tested on Linux only | — |
+| openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
 | openssl | validated | validated |
 | p7zip | validated | — |
 | patch | validated | validated |
@@ -81,7 +81,7 @@ has not been attempted.
 | python311 | validated | — |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
 | quickjs | validated | — |
-| roboclient | validated | — |
+| roboclient | 1.0 validated; 1.1 adds `rc.dhcp` (tested on Linux, not yet on OPENSTEP) | — |
 | rsync | validated | — |
 | sdl12 | validated | — |
 | sed | validated | validated (with pkg_cmp_shim) |

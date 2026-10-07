@@ -70,6 +70,18 @@ After installing the package, do the following on the OPENSTEP host.
    Verify the listener with netstat -an | grep '\.22 ' and connect with
    ssh me@192.168.1.76 (substitute your username and host address).
 
+   Or call the rc.sshd script the package installs, which does the preparation
+   for you (/var/empty, host keys if there are none, the account check, sshd -t)
+   and prints what it does:
+
+   if [ -x /usr/local/etc/rc.sshd ]; then
+       /usr/local/etc/rc.sshd
+   fi
+
+   If anything is wrong it prints an error and does not start sshd; the boot
+   carries on.  It leaves the sshd account (step 3) to you.  Settings, if you
+   want them, are in /usr/local/etc/rc.sshd.conf.
+
    Use either this standalone startup method or inetd below, not both.
 
 7. Alternative: start sshd from inetd (/etc/inetd.conf)

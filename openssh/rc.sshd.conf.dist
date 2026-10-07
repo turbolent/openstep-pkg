@@ -1,0 +1,6 @@
+# Settings for rc.sshd (shell syntax), which prepares and starts sshd at boot.
+# See /usr/local/share/openssh/README.
+# Extra options for sshd, for example "-p 2222".
+#RC_SSHD_OPTS=
+# Generate missing host keys with ssh-keygen -A (yes), or report them (no).
+#RC_SSHD_GENKEYS=yes
