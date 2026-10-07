@@ -92,6 +92,13 @@ export ac_cv_type_getgroups ac_cv_func_getgroups_works gl_cv_func_getgroups_work
 # /usr/local/ssl/cert.pem, which the ca-certificates package installs.  The
 # rest is switched off: OPENSTEP has no pthreads, IPv6 or xattr, and the
 # optional libraries (libpsl, PCRE, IDN) are not packaged.
+# gnulib's getprogname() has no implementation for this OS (no __progname,
+# program_invocation_name, ...).  wget is the only program built here and uses
+# the name just for error()'s prefix, so answer with its name.
+sed 's/^#  error "getprogname module not ported to this OS"/  return "wget";/' \
+    lib/getprogname.c > lib/getprogname.c.new
+mv lib/getprogname.c.new lib/getprogname.c
+
 run_configure --prefix=/usr/local \
   --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-dependency-tracking \
