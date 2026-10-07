@@ -160,6 +160,13 @@ sed 's/^# error "Revisit the assumptions made in the sigaction module"/\/* sigac
     lib/sigaction.c > lib/sigaction.c.new
 mv lib/sigaction.c.new lib/sigaction.c
 
+# xsleep() (used between download retries) goes through gnulib's nanosleep(),
+# which sleeps in select() and leaves its "remaining" argument unset; on
+# OPENSTEP a retry then hangs after "Retrying.".  Use sleep() and usleep().
+sed 's/^#ifdef HAVE_NANOSLEEP$/#if defined HAVE_NANOSLEEP \&\& !defined NeXT \&\& !defined __NeXT__/' \
+    src/utils.c > src/utils.c.new
+mv src/utils.c.new src/utils.c
+
 run_configure --prefix=/usr/local \
   --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-dependency-tracking \
