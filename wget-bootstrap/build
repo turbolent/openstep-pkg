@@ -4,7 +4,7 @@ DESTDIR=$1
 VERSION=$2
 . "$PKG_BUILD_HELPERS"
 PATH=/usr/ucb:/bin:/usr/bin
-CC='/bin/cc -traditional-cpp'
+CC="/bin/cc -traditional-cpp $PKG_SYSCC_ARCH_FLAGS"
 CFLAGS='-O0'
 CPPFLAGS='-I/usr/local/include'
 LDFLAGS='-L/usr/local/lib'
@@ -22,14 +22,17 @@ export ac_cv_have_decl_getdtablesize
 CONFIG_SHELL=/usr/local/bin/ksh
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED PKG_CONFIG CONFIG_SHELL
 /usr/local/bin/patch -p1 < "wget-$VERSION-openstep.patch"
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix=/usr/local --with-ssl=openssl \
   --with-libssl-prefix=/usr/local --without-libpsl --without-zlib \
   --without-metalink --without-cares --without-libuuid --disable-iri \
   --disable-pcre --disable-nls --disable-ipv6 --disable-ntlm --disable-opie \
   --disable-xattr --disable-dependency-tracking
 # Both the generated configure files and their inputs carry the port fixes.
-/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true
+# SPARC libc's memcmp()/strcmp() compare bytes as signed (see pkg_cmp_shim);
+# forced in at make time only, since configure breaks with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true CPPFLAGS="$CPPFLAGS $CMPFLAGS"
 for dir in "$DESTDIR/usr" "$DESTDIR/usr/local" "$DESTDIR/usr/local/bin"; do
     test -d "$dir" || /bin/mkdir "$dir"
 done
