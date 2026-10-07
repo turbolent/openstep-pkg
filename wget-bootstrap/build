@@ -22,6 +22,14 @@ export ac_cv_have_decl_getdtablesize
 CONFIG_SHELL=/usr/local/bin/ksh
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED PKG_CONFIG CONFIG_SHELL
 /usr/local/bin/patch -p1 < "wget-$VERSION-openstep.patch"
+# This gnulib's localtime-buffer.c wraps localtime() and gmtime() in
+# rpl_localtime() and rpl_gmtime(), but <time.h> has already renamed those two
+# to the wrappers, so each calls itself until the stack runs out (a segfault in
+# rpl_localtime on the first timestamp).  Newer gnulib undefines the macros.
+$SED 's/^#include "localtime-buffer.h"$/&\
+#undef localtime\
+#undef gmtime/' lib/localtime-buffer.c > lib/localtime-buffer.c.new
+/bin/mv lib/localtime-buffer.c.new lib/localtime-buffer.c
 run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix=/usr/local --with-ssl=openssl \
   --with-libssl-prefix=/usr/local --without-libpsl --without-zlib \
