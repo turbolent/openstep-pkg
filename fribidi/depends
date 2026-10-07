@@ -5,6 +5,6 @@ grep
 sed
 patch
 coreutils
-pkg-config
+pkgconf
 diffutils
 bzip2
