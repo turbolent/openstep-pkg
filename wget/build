@@ -86,6 +86,17 @@ SEOF
 #endif
 SEOF
 
+# <limits.h> only gives PATH_MAX under _POSIX_SOURCE; BSD calls it MAXPATHLEN.
+/bin/cat > openstep/limits.h <<'SEOF'
+#ifndef OPENSTEP_LIMITS_H
+#define OPENSTEP_LIMITS_H
+#include_next <limits.h>
+#ifndef PATH_MAX
+# define PATH_MAX 1024
+#endif
+#endif
+SEOF
+
 # gnulib replaces the missing socklen_t with a macro ("#define socklen_t int"),
 # and an OpenSSL installed before its e_os2.h was fixed typedefs socklen_t
 # unconditionally, which then reads "typedef unsigned int int;".  Until the
@@ -101,7 +112,9 @@ typedef u_int32_t in_addr_t;\
 fi
 # OPENSTEP's <errno.h> has no ENOSYS (gnulib supplies other missing errno values
 # but not this one).
-CPPFLAGS="-I`pwd`/openstep -I/usr/local/include -DENOSYS=EOPNOTSUPP"
+# _PC_NAME_MAX only names the (absent) pathconf() query in url.c; its value is
+# never used here.
+CPPFLAGS="-I`pwd`/openstep -I/usr/local/include -DENOSYS=EOPNOTSUPP -D_PC_NAME_MAX=4"
 export CPPFLAGS
 
 # configure's test for sig_atomic_t cannot see the type (it is not visible the way
