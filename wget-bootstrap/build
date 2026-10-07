@@ -29,10 +29,11 @@ run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-pcre --disable-nls --disable-ipv6 --disable-ntlm --disable-opie \
   --disable-xattr --disable-dependency-tracking
 # Both the generated configure files and their inputs carry the port fixes.
-# SPARC libc's memcmp()/strcmp() compare bytes as signed (see pkg_cmp_shim);
-# forced in at make time only, since configure breaks with it.
-CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
-/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true CPPFLAGS="$CPPFLAGS $CMPFLAGS"
+# SPARC libc's memcmp()/strcmp() compare bytes as signed.  This gnulib will not
+# take a forced -include (pkg_cmp_shim), so link in unsigned definitions (see
+# pkg_cmp_obj); they are added at make time only.
+CMPOBJ=`pkg_cmp_obj "\`pwd\`/openstep-cmp"`
+/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true LDFLAGS="$LDFLAGS $CMPOBJ"
 for dir in "$DESTDIR/usr" "$DESTDIR/usr/local" "$DESTDIR/usr/local/bin"; do
     test -d "$dir" || /bin/mkdir "$dir"
 done
