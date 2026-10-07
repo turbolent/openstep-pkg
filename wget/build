@@ -63,6 +63,29 @@ SEOF
 #endif
 SEOF
 
+# BSD's WIFEXITED() & co. take a "union wait" lvalue, not the int that POSIX
+# (and gnulib) pass around.  Redefine them over an int status word.
+/usr/local/bin/mkdir -p openstep/sys
+/bin/cat > openstep/sys/wait.h <<'SEOF'
+#ifndef OPENSTEP_SYS_WAIT_H
+#define OPENSTEP_SYS_WAIT_H
+#include <sys/types.h>
+#include_next <sys/wait.h>
+#undef WIFEXITED
+#undef WIFSIGNALED
+#undef WIFSTOPPED
+#undef WEXITSTATUS
+#undef WTERMSIG
+#undef WSTOPSIG
+#define WIFSTOPPED(s)   (((s) & 0xff) == 0177)
+#define WIFSIGNALED(s)  (((s) & 0xff) != 0 && ((s) & 0xff) != 0177)
+#define WIFEXITED(s)    (((s) & 0xff) == 0)
+#define WEXITSTATUS(s)  (((s) >> 8) & 0xff)
+#define WTERMSIG(s)     ((s) & 0x7f)
+#define WSTOPSIG(s)     (((s) >> 8) & 0xff)
+#endif
+SEOF
+
 # gnulib replaces the missing socklen_t with a macro ("#define socklen_t int"),
 # and an OpenSSL installed before its e_os2.h was fixed typedefs socklen_t
 # unconditionally, which then reads "typedef unsigned int int;".  Until the
