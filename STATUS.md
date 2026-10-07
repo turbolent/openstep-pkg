@@ -27,7 +27,7 @@ has not been attempted.
 | flex | validated | validated |
 | freetype | validated | — |
 | freeze | validated | validated |
-| fribidi | — | — |
+| fribidi | 0.19.7 validated | — |
 | gawk | validated | validated |
 | gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes) |
 | git | validated | — |
@@ -41,8 +41,8 @@ has not been attempted.
 | liba52 | validated | — |
 | libcss | validated | — |
 | libdom | validated | — |
-| libgcrypt | — | — |
-| libgpg-error | — | — |
+| libgcrypt | 1.5.6 validated | — |
+| libgpg-error | 1.12 validated | — |
 | libhubbub | validated | — |
 | libiconv | validated | validated |
 | libmad | validated | — |
