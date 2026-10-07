@@ -14,10 +14,10 @@ has not been attempted.
 | bison | validated | validated |
 | bzip2 | validated | validated |
 | ca-certificates | validated | validated |
+| cctools-as | — | — |
 | class-dump | validated | — |
 | coreutils | validated | validated |
 | curl | validated | validated |
-| roboclient | validated | — |
 | diffutils | validated | — |
 | duktape | validated | — |
 | emacs | validated | — |
@@ -27,6 +27,7 @@ has not been attempted.
 | flex | validated | validated |
 | freetype | validated | — |
 | freeze | validated | validated |
+| fribidi | — | — |
 | gawk | validated | validated |
 | gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes) |
 | git | validated | — |
@@ -40,6 +41,8 @@ has not been attempted.
 | liba52 | validated | — |
 | libcss | validated | — |
 | libdom | validated | — |
+| libgcrypt | — | — |
+| libgpg-error | — | — |
 | libhubbub | validated | — |
 | libiconv | validated | validated |
 | libmad | validated | — |
@@ -55,6 +58,7 @@ has not been attempted.
 | libwapcaplet | validated | — |
 | libxml2 | validated on x86 (2.15.4: build, install, test) | — |
 | lua | validated | — |
+| lua51 | — | — |
 | lz4 | validated | — |
 | m4 | validated | validated |
 | make | validated | validated |
@@ -77,11 +81,12 @@ has not been attempted.
 | python311 | validated | — |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
 | quickjs | validated | — |
+| roboclient | validated | — |
 | rsync | validated | — |
 | sdl12 | validated | — |
 | sed | validated | validated |
 | sudo | validated | — |
-| tar | validated | — |
+| tar | 1.15.1 validated | — |
 | tcsh | validated | — |
 | termcap | validated | — |
 | texinfo | validated | validated |
@@ -89,7 +94,9 @@ has not been attempted.
 | unzip | validated | validated |
 | utf8proc | validated | — |
 | vim | validated | validated |
+| vlc | — | — |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
+| wget-bootstrap | — | — |
 | xxhash | validated | fix pushed (manual build); no result recorded |
 | xz | validated | validated |
 | zip | validated | — |
