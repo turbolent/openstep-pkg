@@ -89,7 +89,7 @@ has not been attempted.
 | unzip | validated | validated |
 | utf8proc | validated | — |
 | vim | validated | validated |
-| wget | 1.25.0 untested (1.11.4 was validated) | 1.25.0 untested (1.11.4 was validated) |
+| wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
 | xxhash | validated | fix pushed (manual build); no result recorded |
 | xz | validated | validated |
 | zip | validated | — |
