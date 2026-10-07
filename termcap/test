@@ -1,0 +1,44 @@
+#!/bin/sh
+set -e
+LOCAL_ROOT=${LOCAL_ROOT-/usr/local}
+CC="$LOCAL_ROOT/bin/gcc-4.2"
+TMP=/tmp/pkg-termcap.$$
+trap '/bin/rm -f "$TMP.c" "$TMP"' 0 1 2 3 15
+
+[ -f "$LOCAL_ROOT/lib/libtermcap.a" ]
+[ -f "$LOCAL_ROOT/include/termcap.h" ]
+
+cat > "$TMP.c" <<'CEOF'
+#include <stdio.h>
+#include <string.h>
+#include <termcap.h>
+
+static char area[1024];
+
+int main(void)
+{
+    char buf[1024], *p, *s;
+    char entry[256];
+
+    /* TERMCAP holds an entry directly, so /etc/termcap is not consulted. */
+    if (tgetent(buf, "pkgterm") != 1) { puts("tgetent failed"); return 1; }
+    if (tgetnum("co") != 80 || tgetnum("li") != 24) { puts("numbers wrong"); return 2; }
+    if (!tgetflag("am")) { puts("flag wrong"); return 3; }
+    p = area;
+    s = tgetstr("cl", &p);
+    if (!s || strcmp(s, "\033[H\033[2J") != 0) { puts("cl wrong"); return 4; }
+    s = tgetstr("cm", &p);
+    if (!s) { puts("cm missing"); return 5; }
+    s = tgoto(s, 4, 9);          /* column 4, row 9, 1-origin escape */
+    if (!s || strcmp(s, "\033[10;5H") != 0) { puts("tgoto wrong"); return 6; }
+    /* 0 when /etc/termcap exists but lacks the entry, -1 when it cannot be read. */
+    if (tgetent(entry, "no-such-terminal-pkg") == 1) { puts("missing entry found"); return 7; }
+    puts("termcap ok");
+    return 0;
+}
+CEOF
+"$CC" -O2 -I"$LOCAL_ROOT/include" "$TMP.c" -L"$LOCAL_ROOT/lib" -ltermcap -o "$TMP"
+TERM=pkgterm
+TERMCAP='pkgterm|pkg test terminal:co#80:li#24:am:cl=\E[H\E[2J:cm=\E[%i%d;%dH:'
+export TERM TERMCAP
+test "`"$TMP"`" = "termcap ok"

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+PATH="$PREFIX/bin:$PREFIX/sbin:/usr/ucb:/bin:/usr/bin"
+export PATH
+
+[ -x "$PREFIX/sbin/ntpd" ] || { echo "ntp: missing sbin/ntpd" >&2; exit 1; }
+[ ! -e "$PREFIX/bin/ntpd" ] || { echo "ntp: ntpd should live in sbin" >&2; exit 1; }
+[ -f "$PREFIX/etc/ntpd.conf.dist" ] || { echo "ntp: missing ntpd.conf.dist" >&2; exit 1; }
+# (ntptime needs kernel PLL support, which OPENSTEP lacks; configure does not build it.)
+for tool in ntpq ntpdc ntpdate ntp-keygen ntptrace; do
+    [ -x "$PREFIX/bin/$tool" ] || { echo "ntp: missing $tool" >&2; exit 1; }
+done
+"$PREFIX/sbin/ntpd" --version 2>&1 | grep '4\.2\.8' > /dev/null
+"$PREFIX/bin/ntpq" --version 2>&1 | grep '4\.2\.8' > /dev/null
+"$PREFIX/bin/ntpdc" --version 2>&1 | grep '4\.2\.8' > /dev/null
+
+# ntpd must not have replaced anything outside /usr/local.
+[ ! -e "$PREFIX/etc/ntp.conf" ] || echo "ntp: note: $PREFIX/etc/ntp.conf exists (administrator's)" >&2

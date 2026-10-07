@@ -1,0 +1,10 @@
+#!/bin/sh
+ETC="$ROOT_DIR/usr/local/etc"
+
+# Install the default configuration only when there is none: never replace an
+# administrator's ntpd.conf.
+if [ ! -f "$ETC/ntpd.conf" ] && [ -f "$ETC/ntpd.conf.dist" ]; then
+    /bin/cp "$ETC/ntpd.conf.dist" "$ETC/ntpd.conf"
+fi
+[ -d "$ROOT_DIR/usr/local/var/db" ] || /usr/local/bin/mkdir -p "$ROOT_DIR/usr/local/var/db" 2>/dev/null || :
+exit 0

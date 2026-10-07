@@ -1,0 +1,206 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE'
+SED=/bin/sed
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+# This is sudo 1.7.10p9, not a current release: 1.8 and later need siginfo_t,
+# SA_SIGINFO, struct timespec and other POSIX.1-2001 features that OPENSTEP's
+# libc and headers lack.  1.7 falls back to sgtty when there is no POSIX
+# termios (OPENSTEP has <termios.h> but no tcgetattr()).
+# configure's own "*-*-nextstep*" case (lockf() is broken there) does not match
+# the openstep4 host name.
+ac_cv_func_lockf=no
+# pdksh stalls and mis-expands parts of sudo's configure; zsh runs it cleanly.
+CONFIG_SHELL=/usr/local/bin/zsh
+export PATH CC CFLAGS CONFIG_SHELL SED GREP EGREP AWK ac_cv_func_lockf
+if test -d "sudo-$VERSION"; then cd "sudo-$VERSION"; fi
+. "$PKG_BUILD_HELPERS"
+
+# OPENSTEP's <signal.h> declares sigaction() and friends but libc lacks them;
+# sudo's sigvec(2) emulation is renamed so it cannot clash with the headers.
+pkg_apply_patch "sudo-$VERSION-openstep.patch"
+
+# OPENSTEP's headers hide some POSIX types without feature macros.  Probe each
+# with the real compiler and flags, and typedef only the missing ones into a
+# header forced into every compile, configure's probes included.
+types_h=`pwd`/openstep-types.h
+: > "$types_h"
+probe_type() {
+    printf '#include <sys/types.h>\n#include <stddef.h>\n#include <signal.h>\n#include <time.h>\n#include <unistd.h>\n#include <sys/socket.h>\n#include <netinet/in.h>\n%s probe_var;\n' "$1" > probe_type.c
+    if $CC $CFLAGS -c probe_type.c -o probe_type.o > /dev/null 2>&1; then
+        :
+    else
+        echo "typedef $2 $1;" >> "$types_h"
+    fi
+}
+probe_type id_t 'unsigned int'
+probe_type pid_t int
+probe_type ssize_t int
+probe_type sigset_t int
+probe_type uintptr_t 'unsigned long'
+/bin/rm -f probe_type.c probe_type.o
+echo "sudo: missing types typedef'd:" `/bin/cat "$types_h" | /bin/sed 's/^typedef .* \([a-z_]*\);$/\1/'`
+CPPFLAGS="-include $types_h -Dgetgroups=openstep_getgroups"
+export CPPFLAGS
+
+# OPENSTEP's libc has no tcgetpgrp(), tcsetpgrp(), setpgid() or getcwd(), and its
+# getgroups() fails the POSIX getgroups(0, NULL) query.  sudo only enables I/O
+# logging (log_input/log_output, sudoreplay) when configure finds tcsetpgrp(),
+# and exec_pty.c calls both, so supply them from the BSD ioctls and setpgrp(), and hand the
+# object to configure through LIBS, which it uses for every link test and then
+# for the final link.  (No system headers here, so no prototype can clash.)
+/bin/cat > openstep_tc.c <<'TCEOF'
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <errno.h>
+#include <string.h>
+
+int
+tcgetpgrp(fd)
+    int fd;
+{
+    int pgrp;
+
+    if (ioctl(fd, TIOCGPGRP, (char *)&pgrp) == -1)
+	return -1;
+    return pgrp;
+}
+
+int
+tcsetpgrp(fd, pgrp)
+    int fd;
+    int pgrp;
+{
+    return ioctl(fd, TIOCSPGRP, (char *)&pgrp);
+}
+
+/* BSD getgroups() cannot answer the POSIX "how many?" query getgroups(0, NULL):
+   it fails with EINVAL.  The build renames sudo's calls to this one. */
+int
+openstep_getgroups(n, list)
+    int n;
+    int *list;
+{
+    int all[256];
+    int count, i;
+    extern int getgroups();
+
+    if (n != 0)
+	return getgroups(n, list);
+    count = getgroups(256, all);
+    return count;
+}
+
+/* No getcwd() either; the BSD getwd() does the job (and, unlike sudo's own
+   readdir-walking replacement, copes with this system's directory structs). */
+char *
+getcwd(buf, size)
+    char *buf;
+    unsigned int size;
+{
+    char path[2048];
+    extern char *getwd();
+    extern char *malloc();
+    unsigned int len;
+
+    if (buf != 0 && size == 0) {
+	errno = EINVAL;
+	return 0;
+    }
+    if (getwd(path) == 0) {
+	errno = EACCES;
+	return 0;
+    }
+    len = strlen(path) + 1;
+    if (buf == 0) {
+	if (size < len)
+	    size = len;
+	buf = malloc(size);
+	if (buf == 0)
+	    return 0;
+    } else if (size < len) {
+	errno = ERANGE;
+	return 0;
+    }
+    memcpy(buf, path, len);
+    return buf;
+}
+
+/* POSIX setpgid() is the BSD two-argument setpgrp(). */
+int
+setpgid(pid, pgrp)
+    int pid;
+    int pgrp;
+{
+    extern int setpgrp();
+
+    return setpgrp(pid, pgrp);
+}
+TCEOF
+$CC $CFLAGS -c openstep_tc.c -o openstep_tc.o
+LIBS=`pwd`/openstep_tc.o
+export LIBS
+
+# Precaution against pdksh: pdksh leaves the quotes in `echo \"$var\"` inside
+# backticks, so configure's library searches end up with -l"-lsocket".  This
+# system has no libsocket, libinet, libnsl or libresolv (the socket calls are
+# in libc), so the loops that search for them are emptied.
+# Rewriting configure and running it is one step: a resumed build (PKG_RESUME=1)
+# skips it unless PKG_REDO=configure, since touching configure would make the
+# Makefile re-run config.status and rebuild everything.
+# zlib comes from the zlib package (a dependency), always from /usr/local, so
+# I/O logging and sudoreplay never depend on whatever else is on the system.
+sudo_configure() {
+    /bin/sed -e 's/echo \\"\$\([A-Za-z_]*\)\\"|/echo $\1|/' \
+        -e 's/^\([ 	]*for _*libs in\) "-lsocket".*; do$/\1 ; do/' configure > configure.new
+    /bin/mv configure.new configure
+    /bin/chmod 755 configure
+
+    # No shared libraries or dlopen() here, so no noexec support; hardening
+    # (-fstack-protector, PIE) needs runtime support this system lacks.
+    # sudo defaults sysconfdir to /etc even with a prefix; keep everything under
+    # /usr/local (sudoers is then /usr/local/etc/sudoers).
+    run_configure --prefix=/usr/local --sysconfdir=/usr/local/etc \
+        --build=$PKG_TARGET --host=$PKG_TARGET \
+        --disable-shared --with-noexec=no --disable-hardening --without-pam \
+        --without-sendmail --with-timedir=/usr/local/var/run/sudo \
+        --enable-zlib=/usr/local --with-iologdir=/usr/local/var/log/sudo-io
+}
+pkg_step configure sudo_configure
+
+/bin/gnumake
+
+# Install owned by whoever is building (post-install makes it root's).
+# id comes from the coreutils dependency (/usr/local/bin/id).
+uid=`id -u`
+gid=`id -g`
+/bin/gnumake install DESTDIR="$DESTDIR" install_uid="$uid" install_gid="$gid"
+
+# Never ship a sudoers file: a reinstall would replace the administrator's.
+# post-install installs this default only if none exists.
+ETC="$DESTDIR/usr/local/etc"
+if test -f "$ETC/sudoers"; then
+    /bin/mv "$ETC/sudoers" "$ETC/sudoers.dist"
+fi
+if test -e "$ETC/sudoers"; then
+    echo "sudo: the image still contains etc/sudoers; refusing to ship it" >&2
+    exit 1
+fi
+# Everything must live under /usr/local; nothing may land in /etc or /usr/lib.
+for stray in etc usr/lib; do
+    if test -e "$DESTDIR/$stray"; then
+        echo "sudo: the image contains $stray outside /usr/local; refusing to ship it" >&2
+        exit 1
+    fi
+done
+test -x "$DESTDIR/usr/local/bin/sudo"
+test -x "$DESTDIR/usr/local/sbin/visudo"
+# I/O logging (and with it sudoreplay) must have been enabled.
+test -x "$DESTDIR/usr/local/bin/sudoreplay"
+chmod 4755 "$DESTDIR/usr/local/bin/sudo" 2>/dev/null || :

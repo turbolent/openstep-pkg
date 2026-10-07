@@ -1,0 +1,71 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2'
+CONFIG_SHELL=/usr/local/bin/ksh
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+export PATH CC CFLAGS CONFIG_SHELL GREP EGREP AWK
+if test -d "neXtaw-$VERSION"; then cd "neXtaw-$VERSION"; fi
+. "$PKG_BUILD_HELPERS"
+
+# neXtaw needs the X11 development files (Xt, Xmu, Xext, X11 headers and
+# libraries).  X11_PREFIX in pkg.conf says where they live (default
+# /usr/X11R6, where CubXWindow installs).
+x11_prefix=
+for d in $X11_PREFIX /usr/X11R6; do
+    if test -n "$d" && test -f "$d/include/X11/Intrinsic.h"; then
+        x11_prefix=$d
+        break
+    fi
+done
+if test -z "$x11_prefix"; then
+    echo "neXtaw: cannot find X11/Intrinsic.h; install the X11 development files" >&2
+    echo "neXtaw: and set X11_PREFIX in pkg.conf to the directory holding include/ and lib/" >&2
+    exit 1
+fi
+echo "neXtaw: using X11 under $x11_prefix"
+CPPFLAGS="-I$x11_prefix/include"
+LDFLAGS="-L$x11_prefix/lib"
+export CPPFLAGS LDFLAGS
+
+# The tarball's generated files are older than their sources, which would make
+# make try to rerun autoconf/automake, yacc and lex.  Mark them current, in
+# dependency order.
+touch aclocal.m4
+sleep 1
+touch configure
+sleep 1
+for f in `find . -name Makefile.in -print`; do
+    touch "$f"
+done
+sleep 1
+touch X11/neXtaw/laygram.c X11/neXtaw/laygram.h X11/neXtaw/laylex.c
+
+# Static library only: the 1999 libtool cannot build OPENSTEP shared libraries.
+run_configure --prefix=/usr/local --build=$PKG_TARGET --host=$PKG_TARGET \
+    --disable-shared --disable-dependency-tracking --x-includes="$x11_prefix/include" \
+    --x-libraries="$x11_prefix/lib"
+# The X libraries here are static archives, so the link order matters:
+# libX11 has to come after the libraries that use it (configure puts it first).
+# Give make a LIBS in dependency order, with libSM and libICE only when the
+# X11 install has them.
+nx_sm=
+if ls "$x11_prefix"/lib/libSM* > /dev/null 2>&1 && ls "$x11_prefix"/lib/libICE* > /dev/null 2>&1; then
+    nx_sm="-lSM -lICE"
+fi
+nx_libs="-lXmu -lXt $nx_sm -lXext -lX11"
+/bin/gnumake SHELL="$CONFIG_SHELL" LIBS="$nx_libs"
+/bin/gnumake install SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR" LIBS="$nx_libs"
+
+# The demo program is not installed by make; keep it as a smoke test.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/bin"
+/bin/cp programs/neXtclock/neXtclock "$DESTDIR/usr/local/bin/neXtclock"
+/bin/chmod 755 "$DESTDIR/usr/local/bin/neXtclock"
+
+test -f "$DESTDIR/usr/local/lib/libneXtaw.a"
+test -f "$DESTDIR/usr/local/include/X11/neXtaw/Command.h"
