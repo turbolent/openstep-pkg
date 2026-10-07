@@ -16,7 +16,7 @@ has not been attempted.
 | ca-certificates | validated | validated |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
-| coreutils | validated | validated |
+| coreutils | validated | validated (with pkg_cmp_shim) |
 | curl | validated | validated |
 | diffutils | validated | — |
 | duktape | validated | — |
