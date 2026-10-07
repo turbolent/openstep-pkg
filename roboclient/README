@@ -1,0 +1,56 @@
+roboclient - a small IPv4 DHCP client for OPENSTEP
+
+Files installed:
+  /usr/local/sbin/roboclient                  the client
+  /usr/local/share/roboclient/roboclient.script   applies a lease (ifconfig, route)
+  /usr/local/etc/roboclient.conf              settings (copied from roboclient.conf.dist
+                                              on first install, never overwritten)
+  /usr/local/etc/rc.dhcp                      boot-time wrapper, described below
+  /usr/local/var/roboclient/<if>.info         the current lease
+
+Using it by hand:  roboclient -m 0:0:c0:12:34:56 en0   (see roboclient(8))
+
+
+Configuring the network at boot with DHCP instead of BOOTP
+----------------------------------------------------------
+
+rc.dhcp gets an address on one interface with roboclient, waits until it has a lease,
+prints what happened, and leaves roboclient running in the background to renew the
+lease.  If no DHCP server answers it prints an error and returns 1; /etc/rc then simply
+carries on, without an address on that interface.  (pkg does not edit /etc/rc.)
+
+1. Set the interface's hardware address in /usr/local/etc/roboclient.conf.  At boot the
+   interface has no address to look it up from, so this is required:
+
+       MAC_en0=0:0:c0:12:34:56
+
+   The other settings are optional (see roboclient.conf):
+
+       RC_DHCP_INTERFACE=en0       interface to configure (default en0)
+       RC_DHCP_TRIES=3             DISCOVER attempts before giving up (default 3, about
+                                   28 seconds; 0 waits forever)
+       RC_DHCP_OPTS="-h myhost"    extra options for roboclient
+       RC_DHCP_STATUS_CMD=...      a command called with each status line
+
+2. In /etc/rc, where the network interface is configured with BOOTP, call
+
+       /usr/local/etc/rc.dhcp
+
+   in its place.  /usr/local must be mounted by then.  Keep a copy of /etc/rc first.
+
+What it prints (this goes to the console, so it shows on the boot screen):
+
+       DHCP: requesting an address on en0...
+       DHCP: en0 is 192.168.1.50 netmask 255.255.255.0, router 192.168.1.1, dns 192.168.1.1, lease 86400s
+
+   or, with no answer:
+
+       DHCP: ERROR - en0 is not configured: no DHCP offers received on en0
+       DHCP: continuing without a network address on en0 (see /usr/local/var/roboclient/rc.dhcp.log)
+
+   Other errors it reports the same way: roboclient not installed, no MAC_<interface>
+   set, and "roboclient is already running" when rc.dhcp is run twice.
+
+Test it without rebooting, on a machine whose network you can afford to reconfigure:
+
+       sh /usr/local/etc/rc.dhcp; echo $?

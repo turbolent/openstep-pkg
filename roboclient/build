@@ -21,5 +21,7 @@ PREFIX="$DESTDIR/usr/local"
 /bin/cp roboclient.script "$PREFIX/share/roboclient/roboclient.script"
 /bin/cp roboclient.8 "$PREFIX/man/man8/roboclient.8"
 /bin/cp roboclient.conf.dist "$PREFIX/etc/roboclient.conf.dist"
+/bin/cp rc.dhcp "$PREFIX/etc/rc.dhcp"
+/bin/cp README "$PREFIX/share/roboclient/README"
 /bin/chmod 755 "$PREFIX/sbin/roboclient" "$PREFIX/share/roboclient/roboclient-testd" \
-    "$PREFIX/share/roboclient/roboclient.script"
+    "$PREFIX/share/roboclient/roboclient.script" "$PREFIX/etc/rc.dhcp"
