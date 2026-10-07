@@ -6,5 +6,8 @@ ETC="$ROOT_DIR/usr/local/etc"
 if [ ! -f "$ETC/ntpd.conf" ] && [ -f "$ETC/ntpd.conf.dist" ]; then
     /bin/cp "$ETC/ntpd.conf.dist" "$ETC/ntpd.conf"
 fi
+if [ ! -f "$ETC/rc.ntp.conf" ] && [ -f "$ETC/rc.ntp.conf.dist" ]; then
+    /bin/cp "$ETC/rc.ntp.conf.dist" "$ETC/rc.ntp.conf"
+fi
 [ -d "$ROOT_DIR/usr/local/var/db" ] || /usr/local/bin/mkdir -p "$ROOT_DIR/usr/local/var/db" 2>/dev/null || :
 exit 0

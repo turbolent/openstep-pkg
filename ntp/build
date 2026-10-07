@@ -741,5 +741,12 @@ for stray in etc usr/lib; do
     fi
 done
 test -x "$DESTDIR/usr/local/sbin/ntpd"
+# The boot-time script, its default settings and the README.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/share/ntp"
+/bin/cp pkg-files/rc.ntp "$DESTDIR/usr/local/etc/rc.ntp"
+/bin/cp pkg-files/rc.ntp.conf.dist "$DESTDIR/usr/local/etc/rc.ntp.conf.dist"
+/bin/cp pkg-files/README "$DESTDIR/usr/local/share/ntp/README"
+/bin/chmod 755 "$DESTDIR/usr/local/etc/rc.ntp"
+
 test -f "$DESTDIR/usr/local/etc/ntpd.conf.dist"
 test ! -e "$DESTDIR/usr/local/etc/ntpd.conf"
