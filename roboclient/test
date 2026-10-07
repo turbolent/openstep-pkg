@@ -45,3 +45,70 @@ if [ "$got" != "$want" ]; then
     echo "  got:  $got" >&2
     exit 1
 fi
+
+# rc.dhcp: the boot-time wrapper.  Run it against the same fake server with a
+# stand-in script (so no interface is touched) and a private prefix, then check
+# what it reports, then check its error path against a port nobody answers on.
+[ -x "$PREFIX/etc/rc.dhcp" ] || { echo "roboclient: missing etc/rc.dhcp" >&2; exit 1; }
+mkdir "$WORK/rcprefix" "$WORK/rcprefix/etc" "$WORK/rcvar"
+cat > "$WORK/rcscript" <<'SEOF'
+#!/bin/sh
+if [ "$1" = BOUND ]; then
+    {
+        echo "interface=$interface"
+        echo "ip=$ip"
+        echo "subnet=$subnet"
+        echo "router=\"$router\""
+        echo "dns=\"$dns\""
+        echo "lease=$lease"
+    } > @VAR@/$interface.info
+fi
+exit 0
+SEOF
+# roboclient runs its script with a clean environment, so the directory is written in.
+sed "s#@VAR@#$WORK/rcvar#" "$WORK/rcscript" > "$WORK/rcscript.new"
+mv "$WORK/rcscript.new" "$WORK/rcscript"
+chmod +x "$WORK/rcscript"
+cat > "$WORK/rcprefix/etc/roboclient.conf" <<SEOF
+RC_DHCP_INTERFACE=lo0
+RC_DHCP_TRIES=1
+RC_DHCP_OPTS="-n -m 0:0:c0:12:34:56 -s $WORK/rcscript"
+MAC_lo0=0:0:c0:12:34:56
+SEOF
+# The fake server answers one exchange and exits; start another for rc.dhcp.
+"$SHARE/roboclient-testd" 16767 16868 > "$WORK/testd2.out" 2>&1 &
+SRV=$!
+i=0
+while [ $i -lt 20 ]; do
+    grep ready "$WORK/testd2.out" > /dev/null 2>&1 && break
+    sleep 1
+    i=`expr $i + 1`
+done
+grep ready "$WORK/testd2.out" > /dev/null || { echo "roboclient: second test server did not start" >&2; exit 1; }
+RC_DHCP_PREFIX=$WORK/rcprefix ROBOCLIENT_VAR=$WORK/rcvar ROBOCLIENT=$PREFIX/sbin/roboclient
+export RC_DHCP_PREFIX ROBOCLIENT_VAR ROBOCLIENT
+out=`/bin/sh "$PREFIX/etc/rc.dhcp" 2>&1` || { echo "roboclient: rc.dhcp failed: $out" >&2; exit 1; }
+if [ -f "$WORK/rcvar/lo0.pid" ]; then
+    kill `cat "$WORK/rcvar/lo0.pid"` 2>/dev/null || :
+fi
+want="DHCP: lo0 is 192.168.7.50 netmask 255.255.255.0, router 192.168.7.1, dns 192.168.7.1 8.8.8.8, lease 3600s"
+case $out in
+    *"$want"*) : ;;
+    *) echo "roboclient: rc.dhcp reported: $out" >&2; echo "  wanted: $want" >&2; exit 1 ;;
+esac
+
+rm -f "$WORK/rcvar/lo0.pid" "$WORK/rcvar/lo0.info"
+ROBOCLIENT_SERVER_PORT=16999
+export ROBOCLIENT_SERVER_PORT
+rc=0
+out=`/bin/sh "$PREFIX/etc/rc.dhcp" 2>&1` || rc=$?
+[ "$rc" = 1 ] || { echo "roboclient: rc.dhcp should return 1 with no server, got $rc" >&2; exit 1; }
+case $out in
+    *"DHCP: ERROR"*"continuing without a network address"*) : ;;
+    *)
+        case `echo "$out" | grep -c ERROR` in
+            1) : ;;
+            *) echo "roboclient: rc.dhcp did not report the failure: $out" >&2; exit 1 ;;
+        esac
+    ;;
+esac

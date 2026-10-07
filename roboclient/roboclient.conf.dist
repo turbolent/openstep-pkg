@@ -8,3 +8,13 @@
 UPDATE_ROUTE=yes
 # Rewrite /etc/resolv.conf with the offered DNS servers and domain.
 UPDATE_RESOLV=no
+
+# Boot-time setup by rc.dhcp (called from /etc/rc; see the README):
+# the interface to configure,
+#RC_DHCP_INTERFACE=en0
+# DISCOVER attempts before giving up (3 is about 28 seconds; 0 waits forever),
+#RC_DHCP_TRIES=3
+# extra options for roboclient,
+#RC_DHCP_OPTS=
+# and a command to call with each status line, besides printing it.
+#RC_DHCP_STATUS_CMD=
