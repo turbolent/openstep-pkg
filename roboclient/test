@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+PATH="$PREFIX/bin:$PREFIX/sbin:/usr/ucb:/bin:/usr/bin"
+export PATH
+SHARE="$PREFIX/share/roboclient"
+
+[ -x "$PREFIX/sbin/roboclient" ] || { echo "roboclient: missing sbin/roboclient" >&2; exit 1; }
+[ -f "$SHARE/roboclient.script" ] || { echo "roboclient: missing roboclient.script" >&2; exit 1; }
+[ -f "$PREFIX/etc/roboclient.conf" ] || { echo "roboclient: missing roboclient.conf" >&2; exit 1; }
+
+# Usage errors exit with status 2.
+rc=0
+"$PREFIX/sbin/roboclient" > /dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || { echo "roboclient: expected usage error (2), got $rc" >&2; exit 1; }
+
+# Full DHCP exchange against a fake server on the loopback interface.  This
+# checks packet encoding and decoding end to end on this machine's byte order.
+WORK=/tmp/pkg-roboclient.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"; kill $SRV 2>/dev/null || :' 0 1 2 3 15
+LOG="$WORK/script.log"
+cat > "$WORK/script" <<SEOF
+echo "\$1 \$interface \$ip \$subnet \$broadcast \$router \$dns \$domain \$lease" >> "$LOG"
+SEOF
+ROBOCLIENT_SERVER=127.0.0.1 ROBOCLIENT_SERVER_PORT=16767 ROBOCLIENT_CLIENT_PORT=16868
+export ROBOCLIENT_SERVER ROBOCLIENT_SERVER_PORT ROBOCLIENT_CLIENT_PORT
+"$SHARE/roboclient-testd" 16767 16868 > "$WORK/testd.out" 2>&1 &
+SRV=$!
+i=0
+while [ $i -lt 20 ]; do
+    grep ready "$WORK/testd.out" > /dev/null 2>&1 && break
+    sleep 1
+    i=`expr $i + 1`
+done
+grep ready "$WORK/testd.out" > /dev/null || { echo "roboclient: test server did not start" >&2; cat "$WORK/testd.out" >&2; exit 1; }
+
+"$PREFIX/sbin/roboclient" -f -q -n -m 0:0:c0:12:34:56 -s "$WORK/script" lo0
+
+want="BOUND lo0 192.168.7.50 255.255.255.0 192.168.7.255 192.168.7.1 192.168.7.1 8.8.8.8 lan.xyz 3600"
+got=`cat "$LOG"`
+if [ "$got" != "$want" ]; then
+    echo "roboclient: lease mismatch" >&2
+    echo "  want: $want" >&2
+    echo "  got:  $got" >&2
+    exit 1
+fi
