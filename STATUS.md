@@ -28,11 +28,11 @@ has not been attempted.
 | freetype | validated | — |
 | freeze | validated | validated |
 | fribidi | 0.19.7 validated | — |
-| gawk | validated | validated |
+| gawk | validated | validated (with pkg_cmp_shim) |
 | gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes) |
 | git | validated | validated (2.55.0; needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
-| grep | validated | validated |
+| grep | validated | validated (with pkg_cmp_shim) |
 | gzip | validated | — |
 | help2man | validated | validated |
 | jpeg | validated | — |
@@ -84,7 +84,7 @@ has not been attempted.
 | roboclient | validated | — |
 | rsync | validated | — |
 | sdl12 | validated | — |
-| sed | validated | validated |
+| sed | validated | validated (with pkg_cmp_shim) |
 | sudo | validated | — |
 | tar | 1.15.1 validated | — |
 | tcsh | validated | — |
