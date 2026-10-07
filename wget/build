@@ -99,6 +99,14 @@ sed 's/^#  error "getprogname module not ported to this OS"/  return "wget";/' \
     lib/getprogname.c > lib/getprogname.c.new
 mv lib/getprogname.c.new lib/getprogname.c
 
+# This system has no sigaction(), so gnulib builds its signal()-based stand-in,
+# which refuses to compile where SIGCHLD or siginterrupt() exist.  Both are BSD
+# signal() semantics here (handlers stay installed), which is what the stand-in
+# assumes, so drop the check.
+sed 's/^# error "Revisit the assumptions made in the sigaction module"/\/* sigaction: assumptions checked for BSD signal() *\//' \
+    lib/sigaction.c > lib/sigaction.c.new
+mv lib/sigaction.c.new lib/sigaction.c
+
 run_configure --prefix=/usr/local \
   --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-dependency-tracking \
