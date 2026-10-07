@@ -171,8 +171,91 @@ run_configure --prefix=/usr/local \
 
 # Build only the library and the program: the manual needs makeinfo and
 # pod2man newer than OPENSTEP's.
+# Functions this libc lacks and wget (or gnulib's strerror_r) calls.  They go
+# into one object that is linked into wget.
+/bin/cat > ostep-compat.c <<'SEOF'
+#define _NEXT_SOURCE 1
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/dir.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+extern int setpgrp();
+
+char *
+strdup (const char *s)
+{
+  char *p = (char *) malloc (strlen (s) + 1);
+  if (p != NULL)
+    strcpy (p, s);
+  return p;
+}
+
+int
+tcgetpgrp (int fd)
+{
+  int pgrp;
+  if (ioctl (fd, TIOCGPGRP, (char *) &pgrp) < 0)
+    return -1;
+  return pgrp;
+}
+
+int
+setpgid (int pid, int pgrp)
+{
+  return setpgrp (pid, pgrp);
+}
+
+int
+setsid (void)
+{
+  int fd;
+  if (setpgrp (0, getpid ()) < 0)
+    return -1;
+  fd = open ("/dev/tty", O_RDWR);
+  if (fd >= 0)
+    {
+      ioctl (fd, TIOCNOTTY, (char *) 0);
+      close (fd);
+    }
+  return getpid ();
+}
+
+#ifdef rewinddir
+# undef rewinddir
+#endif
+void
+rewinddir (DIR *dirp)
+{
+  seekdir (dirp, 0L);
+}
+
+/* gnulib's strerror_r() formats short messages through MSVC's _vsnprintf. */
+int
+_vsnprintf (char *buf, size_t size, const char *format, va_list ap)
+{
+  char tmp[1024];
+  int n;
+  tmp[0] = '\0';
+  vsprintf (tmp, format, ap);
+  n = (int) strlen (tmp);
+  if (size > 0)
+    {
+      strncpy (buf, tmp, size - 1);
+      buf[size - 1] = '\0';
+    }
+  return n;
+}
+SEOF
+$CC $CFLAGS -c ostep-compat.c -o ostep-compat.o
+
 /bin/gnumake -C lib
-/bin/gnumake -C src
+/bin/gnumake -C src LDFLAGS="$LDFLAGS `pwd`/ostep-compat.o"
 
 PREFIX="$DESTDIR/usr/local"
 /usr/local/bin/mkdir -p "$PREFIX/bin" "$PREFIX/etc" "$PREFIX/share/info"
