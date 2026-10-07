@@ -24,8 +24,8 @@ cp derived_src/y.tab.h gram.h
 cp derived_src/y.tab.c gram.c
 
 OBJDIR=obj-i386-opt
-OBJCFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe -ObjC"
-CFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe"
+OBJCFLAGS="$PKG_SYSCC_ARCH_FLAGS -O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe -ObjC"
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe"
 
 /bin/cc $OBJCFLAGS -c -o "$OBJDIR/MappedFile.o" MappedFile.m
 /bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcCategory.o" ObjcCategory.m

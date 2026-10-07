@@ -5,7 +5,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -g -std=gnu99'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -g -std=gnu99'
 CPPFLAGS='-I/usr/local/include/ncurses -I/usr/local/include -I/NextDeveloper/Headers/bsd'
 LDFLAGS=-L/usr/local/lib
 GREP=/usr/local/bin/grep
@@ -21,6 +21,11 @@ export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK CONFIG_SHELL
 export ac_cv_header_termios_h ac_cv_func_poll ac_cv_func_strcoll
 . "$PKG_BUILD_HELPERS"
 
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
+# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
+# time only: configure's own tests do not cope with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+
 # Old gnutar leaves GitHub's pax_global_header beside the source directory.
 if [ ! -d src ]; then
     cd "vim-$VERSION"
@@ -29,8 +34,8 @@ patch -p1 < "vim-$VERSION-openstep.patch"
 cd src
 run_configure --prefix=/usr/local --with-features=huge \
     --enable-gui=no --without-x --disable-nls --with-tlib=ncurses
-/bin/gnumake SHELL="$CONFIG_SHELL"
-/bin/gnumake install SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" SHELL="$CONFIG_SHELL"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" install SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR"
 
 # vimtutor uses POSIX shell syntax that the stock /bin/sh cannot parse.
 sed '1s|.*|#!/usr/local/bin/ksh|' vimtutor > "$DESTDIR/usr/local/bin/vimtutor"

@@ -4,7 +4,7 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
-CC=/usr/local/bin/gcc-4.2
+CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS=-I/NextDeveloper/Headers/bsd
 GREP=/usr/local/bin/grep
 EGREP=/usr/local/bin/egrep
@@ -21,7 +21,7 @@ export cf_cv_makeflags ac_cv_header_termios_h
 
 patch -p1 < "ncurses-$VERSION-openstep.patch"
 run_configure --prefix=/usr/local \
-    --build=i386-next-openstep4 --host=i386-next-openstep4 \
+    --build=$PKG_TARGET --host=$PKG_TARGET \
     --without-shared --without-debug --with-normal \
     --without-cxx --without-cxx-binding --without-ada --without-tests \
     --disable-widec --with-chtype=long --with-mmask-t=long \

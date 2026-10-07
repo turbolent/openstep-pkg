@@ -1,5 +1,5 @@
 gcc42
 make
 netsurf-buildsystem
-pkg-config
+pkgconf
 patch

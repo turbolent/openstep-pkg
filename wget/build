@@ -1,31 +1,113 @@
 #!/bin/sh
-
 set -e
-
 DESTDIR=$1
 VERSION=$2
-PATH=/usr/local/bin:$PATH
-CC=/bin/cc
-export DESTDIR VERSION PATH CC
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+# PKG_WGET_OPT overrides the optimization flags (gcc 4.2 on SPARC has
+# miscompiled other packages at -O2).
+CFLAGS="$PKG_GCC42_ARCH_FLAGS ${PKG_WGET_OPT--O2} -std=gnu99"
+LDFLAGS=-L/usr/local/lib
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+SED=/usr/local/bin/sed
+export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED
 . "$PKG_BUILD_HELPERS"
 
-PATCHFILE="wget-$VERSION-openstep.patch"
+# Private headers, first on the include path (configure and make both see them).
+/usr/local/bin/mkdir -p openstep/openssl openstep/sys
 
-patch -p1 < "$PATCHFILE"
-run_configure --disable-nls --without-ssl --prefix=/usr/local
-# OPENSTEP has no /usr/bin/env for texi2pod.pl's shebang.
-gnumake 'TEXI2POD=/usr/local/bin/perl ./texi2pod.pl'
+# BSD names the open-files limit RLIMIT_OFILE; gnulib's getdtablesize() wants
+# RLIMIT_NOFILE.
+/bin/cat > openstep/sys/resource.h <<'SEOF'
+#ifndef OPENSTEP_SYS_RESOURCE_H
+#define OPENSTEP_SYS_RESOURCE_H
+#include_next <sys/resource.h>
+#if !defined(RLIMIT_NOFILE) && defined(RLIMIT_OFILE)
+# define RLIMIT_NOFILE RLIMIT_OFILE
+#endif
+#endif
+SEOF
 
-test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
-test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
-test -d "$DESTDIR/usr/local/bin" || mkdir "$DESTDIR/usr/local/bin"
-test -d "$DESTDIR/usr/local/etc" || mkdir "$DESTDIR/usr/local/etc"
-test -d "$DESTDIR/usr/local/share" || mkdir "$DESTDIR/usr/local/share"
-test -d "$DESTDIR/usr/local/share/info" || mkdir "$DESTDIR/usr/local/share/info"
-test -d "$DESTDIR/usr/local/share/man" || mkdir "$DESTDIR/usr/local/share/man"
-test -d "$DESTDIR/usr/local/share/man/man1" || mkdir "$DESTDIR/usr/local/share/man/man1"
+# OPENSTEP's <dirent.h> does not give POSIX programs DIR and struct dirent; the
+# BSD <sys/dir.h> does (as struct direct).  gnulib's <dirent.h> wrapper reaches
+# the system header with #include_next, so it finds this one.
+/bin/cat > openstep/dirent.h <<'SEOF'
+#ifndef OPENSTEP_DIRENT_H
+#define OPENSTEP_DIRENT_H
+#undef _POSIX_SOURCE
+#ifndef _NEXT_SOURCE
+# define _NEXT_SOURCE 1
+#endif
+#include <sys/types.h>
+#include <sys/dir.h>
+#define dirent direct
+/* BSD <sys/dir.h> defines rewinddir() as a macro; gnulib declares a function. */
+#ifdef rewinddir
+# undef rewinddir
+#endif
+#endif
+SEOF
 
-cp src/wget "$DESTDIR/usr/local/bin/wget"
-cp doc/sample.wgetrc "$DESTDIR/usr/local/etc/wgetrc"
-cp doc/wget.info "$DESTDIR/usr/local/share/info/wget.info"
-cp doc/wget.1 "$DESTDIR/usr/local/share/man/man1/wget.1"
+# gnulib replaces the missing socklen_t with a macro ("#define socklen_t int"),
+# and an OpenSSL installed before its e_os2.h was fixed typedefs socklen_t
+# unconditionally, which then reads "typedef unsigned int int;".  Until the
+# OpenSSL package has been rebuilt, put a guarded copy of that header first on
+# the include path.
+OSSL_H=/usr/local/include/openssl/e_os2.h
+if /usr/local/bin/grep '^typedef unsigned int socklen_t;$' "$OSSL_H" > /dev/null; then
+    /usr/local/bin/sed -e 's/^typedef unsigned int socklen_t;$/#ifndef socklen_t\
+typedef unsigned int socklen_t;\
+#endif/' -e 's/^typedef u_int32_t in_addr_t;$/#ifndef in_addr_t\
+typedef u_int32_t in_addr_t;\
+#endif/' "$OSSL_H" > openstep/openssl/e_os2.h
+fi
+# OPENSTEP's <errno.h> has no ENOSYS (gnulib supplies other missing errno values
+# but not this one).
+CPPFLAGS="-I`pwd`/openstep -I/usr/local/include -DENOSYS=EOPNOTSUPP"
+export CPPFLAGS
+
+# configure's test for sig_atomic_t cannot see the type (it is not visible the way
+# the test includes <signal.h>), so it would define a macro "sig_atomic_t" that
+# turns the real typedef in /NextDeveloper/Headers/ansi/signal.h into
+# "typedef int int;".  The type exists in the headers; say so.
+ac_cv_type_sig_atomic_t=yes
+ac_cv_type_volatile_sig_atomic_t=yes
+# OPENSTEP has getdtablesize() but declares it nowhere, which makes gnulib build
+# its own from getrlimit (RLIMIT_NOFILE), a limit this system does not define
+# under any name.  Use the system function.
+ac_cv_have_decl_getdtablesize=yes
+# getgroups(0, NULL) fails here, so gnulib wants to replace getgroups(); but its
+# replacement is declared with gid_t while this system's takes an int array, and
+# the two clash.  Nothing in wget calls it; keep the system one.  gnulib also
+# replaces it whenever the array type is not gid_t, so claim that too.
+ac_cv_type_getgroups=gid_t
+ac_cv_func_getgroups_works=yes
+gl_cv_func_getgroups_works=yes
+export ac_cv_type_sig_atomic_t ac_cv_type_volatile_sig_atomic_t ac_cv_have_decl_getdtablesize
+export ac_cv_type_getgroups ac_cv_func_getgroups_works gl_cv_func_getgroups_works
+
+# HTTPS goes through the OpenSSL package; its default certificate bundle is
+# /usr/local/ssl/cert.pem, which the ca-certificates package installs.  The
+# rest is switched off: OPENSTEP has no pthreads, IPv6 or xattr, and the
+# optional libraries (libpsl, PCRE, IDN) are not packaged.
+run_configure --prefix=/usr/local \
+  --build=$PKG_TARGET --host=$PKG_TARGET \
+  --disable-dependency-tracking \
+  --disable-nls --disable-ipv6 --disable-threads --disable-rpath \
+  --disable-pcre --disable-pcre2 --disable-iri --disable-ntlm \
+  --disable-xattr --disable-opie \
+  --without-libpsl --without-libuuid --without-metalink --without-cares \
+  --with-zlib --with-ssl=openssl --with-libssl-prefix=/usr/local
+
+# Build only the library and the program: the manual needs makeinfo and
+# pod2man newer than OPENSTEP's.
+/bin/gnumake -C lib
+/bin/gnumake -C src
+
+PREFIX="$DESTDIR/usr/local"
+/usr/local/bin/mkdir -p "$PREFIX/bin" "$PREFIX/etc" "$PREFIX/share/info"
+/bin/cp src/wget "$PREFIX/bin/wget"
+/bin/cp doc/sample.wgetrc "$PREFIX/etc/wgetrc.dist"
+/bin/cp doc/wget.info "$PREFIX/share/info/wget.info"

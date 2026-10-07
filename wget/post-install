@@ -1,0 +1,9 @@
+#!/bin/sh
+ETC="$ROOT_DIR/usr/local/etc"
+
+# Install the default configuration only when there is none: never replace an
+# administrator's wgetrc.
+if [ ! -f "$ETC/wgetrc" ] && [ -f "$ETC/wgetrc.dist" ]; then
+    /bin/cp "$ETC/wgetrc.dist" "$ETC/wgetrc"
+fi
+exit 0

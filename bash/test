@@ -1,8 +1,48 @@
 #!/bin/sh
-
 set -e
-
 BASH="$ROOT_DIR/usr/local/bin/bash"
+WORK=/tmp/pkg-bash.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"' 0 1 2 3 15
 
 [ -x "$BASH" ]
+"$BASH" --version | grep 'version 5\.3' > /dev/null
 "$BASH" -c 'test -n "$BASH_VERSION"; test "`echo ok`" = ok'
+
+# Arrays, associative arrays, pipelines, pipefail, here-documents, traps.
+"$BASH" -c '
+set -e
+a=(one two three); test ${#a[@]} -eq 3; test "${a[1]}" = two
+declare -A m; m[k]=v; test "${m[k]}" = v
+set -o pipefail
+if false | true; then echo "pipefail ignored" >&2; exit 1; fi
+test "$(printf "a\nb\n" | wc -l | tr -d " ")" = 2
+test "$(cat <<X
+here $((6*7))
+X
+)" = "here 42"
+trap "echo trapped" EXIT
+' > "$WORK/out"
+grep trapped "$WORK/out" > /dev/null
+
+# Exit statuses, including from signals and background jobs.  Each reports the
+# status it saw, so a failure says what bash did.
+check_status() {
+    check_name=$1
+    check_want=$2
+    check_script=$3
+    check_got=`"$BASH" -c "$check_script" 2> /dev/null`
+    if [ "$check_got" != "$check_want" ]; then
+        echo "bash: $check_name: status was '$check_got', expected $check_want" >&2
+        exit 1
+    fi
+}
+
+check_status "exit status of a child" 7 'sh -c "exit 7"; echo $?'
+# SIGKILL, because OPENSTEP's /bin/sh catches HUP, INT and TERM and exits with an
+# ordinary status of its own (208); SIGKILL cannot be caught, so the child
+# really dies from the signal.  (Old BSD kill takes only numeric signals.)
+check_status "status of a child killed by SIGKILL" 137 'sh -c "kill -9 \$\$"; echo $?'
+check_status "wait for a background job" 0 'sleep 1 & wait $!; echo $?'
+check_status "exit status of a subshell" 3 '(exit 3); echo $?'
+check_status "exit status of a failed pipeline" 1 'false | false; echo $?'

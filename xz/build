@@ -4,7 +4,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -march=i486'
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS='-D_POSIX_SOURCE -D_NEXT_SOURCE'
 SED=/bin/sed
 GREP=/usr/local/bin/grep
@@ -14,8 +14,8 @@ export PATH CC CFLAGS CPPFLAGS SED GREP EGREP AWK
 if test -d "xz-$VERSION"; then cd "xz-$VERSION"; fi
 patch -p1 < "xz-$VERSION-openstep.patch"
 . "$PKG_BUILD_HELPERS"
-run_configure --prefix=/usr/local --build=i386-next-openstep4 \
-    --host=i386-next-openstep4 --disable-shared --disable-threads \
+run_configure --prefix=/usr/local --build=$PKG_TARGET \
+    --host=$PKG_TARGET --disable-shared --disable-threads \
     --disable-nls --disable-dependency-tracking --enable-path-for-scripts=/usr/local/bin
 /bin/gnumake
 /bin/gnumake install DESTDIR="$DESTDIR"

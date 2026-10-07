@@ -5,7 +5,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-g -O2 -std=gnu99'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-g -O2 -std=gnu99'
 CPPFLAGS='-D_POSIX_SOURCE -I/usr/local/include/ncurses -I/usr/local/include -I/NextDeveloper/Headers/bsd'
 LDFLAGS=-L/usr/local/lib
 GREP=/usr/local/bin/grep
@@ -23,7 +23,7 @@ export gl_cv_func_frexp_works ac_cv_header_termios_h
 . "$PKG_BUILD_HELPERS"
 
 patch -p1 < "nano-$VERSION-openstep.patch"
-run_configure --prefix=/usr/local --build=i386-next-openstep4 --host=i386-next-openstep4 --disable-nls --disable-utf8 --disable-dependency-tracking
+run_configure --prefix=/usr/local --build=$PKG_TARGET --host=$PKG_TARGET --disable-nls --disable-utf8 --disable-dependency-tracking
 
 # Texinfo 4.8 does not understand the newer -c HEADERS=0 spelling.
 /bin/gnumake AM_MAKEINFOHTMLFLAGS='--no-split --no-headers'

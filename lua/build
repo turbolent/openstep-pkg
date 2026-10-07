@@ -15,7 +15,7 @@ patch -p1 < "lua-$VERSION-openstep.patch"
 
 (
     cd src
-    /bin/gnumake all CC='/usr/local/bin/gcc-4.2 -std=gnu99' \
+    /bin/gnumake all CC='/usr/local/bin/gcc-4.2 -std=gnu99'" $PKG_GCC42_ARCH_FLAGS" \
         AR='/bin/ar rcu' RANLIB=/bin/ranlib
     ./lua -v
     ./luac -v

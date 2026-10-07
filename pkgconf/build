@@ -1,0 +1,196 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+# PKG_PKGCONF_OPT overrides the optimization flags (gcc 4.2 on SPARC has
+# miscompiled other packages at -O2).
+CFLAGS="$PKG_GCC42_ARCH_FLAGS ${PKG_PKGCONF_OPT--O2} -std=gnu99"
+CPPFLAGS=-I/usr/local/include
+LDFLAGS=-L/usr/local/lib
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+SED=/usr/local/bin/sed
+# configure would append -std=c99 (strict ANSI) after our -std=gnu99.
+ax_cv_check_cflags___std_c99=no
+export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED ax_cv_check_cflags___std_c99
+. "$PKG_BUILD_HELPERS"
+
+# OPENSTEP has no <stdint.h>, <inttypes.h>, <libgen.h>, <langinfo.h> or POSIX <dirent.h> (it has
+# <sys/dir.h> and struct direct), and no snprintf()/vsnprintf().  Private
+# headers and a forced-include shim supply them at make time only: configure's
+# own tests do not cope with the shim.
+/usr/local/bin/mkdir -p openstep
+/bin/cat > openstep/stdint.h <<'SEOF'
+#ifndef OPENSTEP_STDINT_H
+#define OPENSTEP_STDINT_H
+typedef signed char int8_t;
+typedef short int16_t;
+typedef int int32_t;
+typedef long long int64_t;
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
+typedef __PTRDIFF_TYPE__ intptr_t;
+typedef __SIZE_TYPE__ uintptr_t;
+typedef long long intmax_t;
+typedef unsigned long long uintmax_t;
+#define INT8_C(c) c
+#define INT16_C(c) c
+#define INT32_C(c) c
+#define INT64_C(c) c ## LL
+#define UINT8_C(c) c
+#define UINT16_C(c) c
+#define UINT32_C(c) c ## U
+#define UINT64_C(c) c ## ULL
+#define INTMAX_C(c) c ## LL
+#define UINTMAX_C(c) c ## ULL
+#define INT8_MIN (-128)
+#define INT8_MAX 127
+#define UINT8_MAX 255
+#define INT16_MIN (-32767-1)
+#define INT16_MAX 32767
+#define UINT16_MAX 65535
+#define INT32_MIN (-2147483647-1)
+#define INT32_MAX 2147483647
+#define UINT32_MAX 4294967295U
+#define INT64_MIN (-9223372036854775807LL-1)
+#define INT64_MAX 9223372036854775807LL
+#define UINT64_MAX 18446744073709551615ULL
+#define INTPTR_MIN INT32_MIN
+#define INTPTR_MAX INT32_MAX
+#define UINTPTR_MAX UINT32_MAX
+#define SIZE_MAX UINT32_MAX
+#endif
+SEOF
+/bin/cat > openstep/inttypes.h <<'SEOF'
+#ifndef OPENSTEP_INTTYPES_H
+#define OPENSTEP_INTTYPES_H
+#include <stdint.h>
+#define PRId32 "d"
+#define PRIi32 "i"
+#define PRIu32 "u"
+#define PRIx32 "x"
+#define PRId64 "lld"
+#define PRIi64 "lli"
+#define PRIu64 "llu"
+#define PRIx64 "llx"
+#endif
+SEOF
+/bin/cat > openstep/dirent.h <<'SEOF'
+#ifndef OPENSTEP_DIRENT_H
+#define OPENSTEP_DIRENT_H
+#undef _POSIX_SOURCE
+#ifndef _NEXT_SOURCE
+# define _NEXT_SOURCE 1
+#endif
+#include <sys/types.h>
+#include <sys/dir.h>
+#define dirent direct
+#endif
+SEOF
+# <libgen.h> is included but pkgconf has its own basename/dirname code.
+/bin/cat > openstep/libgen.h <<'SEOF'
+#ifndef OPENSTEP_LIBGEN_H
+#define OPENSTEP_LIBGEN_H
+#endif
+SEOF
+# <langinfo.h>: only used to ask whether the locale is UTF-8; say it is not.
+/bin/cat > openstep/langinfo.h <<'SEOF'
+#ifndef OPENSTEP_LANGINFO_H
+#define OPENSTEP_LANGINFO_H
+#define CODESET 14
+static const char *
+nl_langinfo(int item)
+{
+    return "ANSI_X3.4-1968";
+}
+#endif
+SEOF
+/bin/cat > openstep/ostep-compat.h <<'SEOF'
+#ifndef OPENSTEP_OSTEP_COMPAT_H
+#define OPENSTEP_OSTEP_COMPAT_H
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#ifdef OSTEP_NEED_SSIZE_T
+typedef int ssize_t;
+#endif
+/* Missing from OPENSTEP's libc and headers.  The functions are static and
+ * renamed by macros after the system headers, so they cannot clash. */
+#ifndef S_ISLNK
+# define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+#endif
+#ifndef S_ISSOCK
+# define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
+#endif
+#ifndef S_ISFIFO
+# define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
+#endif
+static char *
+ostep_strdup(const char *s)
+{
+    size_t n = strlen(s) + 1;
+    char *p = (char *) malloc(n);
+
+    if (p != NULL)
+        memcpy(p, s, n);
+    return p;
+}
+static size_t
+ostep_strnlen(const char *s, size_t max)
+{
+    size_t i = 0;
+
+    while (i < max && s[i] != 0)
+        i++;
+    return i;
+}
+#define strdup ostep_strdup
+#define strnlen ostep_strnlen
+#include "snprintf-shim.h"
+#endif
+SEOF
+/bin/cp snprintf-shim.h openstep/snprintf-shim.h
+
+# Does <sys/types.h> have ssize_t?
+printf '#include <sys/types.h>\nssize_t probe_ssize;\nint main(void) { return 0; }\n' > ssize-probe.c
+if $CC $CFLAGS -c ssize-probe.c -o ssize-probe.o > /dev/null 2>&1; then
+    OSTEP_DEFS=
+else
+    OSTEP_DEFS=-DOSTEP_NEED_SSIZE_T
+fi
+/bin/rm -f ssize-probe.c ssize-probe.o
+SHIMFLAGS="$OSTEP_DEFS -I`pwd`/openstep -include `pwd`/openstep/ostep-compat.h"
+
+# The system library and include directories are the ones pkgconf leaves out of
+# --libs and --cflags; /usr/local must not be among them, since the system
+# cc does not search it.
+run_configure --prefix=/usr/local \
+  --build=$PKG_TARGET --host=$PKG_TARGET \
+  --with-system-libdir=/lib:/usr/lib --with-system-includedir=/usr/include \
+  --disable-shared --enable-static --disable-dependency-tracking
+
+# Keep make from re-running configure or automake over the extracted tree.
+sleep 1
+/usr/local/bin/touch aclocal.m4 configure Makefile.in libpkgconf/config.h.in config.h.in
+/usr/local/bin/touch config.status Makefile libpkgconf/config.h config.h
+/bin/gnumake pkgconf CFLAGS="$CFLAGS $SHIMFLAGS"
+test -x pkgconf || { echo "pkgconf: no pkgconf binary was built" >&2; exit 1; }
+
+PREFIX="$DESTDIR/usr/local"
+/usr/local/bin/mkdir -p "$PREFIX/bin" "$PREFIX/share/aclocal" \
+    "$PREFIX/share/man/man1" "$PREFIX/share/man/man5" "$PREFIX/share/man/man7"
+/bin/cp pkgconf "$PREFIX/bin/pkgconf"
+# Programs and pkg.m4 ask for "pkg-config"; pkgconf is its drop-in replacement.
+/bin/rm -f "$PREFIX/bin/pkg-config"
+/bin/ln -s pkgconf "$PREFIX/bin/pkg-config"
+/bin/cp pkg.m4 "$PREFIX/share/aclocal/pkg.m4"
+/bin/cp man/pkgconf.1 "$PREFIX/share/man/man1/pkgconf.1"
+/bin/cp man/pc.5 "$PREFIX/share/man/man5/pc.5"
+/bin/cp man/pkgconf-personality.5 "$PREFIX/share/man/man5/pkgconf-personality.5"
+/bin/cp man/pkg.m4.7 "$PREFIX/share/man/man7/pkg.m4.7"
