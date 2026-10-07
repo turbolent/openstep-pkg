@@ -61,7 +61,7 @@ has not been attempted.
 | lua51 | 5.1.5 validated | — |
 | lz4 | validated | — |
 | m4 | validated | validated |
-| make | validated (built with the system cc) | validated (built with gcc42; system-cc build untested) |
+| make | validated (built with the system cc) | validated (built with the system cc) |
 | mktemp | validated | validated |
 | mpg123 | validated | — |
 | nano | validated | validated |
