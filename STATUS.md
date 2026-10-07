@@ -30,7 +30,7 @@ has not been attempted.
 | fribidi | 0.19.7 validated | — |
 | gawk | validated | validated |
 | gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes) |
-| git | validated | — |
+| git | validated | validated (2.55.0; needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
 | grep | validated | validated |
 | gzip | validated | — |
@@ -122,3 +122,7 @@ has not been attempted.
   installs into `sbin` and a default `ntpd.conf` is copied into place only if
   none exists.
 - A failed build can be resumed with `PKG_RESUME=1` (see `README.md`).
+- **git** on SPARC builds at `-O0` and uses unsigned `memcmp`/`strcmp`/`strncmp`
+  replacements: the SPARC libc compares bytes as signed, which corrupted pack
+  indexes.  Packages that rely on byte-order comparisons use `pkg_cmp_shim`
+  (see `README.md`); their SPARC rebuilds are still pending.
