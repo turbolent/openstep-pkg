@@ -34,7 +34,9 @@ CFLAGS := $(CFLAGS) -DNeXT
 EOF
 
 gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
-/bin/ranlib "build-i386-next-openstep4-i386-next-openstep4-release-lib-static/libnsgif.a"
+for lib in build-*-release-lib-static/libnsgif.a; do
+    /bin/ranlib "$lib"
+done
 
 gnumake Q= install DESTDIR="$DESTDIR" PREFIX="$PREFIX" WARNFLAGS=
 /bin/ranlib "$DESTDIR$PREFIX/lib/libnsgif.a"
