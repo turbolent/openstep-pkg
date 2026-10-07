@@ -1,0 +1,9 @@
+#!/bin/sh
+ETC="$ROOT_DIR/usr/local/etc"
+
+# Install the default configuration only when there is none: never replace an
+# administrator's roboclient.conf.
+if [ ! -f "$ETC/roboclient.conf" ] && [ -f "$ETC/roboclient.conf.dist" ]; then
+    /bin/cp "$ETC/roboclient.conf.dist" "$ETC/roboclient.conf"
+fi
+exit 0

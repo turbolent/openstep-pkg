@@ -1,0 +1,10 @@
+# roboclient configuration (shell syntax; also read by the roboclient binary).
+# Hardware address of the interface, needed because OPENSTEP offers no way to
+# read it.  Find it with: /usr/etc/arp -a (your own entry) or the boot banner.
+#MAC_en0=0:0:c0:12:34:56
+# Name announced to the DHCP server (option 12).
+#HOSTNAME=myhost
+# Install the default route offered by the server.
+UPDATE_ROUTE=yes
+# Rewrite /etc/resolv.conf with the offered DNS servers and domain.
+UPDATE_RESOLV=no
