@@ -46,6 +46,23 @@ SEOF
 #endif
 SEOF
 
+# <utime.h> declares struct utimbuf and utime() only under _POSIX_SOURCE, which
+# -std=gnu99 builds do not define.  gnulib's <utime.h> wrapper reaches the
+# system header with #include_next, so it finds this one first.
+/bin/cat > openstep/utime.h <<'SEOF'
+#ifndef OPENSTEP_UTIME_H
+#define OPENSTEP_UTIME_H
+#include <sys/types.h>
+#ifdef _POSIX_SOURCE
+# include_next <utime.h>
+#else
+# define _POSIX_SOURCE 1
+# include_next <utime.h>
+# undef _POSIX_SOURCE
+#endif
+#endif
+SEOF
+
 # gnulib replaces the missing socklen_t with a macro ("#define socklen_t int"),
 # and an OpenSSL installed before its e_os2.h was fixed typedefs socklen_t
 # unconditionally, which then reads "typedef unsigned int int;".  Until the
