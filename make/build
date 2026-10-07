@@ -5,7 +5,9 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
-CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
+# gcc42 needs this make to build, so make is built with the system compiler.
+# PKG_MAKE_CC overrides it (for example "/usr/local/bin/gcc-4.2 -march=i486").
+CC=${PKG_MAKE_CC-"/bin/cc $PKG_SYSCC_ARCH_FLAGS"}
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
 AWK=/usr/local/bin/gawk
