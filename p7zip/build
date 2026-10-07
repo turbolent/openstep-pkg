@@ -1,0 +1,59 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+export PATH
+if test -d "p7zip_$VERSION"; then cd "p7zip_$VERSION"; fi
+patch -p1 < "p7zip-$VERSION-openstep.patch"
+# makefile.openstep is this port's machine file (single-threaded gcc-4.2, with
+# the openstep/ pthread, wchar and dirent stand-ins).
+cp makefile.openstep makefile.machine
+OPENSTEP_INC=`pwd`/openstep
+export OPENSTEP_INC
+
+# Without _POSIX_SOURCE OPENSTEP's headers hide some POSIX types (pid_t, mode_t,
+# ssize_t...) that p7zip uses.  Probe with the real compiler and typedef only
+# the missing ones into a header forced into every compile.
+types_h=`pwd`/openstep-types.h
+: > "$types_h"
+probe_type() {
+    printf '#include <sys/types.h>\n#include <sys/stat.h>\n#include <stddef.h>\n#include <time.h>\n#include <unistd.h>\n%s probe_var;\n' "$1" > probe_type.c
+    if /usr/local/bin/gcc-4.2 -DNeXT -c probe_type.c -o probe_type.o > /dev/null 2>&1; then
+        :
+    else
+        echo "typedef $2 $1;" >> "$types_h"
+    fi
+}
+probe_type pid_t int
+probe_type mode_t 'unsigned int'
+probe_type ssize_t int
+probe_type clock_t long
+# <utime.h> only completes struct utimbuf under _POSIX_SOURCE; p7zip sets file
+# times with it.  It is two time_t's in that order (the BSD utime() takes the
+# same layout as an array).
+{
+    echo '#include <sys/types.h>'
+    echo '#include <utime.h>'
+    echo 'struct utimbuf probe_ub;'
+    echo 'int probe_f(void) { probe_ub.actime = 0; probe_ub.modtime = 0; return 0; }'
+} > probe_type.c
+if /usr/local/bin/gcc-4.2 -DNeXT -c probe_type.c -o probe_type.o > /dev/null 2>&1; then
+    :
+else
+    {
+        echo '#include <sys/types.h>'
+        echo '#include <time.h>'
+        echo 'struct utimbuf { time_t actime; time_t modtime; };'
+    } >> "$types_h"
+fi
+/bin/rm -f probe_type.c probe_type.o
+echo "p7zip: missing types typedef'd:" `/bin/cat "$types_h" | /bin/sed 's/^typedef .* \([a-z_]*\);$/\1/'`
+
+/bin/gnumake 7za OPENSTEP_INC="$OPENSTEP_INC" \
+    OPTFLAGS="-O2 $PKG_GCC42_ARCH_FLAGS -include $types_h"
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/bin" "$DESTDIR/usr/local/man/man1"
+/bin/cp bin/7za "$DESTDIR/usr/local/bin/7za"
+/bin/chmod 755 "$DESTDIR/usr/local/bin/7za"
+/bin/cp man1/7za.1 "$DESTDIR/usr/local/man/man1/7za.1"
+/bin/chmod 644 "$DESTDIR/usr/local/man/man1/7za.1"
