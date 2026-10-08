@@ -40,7 +40,7 @@ fixed.  Use it for old, known-safe archives only.
 | freeze | validated | validated |
 | fribidi | 0.19.7 validated | — |
 | gawk | validated | validated (with pkg_cmp_shim) |
-| gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes) |
+| gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated (2.55.0; needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
 | grep | validated | validated (with pkg_cmp_shim) |
