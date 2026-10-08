@@ -1,8 +1,7 @@
 diff --git a/Include/cpython/pthread_stubs.h b/Include/cpython/pthread_stubs.h
-index d95ee03..b54cd3e 100644
 --- a/Include/cpython/pthread_stubs.h
 +++ b/Include/cpython/pthread_stubs.h
-@@ -37,6 +37,11 @@ typedef struct { unsigned __attr; } pthread_mutexattr_t;
+@@ -37,6 +37,11 @@
  typedef unsigned pthread_key_t;
  typedef unsigned pthread_t;
  typedef struct { unsigned __attr; } pthread_attr_t;
@@ -15,10 +14,9 @@ index d95ee03..b54cd3e 100644
  
  // mutex
 diff --git a/Include/internal/pycore_atomic.h b/Include/internal/pycore_atomic.h
-index 425d69f..7c46e96 100644
 --- a/Include/internal/pycore_atomic.h
 +++ b/Include/internal/pycore_atomic.h
-@@ -131,7 +131,11 @@ static __inline__ void
+@@ -131,7 +131,11 @@
  _Py_atomic_thread_fence(_Py_memory_order order)
  {
      if (order != _Py_memory_order_relaxed)
@@ -32,10 +30,9 @@ index 425d69f..7c46e96 100644
  
  /* Tell the race checker about this operation's effects. */
 diff --git a/Include/internal/pycore_bitutils.h b/Include/internal/pycore_bitutils.h
-index e6bf61e..baf0746 100644
 --- a/Include/internal/pycore_bitutils.h
 +++ b/Include/internal/pycore_bitutils.h
-@@ -94,7 +94,8 @@ _Py_bswap64(uint64_t word)
+@@ -94,7 +94,8 @@
  static inline int
  _Py_popcount32(uint32_t x)
  {
@@ -45,7 +42,7 @@ index e6bf61e..baf0746 100644
  
  #if SIZEOF_INT >= 4
      Py_BUILD_ASSERT(sizeof(x) <= sizeof(unsigned int));
-@@ -145,7 +146,9 @@ _Py_popcount32(uint32_t x)
+@@ -145,7 +146,9 @@
  static inline int
  _Py_bit_length(unsigned long x)
  {
@@ -57,7 +54,6 @@ index e6bf61e..baf0746 100644
          // __builtin_clzl() is available since GCC 3.4.
          // Undefined behavior for x == 0.
 diff --git a/Include/pymacro.h b/Include/pymacro.h
-index 5840966..db6a526 100644
 --- a/Include/pymacro.h
 +++ b/Include/pymacro.h
 @@ -65,6 +65,14 @@
@@ -76,7 +72,6 @@ index 5840966..db6a526 100644
  
     This does not work on pointers, or arrays declared as [], or function
 diff --git a/Include/pymath.h b/Include/pymath.h
-index 772b67e..94e2233 100644
 --- a/Include/pymath.h
 +++ b/Include/pymath.h
 @@ -37,6 +37,47 @@
@@ -128,10 +123,9 @@ index 772b67e..94e2233 100644
  
  /* HUGE_VAL is supposed to expand to a positive double infinity.  Python
 diff --git a/Makefile.pre.in b/Makefile.pre.in
-index 81d4d50..e98627d 100644
 --- a/Makefile.pre.in
 +++ b/Makefile.pre.in
-@@ -39,6 +39,7 @@ CXX=		@CXX@
+@@ -39,6 +39,7 @@
  MAINCC=		@MAINCC@
  LINKCC=		@LINKCC@
  AR=		@AR@
@@ -139,7 +133,7 @@ index 81d4d50..e98627d 100644
  READELF=	@READELF@
  SOABI=		@SOABI@
  LDVERSION=	@LDVERSION@
-@@ -719,7 +720,7 @@ platform: $(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt
+@@ -723,7 +724,7 @@
  # initialization to succeed.  It will be overwritten by generate-posix-vars
  # or removed in case of failure.
  pybuilddir.txt: $(PYTHON_FOR_BUILD_DEPS)
@@ -148,7 +142,7 @@ index 81d4d50..e98627d 100644
  	$(RUNSHARED) $(PYTHON_FOR_BUILD) -S -m sysconfig --generate-posix-vars ;\
  	if test $$? -ne 0 ; then \
  		echo "generate-posix-vars failed" ; \
-@@ -752,6 +753,7 @@ sharedmods: $(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt @LIBMPDEC_INTERNAL@ @LIBEXPA
+@@ -756,6 +757,7 @@
  $(LIBRARY): $(LIBRARY_OBJS)
  	-rm -f $@
  	$(AR) $(ARFLAGS) $@ $(LIBRARY_OBJS)
@@ -156,7 +150,7 @@ index 81d4d50..e98627d 100644
  
  libpython$(LDVERSION).so: $(LIBRARY_OBJS) $(DTRACE_OBJS)
  	if test $(INSTSONAME) != $(LDLIBRARY); then \
-@@ -892,6 +894,7 @@ Modules/_decimal/libmpdec/transpose.o: $(srcdir)/Modules/_decimal/libmpdec/trans
+@@ -896,6 +898,7 @@
  $(LIBMPDEC_A): $(LIBMPDEC_OBJS)
  	-rm -f $@
  	$(AR) $(ARFLAGS) $@ $(LIBMPDEC_OBJS)
@@ -164,7 +158,7 @@ index 81d4d50..e98627d 100644
  
  ##########################################################################
  # Build static libexpat.a
-@@ -913,6 +916,7 @@ Modules/expat/xmltok.o: $(srcdir)/Modules/expat/xmltok.c $(LIBEXPAT_HEADERS) $(P
+@@ -917,6 +920,7 @@
  $(LIBEXPAT_A): $(LIBEXPAT_OBJS)
  	-rm -f $@
  	$(AR) $(ARFLAGS) $@ $(LIBEXPAT_OBJS)
@@ -172,7 +166,7 @@ index 81d4d50..e98627d 100644
  
  # create relative links from build/lib.platform/egg.so to Modules/egg.so
  # pybuilddir.txt is created too late. We cannot use it in Makefile
-@@ -1158,7 +1162,7 @@ regen-frozen: Tools/scripts/freeze_modules.py $(FROZEN_FILES_IN)
+@@ -1164,7 +1168,7 @@
  .PHONY: regen-deepfreeze
  regen-deepfreeze: $(DEEPFREEZE_C)
  
@@ -181,7 +175,7 @@ index 81d4d50..e98627d 100644
  
  # BEGIN: deepfreeze modules
  $(DEEPFREEZE_C): $(DEEPFREEZE_DEPS)
-@@ -2388,6 +2392,10 @@ config.status:	$(srcdir)/configure
+@@ -2394,6 +2398,10 @@
  .c.o:
  	$(CC) -c $(PY_CORE_CFLAGS) -o $@ $<
  
@@ -193,10 +187,9 @@ index 81d4d50..e98627d 100644
  # with -O2 or higher and strict aliasing miscompiles the ratio() function
  # causing rounding issues. Compile dtoa.c using -fno-strict-aliasing on clang.
 diff --git a/Modules/_io/fileio.c b/Modules/_io/fileio.c
-index fee97f2..1b2c26b 100644
 --- a/Modules/_io/fileio.c
 +++ b/Modules/_io/fileio.c
-@@ -279,6 +279,49 @@ _Py_COMP_DIAG_POP
+@@ -279,6 +279,49 @@
          if (widename == NULL)
              return -1;
  #else
@@ -247,10 +240,9 @@ index fee97f2..1b2c26b 100644
              return -1;
          }
 diff --git a/Modules/_math.h b/Modules/_math.h
-index 4a6bc22..e97b094 100644
 --- a/Modules/_math.h
 +++ b/Modules/_math.h
-@@ -17,6 +17,16 @@ _Py_log1p(double x)
+@@ -17,6 +17,16 @@
          return x;
      }
      else {
@@ -268,10 +260,9 @@ index 4a6bc22..e97b094 100644
      }
  }
 diff --git a/Modules/_posixsubprocess.c b/Modules/_posixsubprocess.c
-index d91bf21..04f2772 100644
 --- a/Modules/_posixsubprocess.c
 +++ b/Modules/_posixsubprocess.c
-@@ -386,6 +386,10 @@ static void
+@@ -386,6 +386,10 @@
  _close_open_fds_maybe_unsafe(int start_fd, int *fds_to_keep,
                               Py_ssize_t fds_to_keep_len)
  {
@@ -282,7 +273,7 @@ index d91bf21..04f2772 100644
      DIR *proc_fd_dir;
  #ifndef HAVE_DIRFD
      while (_is_fd_in_sorted_fd_sequence(start_fd, fds_to_keep,
-@@ -436,6 +440,7 @@ _close_open_fds_maybe_unsafe(int start_fd, int *fds_to_keep,
+@@ -436,6 +440,7 @@
          }
          closedir(proc_fd_dir);
      }
@@ -291,10 +282,9 @@ index d91bf21..04f2772 100644
  
  #define _close_open_fds_fallback _close_open_fds_maybe_unsafe
 diff --git a/Modules/getpath.c b/Modules/getpath.c
-index 61d6540..7f1ec3e 100644
 --- a/Modules/getpath.c
 +++ b/Modules/getpath.c
-@@ -384,6 +384,40 @@ getpath_readlines(PyObject *Py_UNUSED(self), PyObject *args)
+@@ -384,6 +384,40 @@
      }
      buffer[cb] = '\0';
  
@@ -335,13 +325,12 @@ index 61d6540..7f1ec3e 100644
      size_t len;
      wchar_t *wbuffer = _Py_DecodeUTF8_surrogateescape(buffer, cb, &len);
      PyMem_Free((void *)buffer);
-@@ -961,4 +995,3 @@ _PyConfig_InitPathConfig(PyConfig *config, int compute_path_config)
+@@ -961,4 +995,3 @@
  
      return _PyStatus_OK();
  }
 -
 diff --git a/Modules/main.c b/Modules/main.c
-index f6dade1..e7ef5ee 100644
 --- a/Modules/main.c
 +++ b/Modules/main.c
 @@ -6,6 +6,7 @@
@@ -352,7 +341,7 @@ index f6dade1..e7ef5ee 100644
  #include "pycore_pystate.h"       // _PyInterpreterState_GET()
  
  /* Includes for exit_sigint() */
-@@ -718,6 +719,9 @@ pymain_main(_PyArgv *args)
+@@ -718,6 +719,9 @@
  int
  Py_Main(int argc, wchar_t **argv)
  {
@@ -362,7 +351,7 @@ index f6dade1..e7ef5ee 100644
      _PyArgv args = {
          .argc = argc,
          .use_bytes_argv = 0,
-@@ -730,6 +734,9 @@ Py_Main(int argc, wchar_t **argv)
+@@ -730,6 +734,9 @@
  int
  Py_BytesMain(int argc, char **argv)
  {
@@ -373,10 +362,9 @@ index f6dade1..e7ef5ee 100644
          .argc = argc,
          .use_bytes_argv = 1,
 diff --git a/Modules/mathmodule.c b/Modules/mathmodule.c
-index 5f5b71c..39047be 100644
 --- a/Modules/mathmodule.c
 +++ b/Modules/mathmodule.c
-@@ -70,6 +70,43 @@ raised for division by zero and mod by zero.
+@@ -70,6 +70,43 @@
  
  #include "clinic/mathmodule.c.h"
  
@@ -421,10 +409,9 @@ index 5f5b71c..39047be 100644
  module math
  [clinic start generated code]*/
 diff --git a/Modules/posixmodule.c b/Modules/posixmodule.c
-index 6fb2fc8..a0959ad 100644
 --- a/Modules/posixmodule.c
 +++ b/Modules/posixmodule.c
-@@ -254,6 +254,21 @@ corresponding Unix manual entries for more information on calls.");
+@@ -254,6 +254,21 @@
  #  include <fcntl.h>
  #endif
  
@@ -446,7 +433,7 @@ index 6fb2fc8..a0959ad 100644
  #ifdef HAVE_GRP_H
  #  include <grp.h>
  #endif
-@@ -466,6 +481,9 @@ extern char        *ctermid_r(char *);
+@@ -466,6 +481,9 @@
  #  ifndef WTERMSIG
  #    define WTERMSIG(u_wait) ((u_wait).w_termsig)
  #  endif
@@ -456,11 +443,10 @@ index 6fb2fc8..a0959ad 100644
  #  define WAIT_TYPE union wait
  #  define WAIT_STATUS_INT(s) (s.w_status)
  #else
-@@ -1244,10 +1262,49 @@ _Py_COMP_DIAG_POP
-         wide = NULL;
+@@ -1245,10 +1263,49 @@
  #endif /* USE_UNICODE_WCHAR_CACHE */
          goto success_exit;
-+#else
+ #else
 +#ifdef NeXT
 +        wchar_t *wide;
 +        char *buf;
@@ -498,15 +484,16 @@ index 6fb2fc8..a0959ad 100644
 +        if (bytes == NULL) {
 +            goto error_exit;
 +        }
- #else
++#else
          if (!PyUnicode_FSConverter(o, &bytes)) {
              goto error_exit;
          }
-+#endif
  #endif
++#endif
      }
      else if (is_bytes) {
-@@ -3119,6 +3176,13 @@ os_ttyname_impl(PyObject *module, int fd)
+         bytes = o;
+@@ -3119,6 +3176,13 @@
  /*[clinic end generated code: output=c424d2e9d1cd636a input=9ff5a58b08115c55]*/
  {
  
@@ -520,7 +507,7 @@ index 6fb2fc8..a0959ad 100644
      long size = sysconf(_SC_TTY_NAME_MAX);
      if (size == -1) {
          return posix_error();
-@@ -3136,6 +3200,7 @@ os_ttyname_impl(PyObject *module, int fd)
+@@ -3136,6 +3200,7 @@
      PyObject *res = PyUnicode_DecodeFSDefault(buffer);
      PyMem_RawFree(buffer);
      return res;
@@ -529,10 +516,9 @@ index 6fb2fc8..a0959ad 100644
  #endif
  
 diff --git a/Modules/socketmodule.c b/Modules/socketmodule.c
-index f0c9b46..0a78920 100644
 --- a/Modules/socketmodule.c
 +++ b/Modules/socketmodule.c
-@@ -431,6 +431,57 @@ remove_unusable_flags(PyObject *m)
+@@ -431,6 +431,57 @@
  #endif
  
  /* I know this is a bad practice, but it is the easiest... */
@@ -591,7 +577,6 @@ index f0c9b46..0a78920 100644
  /* avoid clashes with the C library definition of the symbol. */
  #define getaddrinfo fake_getaddrinfo
 diff --git a/Modules/xxsubtype.c b/Modules/xxsubtype.c
-index 7f3a13f..25e3200 100644
 --- a/Modules/xxsubtype.c
 +++ b/Modules/xxsubtype.c
 @@ -1,6 +1,10 @@
@@ -606,7 +591,6 @@ index 7f3a13f..25e3200 100644
  "xxsubtype is an example module showing how to subtype builtin types from C.\n"
  "test_descr.py in the standard test suite requires it in order to complete.\n"
 diff --git a/Programs/_freeze_module.c b/Programs/_freeze_module.c
-index 7c4d60a..971e8bd 100644
 --- a/Programs/_freeze_module.c
 +++ b/Programs/_freeze_module.c
 @@ -18,6 +18,12 @@
@@ -622,7 +606,7 @@ index 7c4d60a..971e8bd 100644
  #ifndef MS_WINDOWS
  #include <unistd.h>
  #endif
-@@ -83,6 +89,53 @@ runtime_init(void)
+@@ -83,6 +89,53 @@
  static const char *
  read_text(const char *inpath)
  {
@@ -676,7 +660,7 @@ index 7c4d60a..971e8bd 100644
      FILE *infile = fopen(inpath, "rb");
      if (infile == NULL) {
          fprintf(stderr, "cannot open '%s' for reading\n", inpath);
-@@ -115,6 +168,7 @@ read_text(const char *inpath)
+@@ -115,6 +168,7 @@
  
      text[text_size] = '\0';
      return (const char *)text;
@@ -684,13 +668,12 @@ index 7c4d60a..971e8bd 100644
  }
  
  static PyObject *
-@@ -247,4 +301,3 @@ error:
+@@ -247,4 +301,3 @@
      Py_Finalize();
      return 1;
  }
 -
 diff --git a/Programs/_testembed.c b/Programs/_testembed.c
-index 13eae17..d6f3e09 100644
 --- a/Programs/_testembed.c
 +++ b/Programs/_testembed.c
 @@ -14,11 +14,82 @@
@@ -777,10 +760,9 @@ index 13eae17..d6f3e09 100644
   * Embedded interpreter tests that need a custom exe
   *
 diff --git a/Python/bootstrap_hash.c b/Python/bootstrap_hash.c
-index 3a2a731..ef62864 100644
 --- a/Python/bootstrap_hash.c
 +++ b/Python/bootstrap_hash.c
-@@ -576,8 +576,13 @@ _Py_HashRandomization_Init(const PyConfig *config)
+@@ -576,8 +576,13 @@
             pyurandom() is non-blocking mode (blocking=0): see the PEP 524. */
          res = pyurandom(secret, secret_size, 0, 0);
          if (res < 0) {
@@ -795,10 +777,9 @@ index 3a2a731..ef62864 100644
      }
      return _PyStatus_OK();
 diff --git a/Python/fileutils.c b/Python/fileutils.c
-index 24341dd..e9b6048 100644
 --- a/Python/fileutils.c
 +++ b/Python/fileutils.c
-@@ -27,6 +27,142 @@ extern int winerror_to_errno(int);
+@@ -27,6 +27,142 @@
  #ifdef HAVE_FCNTL_H
  #include <fcntl.h>
  #endif /* HAVE_FCNTL_H */
@@ -941,7 +922,7 @@ index 24341dd..e9b6048 100644
  
  #ifdef O_CLOEXEC
  /* Does open() support the O_CLOEXEC flag? Possible values:
-@@ -650,6 +786,27 @@ _Py_DecodeLocaleEx(const char* arg, wchar_t **wstr, size_t *wlen,
+@@ -650,6 +786,27 @@
  wchar_t*
  Py_DecodeLocale(const char* arg, size_t *wlen)
  {
@@ -969,7 +950,7 @@ index 24341dd..e9b6048 100644
      wchar_t *wstr;
      int res = _Py_DecodeLocaleEx(arg, &wstr, wlen,
                                   NULL, 0,
-@@ -662,6 +819,7 @@ Py_DecodeLocale(const char* arg, size_t *wlen)
+@@ -662,6 +819,7 @@
          return NULL;
      }
      return wstr;
@@ -977,7 +958,7 @@ index 24341dd..e9b6048 100644
  }
  
  
-@@ -901,6 +1059,8 @@ _Py_GetLocaleEncoding(void)
+@@ -901,6 +1059,8 @@
      swprintf(encoding, Py_ARRAY_LENGTH(encoding), L"cp%u", ansi_codepage);
      encoding[Py_ARRAY_LENGTH(encoding) - 1] = 0;
      return _PyMem_RawWcsdup(encoding);
@@ -986,33 +967,32 @@ index 24341dd..e9b6048 100644
  #else
      const char *encoding = nl_langinfo(CODESET);
      if (!encoding || encoding[0] == '\0') {
-@@ -1218,6 +1378,13 @@ _Py_wstat(const wchar_t* path, struct stat *buf)
-     if (!err) {
+@@ -1219,6 +1379,13 @@
          buf->st_mode = wstatbuf.st_mode;
      }
-+#else
+ #else
 +#ifdef NeXT
 +    char fname[MAXPATHLEN];
 +    if (next_wcs_to_chars(path, fname, sizeof(fname)) < 0) {
 +        return -1;
 +    }
 +    err = stat(fname, buf);
- #else
++#else
      char *fname;
      fname = _Py_EncodeLocaleRaw(path, NULL);
-@@ -1227,6 +1394,7 @@ _Py_wstat(const wchar_t* path, struct stat *buf)
-     }
+     if (fname == NULL) {
+@@ -1228,6 +1395,7 @@
      err = stat(fname, buf);
      PyMem_RawFree(fname);
-+#endif
  #endif
++#endif
      return err;
  }
-@@ -1257,6 +1425,17 @@ _Py_stat(PyObject *path, struct stat *statbuf)
-     PyMem_Free(wpath);
+ 
+@@ -1258,6 +1426,17 @@
  #endif /* USE_UNICODE_WCHAR_CACHE */
      return err;
-+#else
+ #else
 +#ifdef NeXT
 +    int ret;
 +    wchar_t *wpath;
@@ -1023,10 +1003,11 @@ index 24341dd..e9b6048 100644
 +    ret = _Py_wstat(wpath, statbuf);
 +    PyMem_Free(wpath);
 +    return ret;
- #else
++#else
      int ret;
      PyObject *bytes;
-@@ -1276,6 +1455,7 @@ _Py_stat(PyObject *path, struct stat *statbuf)
+     char *cpath;
+@@ -1276,6 +1455,7 @@
      Py_DECREF(bytes);
      return ret;
  #endif
@@ -1034,7 +1015,7 @@ index 24341dd..e9b6048 100644
  }
  
  
-@@ -1606,6 +1786,14 @@ _Py_wfopen(const wchar_t *path, const wchar_t *mode)
+@@ -1606,6 +1786,14 @@
      char *cpath;
      char cmode[10];
      size_t r;
@@ -1049,7 +1030,7 @@ index 24341dd..e9b6048 100644
      r = wcstombs(cmode, mode, 10);
      if (r == DECODE_ERROR || r >= 10) {
          errno = EINVAL;
-@@ -1617,6 +1805,7 @@ _Py_wfopen(const wchar_t *path, const wchar_t *mode)
+@@ -1617,6 +1805,7 @@
      }
      f = fopen(cpath, cmode);
      PyMem_RawFree(cpath);
@@ -1057,11 +1038,10 @@ index 24341dd..e9b6048 100644
  #else
      f = _wfopen(path, mode);
  #endif
-@@ -1691,6 +1880,41 @@ _Py_fopen_obj(PyObject *path, const char *mode)
- #if !USE_UNICODE_WCHAR_CACHE
+@@ -1692,6 +1881,41 @@
      PyMem_Free(wpath);
  #endif /* USE_UNICODE_WCHAR_CACHE */
-+#else
+ #else
 +#ifdef NeXT
 +    char next_path[MAXPATHLEN];
 +    wchar_t *wpath;
@@ -1096,18 +1076,19 @@ index 24341dd..e9b6048 100644
 +    } while (f == NULL
 +             && errno == EINTR && !(async_err = PyErr_CheckSignals()));
 +    int saved_errno = errno;
- #else
++#else
      PyObject *bytes;
      const char *path_bytes;
-@@ -1714,6 +1938,7 @@ _Py_fopen_obj(PyObject *path, const char *mode)
-              && errno == EINTR && !(async_err = PyErr_CheckSignals()));
+ 
+@@ -1715,6 +1939,7 @@
      int saved_errno = errno;
      Py_DECREF(bytes);
-+#endif
  #endif
++#endif
      if (async_err)
          return NULL;
-@@ -2335,9 +2560,22 @@ _Py_wgetcwd(wchar_t *buf, size_t buflen)
+ 
+@@ -2335,9 +2560,22 @@
      char fname[MAXPATHLEN];
      wchar_t *wname;
      size_t len;
@@ -1131,10 +1112,9 @@ index 24341dd..e9b6048 100644
      if (wname == NULL)
          return NULL;
 diff --git a/Python/mysnprintf.c b/Python/mysnprintf.c
-index 2a505d1..c6617eb 100644
 --- a/Python/mysnprintf.c
 +++ b/Python/mysnprintf.c
-@@ -68,6 +68,22 @@ PyOS_vsnprintf(char *str, size_t size, const char  *format, va_list va)
+@@ -68,6 +68,22 @@
  
  #if defined(_MSC_VER)
      len = _vsnprintf(str, size, format, va);
@@ -1157,7 +1137,7 @@ index 2a505d1..c6617eb 100644
  #else
      len = vsnprintf(str, size, format, va);
  #endif
-@@ -78,3 +94,26 @@ Done:
+@@ -78,3 +94,26 @@
      }
      return len;
  }
@@ -1185,10 +1165,9 @@ index 2a505d1..c6617eb 100644
 +}
 +#endif
 diff --git a/Python/preconfig.c b/Python/preconfig.c
-index 0deb07a..2e49f77 100644
 --- a/Python/preconfig.c
 +++ b/Python/preconfig.c
-@@ -294,7 +294,11 @@ _PyPreConfig_InitCompatConfig(PyPreConfig *config)
+@@ -294,7 +294,11 @@
      config->coerce_c_locale_warn = 0;
  
      config->dev_mode = -1;
@@ -1200,7 +1179,7 @@ index 0deb07a..2e49f77 100644
  #ifdef MS_WINDOWS
      config->legacy_windows_fs_encoding = -1;
  #endif
-@@ -720,6 +724,11 @@ preconfig_init_allocator(PyPreConfig *config)
+@@ -720,6 +724,11 @@
              }
              config->allocator = (int)name;
          }
@@ -1213,10 +1192,9 @@ index 0deb07a..2e49f77 100644
  
      if (config->dev_mode && config->allocator == PYMEM_ALLOCATOR_NOT_SET) {
 diff --git a/Python/pyarena.c b/Python/pyarena.c
-index ead0337..43496cc 100644
 --- a/Python/pyarena.c
 +++ b/Python/pyarena.c
-@@ -78,10 +78,10 @@ block_new(size_t size)
+@@ -78,10 +78,10 @@
  {
      /* Allocate header and block as one unit.
         ab_mem points just past header. */
@@ -1230,10 +1208,9 @@ index ead0337..43496cc 100644
      b->ab_next = NULL;
      b->ab_offset = (char *)_Py_ALIGN_UP(b->ab_mem, ALIGNMENT) -
 diff --git a/Python/pymath.c b/Python/pymath.c
-index e7d0161..c874c82 100644
 --- a/Python/pymath.c
 +++ b/Python/pymath.c
-@@ -17,3 +17,20 @@ void _Py_set_387controlword(unsigned short cw) {
+@@ -17,3 +17,20 @@
      __asm__ __volatile__ ("fldcw %0" : : "m" (cw));
  }
  #endif  // HAVE_GCC_ASM_FOR_X87
@@ -1255,10 +1232,9 @@ index e7d0161..c874c82 100644
 +}
 +#endif
 diff --git a/Python/pytime.c b/Python/pytime.c
-index f4f112f..721bb41 100644
 --- a/Python/pytime.c
 +++ b/Python/pytime.c
-@@ -1128,6 +1128,11 @@ py_get_monotonic_clock(_PyTime_t *tp, _Py_clock_info_t *info, int raise_exc)
+@@ -1128,6 +1128,11 @@
          info->adjustable = 0;
      }
  
@@ -1270,7 +1246,7 @@ index f4f112f..721bb41 100644
  #else
  
  #ifdef CLOCK_HIGHRES
-@@ -1318,6 +1323,17 @@ _PyTime_localtime(time_t t, struct tm *tm)
+@@ -1318,6 +1323,17 @@
  #endif
  
      errno = 0;
@@ -1288,7 +1264,7 @@ index f4f112f..721bb41 100644
      if (localtime_r(&t, tm) == NULL) {
          if (errno == 0) {
              errno = EINVAL;
-@@ -1325,6 +1341,7 @@ _PyTime_localtime(time_t t, struct tm *tm)
+@@ -1325,6 +1341,7 @@
          PyErr_SetFromErrno(PyExc_OSError);
          return -1;
      }
@@ -1296,7 +1272,7 @@ index f4f112f..721bb41 100644
      return 0;
  #endif /* MS_WINDOWS */
  }
-@@ -1344,6 +1361,19 @@ _PyTime_gmtime(time_t t, struct tm *tm)
+@@ -1344,6 +1361,19 @@
      }
      return 0;
  #else /* !MS_WINDOWS */
@@ -1316,7 +1292,7 @@ index f4f112f..721bb41 100644
      if (gmtime_r(&t, tm) == NULL) {
  #ifdef EINVAL
          if (errno == 0) {
-@@ -1353,6 +1383,7 @@ _PyTime_gmtime(time_t t, struct tm *tm)
+@@ -1353,6 +1383,7 @@
          PyErr_SetFromErrno(PyExc_OSError);
          return -1;
      }
@@ -1325,10 +1301,9 @@ index f4f112f..721bb41 100644
  #endif /* MS_WINDOWS */
  }
 diff --git a/configure b/configure
-index a1ad0ae..1d9722a 100644
 --- a/configure
 +++ b/configure
-@@ -882,6 +882,8 @@ MKDIR_P
+@@ -882,6 +882,8 @@
  INSTALL_DATA
  INSTALL_SCRIPT
  INSTALL_PROGRAM
@@ -1337,7 +1312,7 @@ index a1ad0ae..1d9722a 100644
  ac_ct_READELF
  READELF
  ARFLAGS
-@@ -3300,6 +3302,13 @@ else
+@@ -3300,6 +3302,13 @@
      FREEZE_MODULE_BOOTSTRAP_DEPS="Programs/_freeze_module"
      FREEZE_MODULE='$(PYTHON_FOR_FREEZE) $(srcdir)/Programs/_freeze_module.py'
      FREEZE_MODULE_DEPS="_bootstrap_python \$(srcdir)/Programs/_freeze_module.py"
@@ -1351,7 +1326,7 @@ index a1ad0ae..1d9722a 100644
      PYTHON_FOR_BUILD_DEPS='$(BUILDPYTHON)'
  
  
-@@ -3832,6 +3841,9 @@ then
+@@ -3832,6 +3841,9 @@
  	*-*-wasi)
  	    ac_sys_system=WASI
  	    ;;
@@ -1361,7 +1336,7 @@ index a1ad0ae..1d9722a 100644
  	*)
  		# for now, limit cross builds to known configurations
  		MACHDEP="unknown"
-@@ -3840,10 +3852,18 @@ then
+@@ -3840,10 +3852,18 @@
  	ac_sys_release=
      else
  	ac_sys_system=`uname -s`
@@ -1382,7 +1357,7 @@ index a1ad0ae..1d9722a 100644
  		ac_sys_release=`uname -r`
  	fi
      fi
-@@ -3858,6 +3878,7 @@ then
+@@ -3858,6 +3878,7 @@
  	linux*) MACHDEP="linux";;
  	cygwin*) MACHDEP="cygwin";;
  	darwin*) MACHDEP="darwin";;
@@ -1390,7 +1365,7 @@ index a1ad0ae..1d9722a 100644
  	'')	MACHDEP="unknown";;
      esac
  
-@@ -7117,7 +7138,114 @@ fi
+@@ -7117,7 +7138,114 @@
  
  if test -z "$ARFLAGS"
  then
@@ -1505,7 +1480,7 @@ index a1ad0ae..1d9722a 100644
  fi
  
  if test -n "$ac_tool_prefix"; then
-@@ -8270,7 +8398,12 @@ UNIVERSAL_ARCH_FLAGS=
+@@ -8270,7 +8398,12 @@
  # tweak BASECFLAGS based on compiler and platform
  case $GCC in
  yes)
@@ -1519,7 +1494,7 @@ index a1ad0ae..1d9722a 100644
  
  
  
-@@ -14397,7 +14530,7 @@ if test "x$ac_cv_lib_cma_pthread_create" = xyes; then :
+@@ -14397,7 +14530,7 @@
  else
  
      case $ac_sys_system in #(
@@ -1528,7 +1503,7 @@ index a1ad0ae..1d9722a 100644
      posix_threads=stub ;; #(
    *) :
      as_fn_error $? "could not find pthreads on your system" "$LINENO" 5
-@@ -14969,7 +15102,14 @@ fi
+@@ -14969,7 +15102,14 @@
  
  if test -z "$with_freelists"
  then
@@ -1544,7 +1519,7 @@ index a1ad0ae..1d9722a 100644
  fi
  if test "$with_freelists" != "no"
  then
-@@ -20145,7 +20285,7 @@ fi
+@@ -20145,7 +20285,7 @@
  LIBS_SAVE=$LIBS
  LIBS="$LIBS $LIBM"
  
@@ -1553,10 +1528,11 @@ index a1ad0ae..1d9722a 100644
  do :
    as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
  ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
-@@ -20160,6 +20300,17 @@ else
+@@ -20159,6 +20299,17 @@
+ 
  fi
  done
- 
++
 +for ac_func in log2
 +do :
 +  ac_fn_c_check_func "$LINENO" "log2" "ac_cv_func_log2"
@@ -1567,15 +1543,13 @@ index a1ad0ae..1d9722a 100644
 +
 +fi
 +done
-+
+ 
  LIBS=$LIBS_SAVE
  
- { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether POSIX semaphores are enabled" >&5
 diff --git a/configure.ac b/configure.ac
-index 7b4000f..8406a55 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -193,6 +193,11 @@ AS_VAR_IF([cross_compiling], [yes],
+@@ -193,6 +193,11 @@
      FREEZE_MODULE_BOOTSTRAP_DEPS="Programs/_freeze_module"
      FREEZE_MODULE='$(PYTHON_FOR_FREEZE) $(srcdir)/Programs/_freeze_module.py'
      FREEZE_MODULE_DEPS="_bootstrap_python \$(srcdir)/Programs/_freeze_module.py"
@@ -1587,7 +1561,7 @@ index 7b4000f..8406a55 100644
      PYTHON_FOR_BUILD_DEPS='$(BUILDPYTHON)'
    ]
  )
-@@ -554,6 +559,9 @@ then
+@@ -554,6 +559,9 @@
  	*-*-wasi)
  	    ac_sys_system=WASI
  	    ;;
@@ -1597,7 +1571,7 @@ index 7b4000f..8406a55 100644
  	*)
  		# for now, limit cross builds to known configurations
  		MACHDEP="unknown"
-@@ -562,10 +570,18 @@ then
+@@ -562,10 +570,18 @@
  	ac_sys_release=
      else
  	ac_sys_system=`uname -s`
@@ -1618,7 +1592,7 @@ index 7b4000f..8406a55 100644
  		ac_sys_release=`uname -r`
  	fi
      fi
-@@ -580,6 +596,7 @@ then
+@@ -580,6 +596,7 @@
  	linux*) MACHDEP="linux";;
  	cygwin*) MACHDEP="cygwin";;
  	darwin*) MACHDEP="darwin";;
@@ -1626,7 +1600,7 @@ index 7b4000f..8406a55 100644
  	'')	MACHDEP="unknown";;
      esac
  
-@@ -1625,12 +1642,20 @@ AC_SUBST(LINK_PYTHON_OBJS)
+@@ -1625,12 +1642,20 @@
  # ar program
  AC_SUBST(AR)
  AC_CHECK_TOOLS(AR, ar aal, ar)
@@ -1647,7 +1621,7 @@ index 7b4000f..8406a55 100644
  fi
  
  AC_CHECK_TOOLS([READELF], [readelf], [:])
-@@ -2203,7 +2228,10 @@ AC_DEFUN([PY_CHECK_CC_WARNING], [
+@@ -2203,7 +2228,10 @@
  # tweak BASECFLAGS based on compiler and platform
  case $GCC in
  yes)
@@ -1659,7 +1633,7 @@ index 7b4000f..8406a55 100644
  
      PY_CHECK_CC_WARNING([enable], [extra], [if we can add -Wextra])
      AS_VAR_IF([ac_cv_enable_extra_warning], [yes],
-@@ -4144,7 +4172,7 @@ pthread_create (NULL, NULL, start_routine, NULL)]])],[
+@@ -4144,7 +4172,7 @@
      LIBS="$LIBS -lcma"
      ],[
      AS_CASE([$ac_sys_system],
@@ -1668,7 +1642,7 @@ index 7b4000f..8406a55 100644
        [AC_MSG_ERROR([could not find pthreads on your system])]
      )
      ])])])])])])
-@@ -4449,7 +4477,14 @@ AC_ARG_WITH(freelists,
+@@ -4449,7 +4477,14 @@
  
  if test -z "$with_freelists"
  then
@@ -1684,7 +1658,7 @@ index 7b4000f..8406a55 100644
  fi
  if test "$with_freelists" != "no"
  then
-@@ -5510,10 +5545,11 @@ LIBS_SAVE=$LIBS
+@@ -5510,10 +5545,11 @@
  LIBS="$LIBS $LIBM"
  
  AC_CHECK_FUNCS(
@@ -1699,7 +1673,6 @@ index 7b4000f..8406a55 100644
  dnl For multiprocessing module, check that sem_open
 diff --git a/inttypes.h b/inttypes.h
 new file mode 100644
-index 0000000..345480f
 --- /dev/null
 +++ b/inttypes.h
 @@ -0,0 +1,52 @@
@@ -1756,10 +1729,9 @@ index 0000000..345480f
 +
 +#endif
 diff --git a/setup.py b/setup.py
-index ad8fb81..dc84288 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -1379,6 +1379,9 @@ class PyBuildExt(build_ext):
+@@ -1379,6 +1379,9 @@
  
      def detect_ctypes(self):
          # Thomas Heller's _ctypes module
@@ -1771,7 +1743,6 @@ index ad8fb81..dc84288 100644
              self.use_system_libffi = True
 diff --git a/stdint.h b/stdint.h
 new file mode 100644
-index 0000000..3b1f7b3
 --- /dev/null
 +++ b/stdint.h
 @@ -0,0 +1,80 @@
@@ -1857,7 +1828,6 @@ index 0000000..3b1f7b3
 +#endif
 diff --git a/wchar.h b/wchar.h
 new file mode 100644
-index 0000000..6b88052
 --- /dev/null
 +++ b/wchar.h
 @@ -0,0 +1,147 @@

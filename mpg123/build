@@ -7,8 +7,8 @@ VERSION=$2
 PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"
-CPPFLAGS=-DNeXT
+# mpg123 1.32+ is C99 (for-loop declarations); gcc 4.2 defaults to gnu89.
+CFLAGS='-O2 -std=gnu99 '"$PKG_GCC42_ARCH_FLAGS"
 CONFIG_SHELL=/usr/local/bin/ksh
 AWK=/usr/local/bin/gawk
 GREP=/usr/local/bin/grep
@@ -18,7 +18,7 @@ PKG_CONFIG=/bin/false
 SDL_CFLAGS=`/usr/local/bin/sdl-config --cflags`
 SDL_LIBS=`/usr/local/bin/sdl-config --libs | /bin/sed 's/-framework /-Wl,-framework,/g'`
 FRAMEWORKS='-Wl,-framework,AppKit -Wl,-framework,Foundation -Wl,-framework,SoundKit'
-export PATH CC CFLAGS CPPFLAGS CONFIG_SHELL AWK GREP EGREP SED
+export PATH CC CFLAGS CONFIG_SHELL AWK GREP EGREP SED
 export PKG_CONFIG SDL_CFLAGS SDL_LIBS
 
 . "$PKG_BUILD_HELPERS"
@@ -27,6 +27,142 @@ if test -d "mpg123-$VERSION"; then
     cd "mpg123-$VERSION"
 fi
 patch -p1 < "mpg123-$VERSION-openstep.patch"
+
+# mpg123 1.32 and later require C99 <stdint.h> and <inttypes.h>, which
+# OPENSTEP lacks.  Private copies go first on the include path (configure and
+# make both see them via CPPFLAGS).  OPENSTEP's <sys/types.h> already declares
+# the signed int8_t..int64_t, so these only add what is missing.
+test -d openstep || /bin/mkdir openstep
+/bin/cat > openstep/stdint.h <<'SEOF'
+#ifndef OPENSTEP_MPG123_STDINT_H
+#define OPENSTEP_MPG123_STDINT_H
+/* OPENSTEP has no <stdint.h>.  <sys/types.h> supplies the signed int8_t to
+   int64_t; the rest of what mpg123 needs is spelled out here for the 32 bit
+   ILP32 target (long long is available, long is 32 bits wide).  There is no
+   intptr_t, which mpg123 does not use and <unistd.h> may declare itself. */
+#include <sys/types.h>
+#include <stddef.h>
+#include <limits.h>
+
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
+typedef unsigned long uintptr_t;
+typedef long long intmax_t;
+typedef unsigned long long uintmax_t;
+
+#define INT8_MIN (-128)
+#define INT8_MAX 127
+#define UINT8_MAX 255
+#define INT16_MIN (-32767-1)
+#define INT16_MAX 32767
+#define UINT16_MAX 65535
+#define INT32_MIN (-2147483647-1)
+#define INT32_MAX 2147483647
+#define UINT32_MAX 4294967295U
+#define INT64_MIN (-9223372036854775807LL-1)
+#define INT64_MAX 9223372036854775807LL
+#define UINT64_MAX 18446744073709551615ULL
+#define INTMAX_MIN INT64_MIN
+#define INTMAX_MAX INT64_MAX
+#define UINTMAX_MAX UINT64_MAX
+#define UINTPTR_MAX 4294967295UL
+#define PTRDIFF_MIN (-2147483647L-1)
+#define PTRDIFF_MAX 2147483647L
+#define SIZE_MAX 4294967295UL
+
+#define INT8_C(x) x
+#define INT16_C(x) x
+#define INT32_C(x) x
+#define INT64_C(x) x ## LL
+#define UINT8_C(x) x
+#define UINT16_C(x) x
+#define UINT32_C(x) x ## U
+#define UINT64_C(x) x ## ULL
+#define INTMAX_C(x) x ## LL
+#define UINTMAX_C(x) x ## ULL
+
+#endif
+SEOF
+/bin/cat > openstep/inttypes.h <<'SEOF'
+#ifndef OPENSTEP_MPG123_INTTYPES_H
+#define OPENSTEP_MPG123_INTTYPES_H
+/* OPENSTEP has no <inttypes.h>: format macros for the types of <stdint.h>. */
+#include <stdint.h>
+
+#define PRId8 "d"
+#define PRId16 "d"
+#define PRId32 "d"
+#define PRId64 "lld"
+#define PRIdMAX "lld"
+#define PRIi8 "i"
+#define PRIi16 "i"
+#define PRIi32 "i"
+#define PRIi64 "lli"
+#define PRIiMAX "lli"
+#define PRIu8 "u"
+#define PRIu16 "u"
+#define PRIu32 "u"
+#define PRIu64 "llu"
+#define PRIuMAX "llu"
+#define PRIo8 "o"
+#define PRIo16 "o"
+#define PRIo32 "o"
+#define PRIo64 "llo"
+#define PRIoMAX "llo"
+#define PRIx8 "x"
+#define PRIx16 "x"
+#define PRIx32 "x"
+#define PRIx64 "llx"
+#define PRIxMAX "llx"
+#define PRIX8 "X"
+#define PRIX16 "X"
+#define PRIX32 "X"
+#define PRIX64 "llX"
+#define PRIXMAX "llX"
+#define PRIdPTR "ld"
+#define PRIiPTR "li"
+#define PRIuPTR "lu"
+#define PRIoPTR "lo"
+#define PRIxPTR "lx"
+#define PRIXPTR "lX"
+
+#define SCNd8 "hhd"
+#define SCNd16 "hd"
+#define SCNd32 "d"
+#define SCNd64 "lld"
+#define SCNdMAX "lld"
+#define SCNi8 "hhi"
+#define SCNi16 "hi"
+#define SCNi32 "i"
+#define SCNi64 "lli"
+#define SCNiMAX "lli"
+#define SCNu8 "hhu"
+#define SCNu16 "hu"
+#define SCNu32 "u"
+#define SCNu64 "llu"
+#define SCNuMAX "llu"
+#define SCNo8 "hho"
+#define SCNo16 "ho"
+#define SCNo32 "o"
+#define SCNo64 "llo"
+#define SCNoMAX "llo"
+#define SCNx8 "hhx"
+#define SCNx16 "hx"
+#define SCNx32 "x"
+#define SCNx64 "llx"
+#define SCNxMAX "llx"
+#define SCNdPTR "ld"
+#define SCNiPTR "li"
+#define SCNuPTR "lu"
+#define SCNoPTR "lo"
+#define SCNxPTR "lx"
+
+#endif
+SEOF
+CPPFLAGS="-DNeXT -I`pwd`/openstep"
+export CPPFLAGS
 
 # Keep our -O2 flags: upstream's fast-math bundle produces instructions
 # rejected by the OPENSTEP assembler. Use SDL's installed config helper.

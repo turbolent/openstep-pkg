@@ -6,6 +6,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 PATCHFILE="openssl-$VERSION-openstep.patch"
+CVEPATCH="openssl-$VERSION-cve.patch"
 SRCDIR="openssl-$VERSION"
 
 export DESTDIR VERSION PATH
@@ -15,6 +16,7 @@ if [ -d "$SRCDIR" ]; then
 fi
 
 patch -p1 < "$PATCHFILE"
+patch -p1 < "$CVEPATCH"
 /bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O"
 /bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O" install_sw DESTDIR="$DESTDIR"
 

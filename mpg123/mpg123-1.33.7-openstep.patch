@@ -1,8 +1,8 @@
 --- a/src/compat/compat.c
 +++ b/src/compat/compat.c
-@@ -511,6 +511,10 @@
- #if (!defined(WIN32) || defined (__CYGWIN__)) && defined(HAVE_SIGNAL_H)
- void (*catchsignal(int signum, void(*handler)()))()
+@@ -515,6 +515,10 @@
+ #if (!defined(WIN32) || defined (__CYGWIN__)) && !defined(__PSP__) && defined(HAVE_SIGNAL_H)
+ void (*INT123_catchsignal(int signum, void(*handler)(int)))(int)
  {
 +#ifdef NeXT
 +	/* BSD signal() on OPENSTEP installs persistent handlers. */
@@ -11,78 +11,76 @@
  	struct sigaction new_sa;
  	struct sigaction old_sa;
  
-@@ -525,6 +529,7 @@
+@@ -529,6 +533,7 @@
  	if(sigaction(signum, &new_sa, &old_sa) == -1)
- 		return ((void (*)()) -1);
+ 		return ((void (*)(int)) -1); // Not rather NULL?
  	return (old_sa.sa_handler);
--}
--#endif
--#endif
 +#endif
-+}
-+#endif
-+#endif
+ }
+ #endif
+ #endif
 --- a/src/compat/compat.h
 +++ b/src/compat/compat.h
-@@ -101,6 +101,37 @@
- 
- /* compat_open makes little sense without */
+@@ -101,6 +101,39 @@
+ /* INT123_compat_open makes little sense without */
  #include <fcntl.h>
-+
+ 
 +#ifdef NeXT
 +/* OPENSTEP keeps BSD function declarations in libc.h. */
 +#include <libc.h>
 +/* The decoder supplies its own truth macros. */
 +#undef TRUE
 +#undef FALSE
-+#define uint8_t unsigned char
-+typedef unsigned long long uint64_t;
-+#ifndef UINT64_MAX
-+#define UINT64_MAX 18446744073709551615ULL
-+#endif
-+#ifndef INT64_MAX
-+#define INT64_MAX 9223372036854775807LL
-+#endif
-+#ifndef INT32_MAX
-+#define INT32_MAX 2147483647
-+#endif
 +/* GCC 4 supplies the C99 predicates missing from OPENSTEP libm. */
 +#if defined(__GNUC__) && __GNUC__ >= 4
++#ifndef isnan
 +#define isnan(x) __builtin_isnan(x)
++#endif
++#ifndef isless
 +#define isless(x,y) __builtin_isless(x,y)
++#endif
++#ifndef isgreater
 +#define isgreater(x,y) __builtin_isgreater(x,y)
++#endif
++#ifndef islessequal
 +#define islessequal(x,y) __builtin_islessequal(x,y)
++#endif
 +#endif
 +#ifndef O_NONBLOCK
 +#define O_NONBLOCK O_NDELAY
 +#endif
++/* The libc printf has no 64 bit conversions. The player only prints frame
++   numbers, offsets and PIDs through intmax_t, so print those as long. */
++#undef PRIiMAX
++#define PRIiMAX "li"
++#define intmax_t long
 +int INT123_openstep_snprintf(char *dst, size_t size, const char *fmt, ...);
 +#define snprintf INT123_openstep_snprintf
 +#endif
- 
++
  /* To parse big numbers... */
  #ifdef HAVE_ATOLL
+ #define atobigint atoll
 --- a/src/compat/compat_dl.c
 +++ b/src/compat/compat_dl.c
-@@ -50,6 +50,11 @@
- #include "debug.h"
+@@ -49,6 +49,11 @@
  
- #include "wpathconv.h"
-+
+ #include "../common/debug.h"
+ 
 +#if defined(NeXT) && !defined(USE_MODULES)
 +/* OPENSTEP ranlib rejects an archive with no symbols. */
 +const int INT123_openstep_no_modules = 1;
 +#endif
++
  
  #ifdef USE_MODULES
- /*
+ #include "wpathconv.h"
 --- a/src/compat/compat_str.c
 +++ b/src/compat/compat_str.c
-@@ -21,6 +21,36 @@
- #endif
+@@ -13,6 +13,36 @@
+ #define _POSIX_C_SOURCE 200809L
+ #include "compat.h"
  
- #include "debug.h"
-+
 +#ifdef NeXT
 +#include <streams/streams.h>
 +
@@ -112,62 +110,82 @@
 +	return length;
 +}
 +#endif
++
+ /* Win32 is only supported with unicode now. These headers also cover
+    module stuff. The WANT_WIN32_UNICODE macro is synonymous with
+    "want windows-specific API, and only the unicode variants of which". */
+--- a/src/include/mpg123.h
++++ b/src/include/mpg123.h
+@@ -93,12 +93,17 @@
+ #endif
  
- /* A safe realloc also for very old systems where realloc(NULL, size) returns NULL. */
- void *safe_realloc(void *ptr, size_t size)
---- a/src/libmpg123/mpg123.h.in
-+++ b/src/libmpg123/mpg123.h.in
-@@ -80,7 +80,7 @@
- @INCLUDE_SYS_TYPE_H@
- 
- /* A little hack to help MSVC not having ssize_t. */
--#ifdef _MSC_VER
-+#if defined(_MSC_VER) || defined(NeXT)
  #include <stddef.h>
++#if defined(NeXT) || defined(__NeXT__)
++/* OPENSTEP has no stdint.h, but sys/types.h provides int64_t. */
++#include <sys/types.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #ifndef MPG123_PORTABLE_API
+ #include <sys/types.h>
+ /** A little hack to help MSVC not having ssize_t. */
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
  typedef ptrdiff_t mpg123_ssize_t;
  #else
---- a/src/libmpg123/readers.c
-+++ b/src/libmpg123/readers.c
-@@ -1048,14 +1048,14 @@
- 	if(fr->p.timeout > 0)
- 	{
- 		int flags;
--		if(fr->rdat.r_read != NULL)
-+		if(fr->rdat.r_read != NULL || (fr->rdat.flags & READER_HANDLEIO))
- 		{
- 			if(NOQUIET)
- 				error( "Timeout reading does not work with user-provided"
- 					" read function. Implement it yourself!" );
- 			return -1;
- 		}
--		flags = fcntl(fr->rdat.filept, F_GETFL);
-+		flags = fcntl(fr->rdat.filept, F_GETFL, 0);
- 		flags |= O_NONBLOCK;
- 		fcntl(fr->rdat.filept, F_SETFL, flags);
- 		fr->rdat.fdread = timeout_read;
+ typedef ssize_t mpg123_ssize_t;
+--- a/src/include/syn123.h
++++ b/src/include/syn123.h
+@@ -66,7 +66,12 @@
+ #endif
+ 
+ #include <stddef.h>
++#if defined(NeXT) || defined(__NeXT__)
++/* OPENSTEP has no stdint.h, but sys/types.h provides int64_t. */
++#include <sys/types.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -1113,7 +1118,7 @@
+ #if !defined(SYN123_PORTABLE_API) && !defined(SYN123_NO_LARGEFUNC)
+ 
+ /** A little hack to help MSVC not having ssize_t, duplicated in internal header. */
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
+ #include <stddef.h>
+ typedef ptrdiff_t syn123_ssize_t;
+ #else
 --- a/src/libout123/modules/sdl.c
 +++ b/src/libout123/modules/sdl.c
-@@ -13,7 +13,19 @@
- #include "out123_int.h"
+@@ -13,7 +13,23 @@
+ #include "../out123_int.h"
  #include <math.h>
  
 +#ifdef NeXT
-+/* SDL's OPENSTEP config supplies typedefs for these missing C99 types. */
++/* SDL's OPENSTEP config typedefs these C99 types, which the private stdint.h
++   already provides. Let SDL's typedefs define harmless private names. */
++#define uint8_t sdl_openstep_uint8_t
++#define uint16_t sdl_openstep_uint16_t
++#define uint32_t sdl_openstep_uint32_t
++#define uintptr_t sdl_openstep_uintptr_t
++#endif
+ #include <SDL.h>
++#ifdef NeXT
 +#undef uint8_t
 +#undef uint16_t
 +#undef uint32_t
 +#undef uintptr_t
-+#endif
- #include <SDL.h>
-+
-+#ifdef NeXT
 +#include <mach/mach.h>
 +#include <mach/thread_switch.h>
 +#endif
  
  #ifdef WIN32
  #include <windows.h>
-@@ -48,6 +60,10 @@
+@@ -48,6 +64,10 @@
  {
  #ifdef WIN32
  		Sleep(milliseconds);
@@ -178,7 +196,7 @@
  #else
  		usleep(milliseconds*1000);
  #endif
-@@ -136,6 +152,11 @@
+@@ -136,6 +156,11 @@
  
  static int get_formats_sdl(out123_handle *ao)
  {
@@ -190,7 +208,7 @@
  	/* Got no better idea than to just take 16 bit and run with it */
  	return MPG123_ENC_SIGNED_16;
  #if 0
-@@ -209,6 +230,9 @@
+@@ -209,6 +234,9 @@
  
  	debug1("close_sdl with %d", sfifo_used(fifo));
  	sh->finished = 1;
@@ -200,7 +218,7 @@
  	/* Wait at least until SDL emptied the FIFO. */
  	while((stuff = sfifo_used(fifo))>0)
  	{
-@@ -229,8 +253,11 @@
+@@ -229,8 +257,11 @@
  {
  	struct handle *sh = (struct handle*)ao->userptr;
  
@@ -212,40 +230,17 @@
  }
  
  /* You can only rely on that being called after successful init_sdl()!
---- a/src/libsyn123/syn123.h.in
-+++ b/src/libsyn123/syn123.h.in
-@@ -62,6 +62,13 @@
- #ifndef MPG123_NO_CONFIGURE
- @INCLUDE_STDLIB_H@
- @INCLUDE_SYS_TYPE_H@
-+#endif
-+
-+#ifdef NeXT
-+#include <stddef.h>
-+typedef ptrdiff_t syn123_ssize_t;
-+#else
-+typedef ssize_t syn123_ssize_t;
- #endif
- 
- #ifdef __cplusplus
-@@ -950,7 +957,7 @@
-  *  \return output sample count (>=0) or error code
-  */
- MPG123_EXPORT
--ssize_t syn123_resample_expect(syn123_handle *sh, size_t ins);
-+syn123_ssize_t syn123_resample_expect(syn123_handle *sh, size_t ins);
- 
- /** Give minimum input sample count needed now for given output.
-  *
-@@ -965,7 +972,7 @@
-  *  \return minimal input sample count (>= 0) or error code
-  */
- MPG123_EXPORT
--ssize_t syn123_resample_inexpect(syn123_handle *sh, size_t outs);
-+syn123_ssize_t syn123_resample_inexpect(syn123_handle *sh, size_t outs);
- 
- 
- #ifndef SYN123_NO_LARGEFUNC
+--- a/src/libsyn123/syn123_int.h
++++ b/src/libsyn123/syn123_int.h
+@@ -23,7 +23,7 @@
+ #define SYN123_NO_LARGEFUNC
+ #include "syn123.h"
+ // A little hack to help MSVC not having ssize_t, duplicated in external header with largefuncs.
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
+ typedef ptrdiff_t syn123_ssize_t;
+ #else
+ typedef ssize_t syn123_ssize_t;
 --- a/src/net123.h
 +++ b/src/net123.h
 @@ -54,6 +54,10 @@
@@ -261,7 +256,7 @@
  // and then the raw data.
 --- a/src/net123_exec.c
 +++ b/src/net123_exec.c
-@@ -11,6 +11,9 @@
+@@ -16,6 +16,9 @@
  // kill
  #define _XOPEN_SOURCE 600
  #define _POSIX_C_SOURCE 200112L
@@ -270,12 +265,11 @@
 +#endif
  
  #include "config.h"
- #include "net123.h"
-@@ -26,6 +29,15 @@
- #include <sys/types.h>
+ #include "version.h"
+@@ -33,6 +36,15 @@
  #include <sys/wait.h>
  #include <unistd.h>
-+
+ 
 +#ifdef NeXT
 +/* The headers advertise waitpid, but libsys only exports BSD wait4. */
 +static pid_t openstep_waitpid(pid_t pid, int *status, int options)
@@ -284,46 +278,29 @@
 +}
 +#define waitpid openstep_waitpid
 +#endif
- 
++
  // Those are set via environment variables:
  // http_proxy
-@@ -240,7 +252,11 @@
+ // https_proxy
+@@ -248,7 +260,11 @@
  {
  	if(!nh || (bufsize && !buf))
  		return 0;
 +#ifdef NeXT
 +	return net123_read_fd(((exec_handle*)nh->parts)->fd, buf, bufsize);
 +#else
- 	return unintr_read(((exec_handle*)nh->parts)->fd, buf, bufsize);
+ 	return INT123_unintr_read(((exec_handle*)nh->parts)->fd, buf, bufsize);
 +#endif
  }
  
  static void net123_close(net123_handle *nh)
-@@ -255,7 +271,7 @@
- 		if(waitpid(eh->worker, NULL, 0) < 0)
- 			merror("failed to wait for worker process: %s", strerror(errno));
- 		else if(param.verbose > 1)
--			fprintf(stderr, "Note: network helper %"PRIiMAX" finished\n", (intmax_t)eh->worker);
-+			fprintf(stderr, "Note: network helper %ld finished\n", (long)eh->worker);
- 	}
- 	if(eh->fd > -1)
- 		close(eh->fd);
-@@ -371,7 +387,7 @@
- 	}
- 	// parent
- 	if(param.verbose > 1)
--		fprintf(stderr, "Note: started network helper with PID %"PRIiMAX"\n", (intmax_t)eh->worker);
-+		fprintf(stderr, "Note: started network helper with PID %ld\n", (long)eh->worker);
- 	errno = 0;
- 	close(fd[1]);
- 	eh->fd = fd[0];
 --- a/src/resolver.c
 +++ b/src/resolver.c
 @@ -41,6 +41,10 @@
  #include <unistd.h>
- #include "debug.h"
+ #include "common/debug.h"
  
-+#ifdef NeXT
++#if defined(NeXT) && !defined(__socklen_t_defined)
 +typedef int socklen_t;
 +#endif
 +
@@ -349,18 +326,17 @@
  }
 --- a/src/streamdump.c
 +++ b/src/streamdump.c
-@@ -53,6 +53,40 @@
- };
+@@ -54,6 +54,40 @@
  
  // Net123 variant for our internal code that has safer legacy support for HTTP shoutcast.
-+
+ 
 +#ifdef NeXT
 +/* The library cannot time out opaque reader handles. Wait on the actual
 +   socket/pipe here, before every read, including HTTP response headers. */
 +size_t net123_read_fd(int fd, void *buf, size_t bytes)
 +{
 +	size_t got = 0;
-+	if(param.timeout <= 0) return unintr_read(fd, buf, bytes);
++	if(param.timeout <= 0) return INT123_unintr_read(fd, buf, bytes);
 +	if(fd < 0 || fd >= FD_SETSIZE) return 0;
 +	while(got < bytes)
 +	{
@@ -387,9 +363,10 @@
 +	return got;
 +}
 +#endif
- 
++
  static size_t net123_read_internal( struct net123_handle_struct *nh,
  void *buf, size_t bufsize )
+ {
 @@ -62,6 +96,8 @@
  	int *fdp = nh->parts;
  #ifdef WANT_WIN32_SOCKETS
@@ -397,28 +374,8 @@
 +#elif defined(NeXT)
 +	return net123_read_fd(*fdp, buf, bufsize);
  #else
- 	return unintr_read(*fdp, buf, bufsize);
+ 	return INT123_unintr_read(*fdp, buf, bufsize);
  #endif
-@@ -70,7 +106,7 @@
- 
- static void net123_close_internal(struct net123_handle_struct *nh)
- {
--	if(nh)
-+	if(!nh)
- 		return;
- 	int *fdp = nh->parts;
- #ifdef WANT_WIN32_SOCKETS
-@@ -676,6 +712,10 @@
- 	if(param.icy_interval > 0 && param.verbose > 1)
- 		fprintf(stderr, "Info: Forced ICY interval %li\n", param.icy_interval);
- 
-+#ifdef NeXT
-+	/* Network callbacks implement the timeout on their own descriptors. */
-+	mpg123_param(mh, MPG123_TIMEOUT, do_replace ? 0 : param.timeout, 0);
-+#endif
- 	if(do_replace)
- 	{
- 		mpg123_replace_reader_handle(mh, dump_read, dump_seek, NULL);
 --- a/src/tests/plain_id3.sh
 +++ b/src/tests/plain_id3.sh
 @@ -9,7 +9,7 @@

@@ -57,6 +57,7 @@ if [ -d "freetype-$VERSION" ]; then
 fi
 
 patch -p1 < "$PATCHFILE"
+patch -p1 < "freetype-$VERSION-cve.patch"
 
 /usr/local/bin/ksh ./configure \
     --prefix="$PREFIX" \

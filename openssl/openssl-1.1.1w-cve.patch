@@ -1,0 +1,140 @@
+diff -ruN a/crypto/bio/bf_lbuf.c b/crypto/bio/bf_lbuf.c
+--- a/crypto/bio/bf_lbuf.c
++++ b/crypto/bio/bf_lbuf.c
+@@ -191,14 +191,34 @@
+     while (foundnl && inl > 0);
+     /*
+      * We've written as much as we can.  The rest of the input buffer, if
+-     * any, is text that doesn't and with a NL and therefore needs to be
+-     * saved for the next trip.
++     * any, is text that doesn't end with a NL and therefore we need to try
++     * free up some space in our obuf so we can make forward progress.
+      */
+-    if (inl > 0) {
+-        memcpy(&(ctx->obuf[ctx->obuf_len]), in, inl);
+-        ctx->obuf_len += inl;
+-        num += inl;
++    while (inl > 0) {
++        size_t avail = (size_t)ctx->obuf_size - (size_t)ctx->obuf_len;
++        size_t to_copy;
++
++        if (avail == 0) {
++            /* Flush buffered data to make room */
++            i = BIO_write(b->next_bio, ctx->obuf, ctx->obuf_len);
++            if (i <= 0) {
++                BIO_copy_next_retry(b);
++                return num > 0 ? num : i;
++            }
++            if (i < ctx->obuf_len)
++                memmove(ctx->obuf, ctx->obuf + i, ctx->obuf_len - i);
++            ctx->obuf_len -= i;
++            continue;
++        }
++
++        to_copy = inl > (int)avail ? avail : (size_t)inl;
++        memcpy(&(ctx->obuf[ctx->obuf_len]), in, to_copy);
++        ctx->obuf_len += (int)to_copy;
++        in += to_copy;
++        inl -= (int)to_copy;
++        num += (int)to_copy;
+     }
++
+     return num;
+ }
+ 
+diff -ruN a/crypto/cms/cms_kari.c b/crypto/cms/cms_kari.c
+--- a/crypto/cms/cms_kari.c
++++ b/crypto/cms/cms_kari.c
+@@ -192,7 +192,9 @@
+     size_t keklen;
+     int rv = 0;
+     unsigned char *out = NULL;
++    size_t out_alloc_len = 0;
+     int outlen;
++    size_t outsize;
+     keklen = EVP_CIPHER_CTX_key_length(kari->ctx);
+     if (keklen > EVP_MAX_KEY_LENGTH)
+         return 0;
+@@ -205,10 +207,17 @@
+     /* obtain output length of ciphered key */
+     if (!EVP_CipherUpdate(kari->ctx, NULL, &outlen, in, inlen))
+         goto err;
+-    out = OPENSSL_malloc(outlen);
++    /*
++     * On its integrity-failure paths that primitive writes and cleanses up to
++     * inlen bytes of the output buffer. Size the buffer for that worst case so
++     * a failed unwrap cannot write past the allocation.
++     */
++    outsize = (size_t)outlen < inlen ? inlen : (size_t)outlen;
++    out = OPENSSL_malloc(outsize);
+     if (out == NULL)
+         goto err;
+-    if (!EVP_CipherUpdate(kari->ctx, out, &outlen, in, inlen))
++    out_alloc_len = (size_t)outlen;
++    if (!EVP_CipherUpdate(kari->ctx, out, &outlen, in, (int)inlen))
+         goto err;
+     *pout = out;
+     *poutlen = (size_t)outlen;
+@@ -217,7 +226,7 @@
+  err:
+     OPENSSL_cleanse(kek, keklen);
+     if (!rv)
+-        OPENSSL_free(out);
++        OPENSSL_clear_free(out, out_alloc_len);
+     EVP_CIPHER_CTX_reset(kari->ctx);
+     /* FIXME: WHY IS kari->pctx freed here?  /RL */
+     EVP_PKEY_CTX_free(kari->pctx);
+diff -ruN a/crypto/cms/cms_pwri.c b/crypto/cms/cms_pwri.c
+--- a/crypto/cms/cms_pwri.c
++++ b/crypto/cms/cms_pwri.c
+@@ -215,7 +215,7 @@
+         /* Check byte failure */
+         goto err;
+     }
+-    if (inlen < (size_t)(tmp[0] - 4)) {
++    if (inlen < 4 + (size_t)tmp[0]) {
+         /* Invalid length value */
+         goto err;
+     }
+diff -ruN a/crypto/pkcs12/p12_utl.c b/crypto/pkcs12/p12_utl.c
+--- a/crypto/pkcs12/p12_utl.c
++++ b/crypto/pkcs12/p12_utl.c
+@@ -207,6 +207,11 @@
+     /* re-run the loop emitting UTF-8 string */
+     for (asclen = 0, i = 0; i < unilen; ) {
+         j = bmp_to_utf8(asctmp+asclen, uni+i, unilen-i);
++        /* when UTF8_putc fails */
++        if (j < 0) {
++            OPENSSL_free(asctmp);
++            return NULL;
++        }
+         if (j == 4) i += 4;
+         else        i += 2;
+         asclen += j;
+diff -ruN a/crypto/pkcs7/pk7_smime.c b/crypto/pkcs7/pk7_smime.c
+--- a/crypto/pkcs7/pk7_smime.c
++++ b/crypto/pkcs7/pk7_smime.c
+@@ -213,6 +213,7 @@
+     int i, j = 0, k, ret = 0;
+     BIO *p7bio = NULL;
+     BIO *tmpin = NULL, *tmpout = NULL;
++    BIO *next = NULL;
+ 
+     if (!p7) {
+         PKCS7err(PKCS7_F_PKCS7_VERIFY, PKCS7_R_INVALID_NULL_POINTER);
+@@ -360,11 +361,11 @@
+  err:
+     X509_STORE_CTX_free(cert_ctx);
+     OPENSSL_free(buf);
+-    if (tmpin == indata) {
+-        if (indata)
+-            BIO_pop(p7bio);
++    while (p7bio != NULL && p7bio != indata) {
++        next = BIO_pop(p7bio);
++        BIO_free(p7bio);
++        p7bio = next;
+     }
+-    BIO_free_all(p7bio);
+     sk_X509_free(signers);
+     return ret;
+ }

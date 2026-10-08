@@ -32,8 +32,8 @@ run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
 cd lib
 rm -f *.o libexpat.a
 "$CC" -DHAVE_CONFIG_H -I. -I.. $CFLAGS -c \
-  xmlparse.c xmltok.c xmlrole.c random_dev_urandom.c
-ar cr libexpat.a xmlparse.o xmltok.o xmlrole.o random_dev_urandom.o
+  xmlparse.c xmltok.c xmlrole.c xcs.c random_dev_urandom.c
+ar cr libexpat.a xmlparse.o xmltok.o xmlrole.o xcs.o random_dev_urandom.o
 ranlib libexpat.a
 cd ..
 

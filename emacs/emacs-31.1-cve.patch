@@ -1,0 +1,26 @@
+Backport from the emacs-31 branch (git.savannah.gnu.org emacs.git commit
+abc802ee2eb0b1663349ddf22a461f8e54a383fb, "flymake.el: Generalize
+trusted-content-p check to all backends"): Flymake backends are disabled in
+buffers with untrusted content unless marked `flymake-always-safe'.
+Without ChangeLog/doc parts.
+
+diff --git a/lisp/progmodes/flymake.el b/lisp/progmodes/flymake.el
+index fff42696761..40761031dc2 100644
+--- a/lisp/progmodes/flymake.el
++++ b/lisp/progmodes/flymake.el
+@@ -1271,8 +1271,13 @@ with a report function."
+             (flymake--state-disabled state) nil
+             (flymake--state-reported-p state) nil))
+     (condition-case-unless-debug err
+-        (apply backend (flymake-make-report-fn backend run-token)
+-               args)
++        (if (or (trusted-content-p) (function-get backend 'flymake-always-safe))
++            (apply backend (flymake-make-report-fn backend run-token)
++                   args)
++          (message "Disabling %S in %s (untrusted content)"
++                   backend (buffer-name))
++          (user-error "Disabling %S in %s (untrusted content)"
++                      backend (buffer-name)))
+       (error
+        (flymake--disable-backend backend err)))))
+ 

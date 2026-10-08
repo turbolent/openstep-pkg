@@ -1,2 +1,4 @@
-https://github.com/vim/vim/archive/refs/tags/v9.2.0121.tar.gz
-vim-9.2.0121-openstep.patch vim-9.2.0121
+# Newest tag v9.2.1172 could not be fetched (github.com/vim/vim archives blocked in the audit session).
+# Alpine mirror of the GitHub archive of tag v9.2.1091 (commit dfe8124814ca9e65369afa5d1e32fcaa323ac76a); embedded commit id and the files this port touches were checked against upstream.
+https://distfiles.alpinelinux.org/distfiles/edge/vim-9.2.1091.tar.gz
+vim-9.2.1091-openstep.patch vim-9.2.1091

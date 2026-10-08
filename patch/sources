@@ -1,1 +1,3 @@
+# patch-2.6.1-openstep.tar.gz already contains patch-2.6.1-cve.patch (applied so that
+# building patch does not need a patch program).  The .patch file is kept as the record.
 patch-2.6.1-openstep.tar.gz

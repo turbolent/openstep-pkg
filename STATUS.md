@@ -8,6 +8,17 @@ Last updated 2026-10-06.  Results come from test runs on the x86 and SPARC
 OPENSTEP 4.2 machines; most packages have only been tried on x86 so far.  M68k
 has not been attempted.
 
+**Needs re-test after the October 2026 CVE fixes** (results above predate them;
+nothing below has been built on OPENSTEP yet): bzip2, freetype, libmad, wget
+(patches); gzip, zip, patch, tar (interim), openssl, emacs (patches);
+expat 2.9.0, mpg123 1.33.7 (with private stdint.h/inttypes.h shims), python311 3.11.17, libpng 1.6.59, vim 9.2.1091, ca-certificates
+2026.09.25 (version bumps).  pkg itself gained a retry through `tarfix` for
+tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
+
+lha is only partly hardened: upstream's 2016 header and symlink fixes are ported
+to 1.14i-ac20050924p1, but two header-read gaps upstream also left are not
+fixed.  Use it for old, known-safe archives only.
+
 | Package | x86 | SPARC |
 |---|---|---|
 | bash | validated | — |

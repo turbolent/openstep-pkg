@@ -8,8 +8,8 @@ SWEEP=$LOCAL_ROOT/share/doc/mpg123/sweep.mp3
 trap '/bin/rm -f "$TMP.c" "$TMP" "$TMP.wav" "$TMP.raw"' 0
 trap 'exit 1' 1 2 15
 
-"$MPG123" --version | grep '1\.31\.4' >/dev/null
-"$LOCAL_ROOT/bin/out123" --version | grep '1\.31\.4' >/dev/null
+"$MPG123" --version | grep '1\.33\.7' >/dev/null
+"$LOCAL_ROOT/bin/out123" --version | grep '1\.33\.7' >/dev/null
 "$MPG123" -q -t "$SWEEP"
 cat "$SWEEP" | "$MPG123" -q -t -
 "$MPG123" -q -w "$TMP.wav" "$SWEEP"
