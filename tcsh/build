@@ -18,6 +18,11 @@ if test -d "tcsh-$VERSION"; then cd "tcsh-$VERSION"; fi
 # configure does not know OPENSTEP hosts; the patch maps *-next-* to system/mach.
 pkg_apply_patch "tcsh-$VERSION-openstep.patch"
 
+# sh.sem.c includes <vfork.h> on any sparc that is not marked MACH or BSD4_4 (it
+# is a SunOS header).  OPENSTEP has none, and its SPARC cc defines "sparc".
+/bin/sed '/^#  include <vfork.h>$/d' sh.sem.c > sh.sem.c.new
+/bin/mv sh.sem.c.new sh.sem.c
+
 # tcsh casts pointers through intptr_t.  Whether OPENSTEP has that type depends
 # on which headers are in play, and a typedef of ours can conflict with the
 # system's, so use long (the same size as a pointer on every OPENSTEP target).
