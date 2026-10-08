@@ -82,7 +82,7 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | mpg123 | validated (1.33.7, with private stdint.h/inttypes.h shims; rebuilt on a fresh host) | — |
 | nano | validated | validated |
 | ncurses | validated | validated |
-| nethack | validated (tty and X11) | — |
+| nethack | validated (tty and X11) | validated (`pkg test` passes, game starts; a stray "pkg: Stock: not found" after the install was a script replaced mid-run, fixed in pkg) |
 | netsurf-buildsystem | validated | — |
 | neXtaw | validated | — |
 | nsgenbind | validated | — |
