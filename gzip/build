@@ -12,6 +12,7 @@ GREP=/bin/grep
 EGREP=/usr/bin/egrep
 CONFIG_SHELL=/usr/local/bin/ksh
 PATCHFILE="gzip-$VERSION-openstep.patch"
+CVEPATCHFILE="gzip-$VERSION-cve.patch"
 BUILD_DIR=`pwd`
 MKDIR_P="/bin/sh $BUILD_DIR/build-aux/install-sh -c -d"
 
@@ -24,7 +25,7 @@ gl_cv_absolute_sys_time_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/s
 gl_cv_absolute_time_h=/NextLibrary/Frameworks/System.framework/Headers/ansi/time.h
 gl_cv_absolute_unistd_h=/NextLibrary/Frameworks/System.framework/Headers/bsd/unistd.h
 
-export DESTDIR VERSION PATH CC CPPFLAGS GREP EGREP CONFIG_SHELL PATCHFILE MKDIR_P
+export DESTDIR VERSION PATH CC CPPFLAGS GREP EGREP CONFIG_SHELL PATCHFILE CVEPATCHFILE MKDIR_P
 export ac_cv_header_stdbool_h gl_cv_func_working_utimes
 export gl_cv_absolute_fcntl_h gl_cv_absolute_stdlib_h
 export gl_cv_absolute_sys_stat_h gl_cv_absolute_sys_time_h
@@ -32,6 +33,7 @@ export gl_cv_absolute_time_h gl_cv_absolute_unistd_h
 . "$PKG_BUILD_HELPERS"
 
 patch -p1 < "$PATCHFILE"
+patch -p1 < "$CVEPATCHFILE"
 run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-dependency-tracking --prefix=/usr/local
 # On SPARC the system cc dies with an abort (signal 6) optimizing deflate.c.

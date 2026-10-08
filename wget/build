@@ -15,6 +15,10 @@ SED=/usr/local/bin/sed
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED
 . "$PKG_BUILD_HELPERS"
 
+# Upstream security fixes (html_quote_string and parse_content_range overflows,
+# convert_fname iconv buffer handling), applied before any of the edits below.
+pkg_apply_patch "wget-$VERSION-cve.patch"
+
 # Private headers, first on the include path (configure and make both see them).
 /usr/local/bin/mkdir -p openstep/openssl openstep/sys
 

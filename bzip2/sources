@@ -1,2 +1,3 @@
 https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
 bzip2-1.0.8-openstep.patch bzip2-1.0.8
+bzip2-1.0.8-cve.patch bzip2-1.0.8

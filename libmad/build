@@ -9,6 +9,8 @@ GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
 export PATH CC CFLAGS AWK GREP EGREP
 . "$PKG_BUILD_HELPERS"
+# Security fixes (CVE-2017-8372/8373/8374): bounds checks, from Debian 0.15.1b-9.
+pkg_apply_patch "libmad-$VERSION-cve.patch"
 run_configure --build=$PKG_TARGET --prefix=/usr/local \
     --disable-shared --enable-static --disable-dependency-tracking
 /bin/gnumake SHELL="$CONFIG_SHELL"

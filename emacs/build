@@ -24,6 +24,11 @@ if [ -d "emacs-$VERSION" ]; then
     cd "emacs-$VERSION"
 fi
 patch -p1 < "emacs-$VERSION-openstep.patch"
+patch -p1 < "emacs-$VERSION-cve.patch"
+# The release tarball ships precompiled .elc files.  Remove the one for the
+# patched .el so the build (lisp/Makefile compile-main) recompiles it from
+# the patched source whatever the file timestamps say.
+rm -f lisp/progmodes/flymake.elc
 CPPFLAGS="-I`pwd`/openstep -I/usr/local/include"
 export CPPFLAGS
 # The patch updates both configure.ac and its generated configure.

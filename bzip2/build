@@ -5,6 +5,7 @@ VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 export PATH
 patch -p1 < "bzip2-$VERSION-openstep.patch"
+patch -p1 < "bzip2-$VERSION-cve.patch"
 /bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS "'-O2 -Wall -D_POSIX_SOURCE'
 # Pre-create these directories for the stock mkdir implementation.
 for dir in usr usr/local usr/local/bin usr/local/lib usr/local/include usr/local/man usr/local/man/man1; do

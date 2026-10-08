@@ -1,26 +1,23 @@
 diff --git a/lib/expat.h b/lib/expat.h
-index ec3f585..5aa25c5 100644
 --- a/lib/expat.h
 +++ b/lib/expat.h
-@@ -45,7 +45,11 @@
+@@ -48,7 +48,11 @@
  #ifndef Expat_INCLUDED
  #  define Expat_INCLUDED 1
  
--#  include <stdint.h> // for uint8_t
+-#  include <stdint.h> // for int64_t, uint8_t, uint64_t
 +#  ifdef NeXT
 +#    include <expat_openstep.h>
 +#  else
-+#    include <stdint.h> // for uint8_t
++#    include <stdint.h> // for int64_t, uint8_t, uint64_t
 +#  endif
  #  include <stdlib.h>
  #  include "expat_external.h"
  
 diff --git a/lib/expat_openstep.h b/lib/expat_openstep.h
-new file mode 100644
-index 0000000..95e0501
 --- /dev/null
 +++ b/lib/expat_openstep.h
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,36 @@
 +#ifndef EXPAT_OPENSTEP_H
 +#define EXPAT_OPENSTEP_H 1
 +
@@ -52,27 +49,32 @@ index 0000000..95e0501
 +#ifndef SIZE_MAX
 +# define SIZE_MAX ((size_t)-1)
 +#endif
++#ifndef UINT64_MAX
++# define UINT64_MAX 18446744073709551615ULL
++#endif
 +
 +#endif
 diff --git a/lib/internal.h b/lib/internal.h
-index 420d421..430a681 100644
 --- a/lib/internal.h
 +++ b/lib/internal.h
-@@ -55,7 +55,8 @@
-    USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
- 
--#if defined(__GNUC__) && defined(__i386__) && ! defined(__MINGW32__)
-+#if defined(__GNUC__) && defined(__i386__) && ! defined(__MINGW32__)          \
-+    && ! defined(NeXT)
- /* We'll use this version by default only where we know it helps.
- 
-    regparm() generates warnings on Solaris boxes.   See SF bug #692878.
+@@ -90,7 +90,12 @@
+ #      define EXPAT_FMT_SIZE_T(midpart) "%" midpart "u"
+ #    endif
+ #  else
+-#    include <inttypes.h> // PRIdPTR, PRIuPTR
++#    ifdef NeXT
++#      define PRIdPTR "d"
++#      define PRIuPTR "u"
++#    else
++#      include <inttypes.h> // PRIdPTR, PRIuPTR
++#    endif
+ #    define EXPAT_FMT_LLX(midpart) "%" midpart "llx"
+ #    define EXPAT_FMT_ULL(midpart) "%" midpart "llu"
+ #    define EXPAT_FMT_PTRDIFF_T(midpart) "%" midpart PRIdPTR
 diff --git a/lib/random_dev_urandom.c b/lib/random_dev_urandom.c
-index e508fe9..be83447 100644
 --- a/lib/random_dev_urandom.c
 +++ b/lib/random_dev_urandom.c
-@@ -41,6 +41,13 @@
+@@ -43,6 +43,13 @@
  #include <fcntl.h>  // open
  #include <unistd.h> // close
  
@@ -87,8 +89,6 @@ index e508fe9..be83447 100644
  bool
  writeRandomBytes_dev_urandom(void *target, size_t count) {
 diff --git a/lib/stdbool.h b/lib/stdbool.h
-new file mode 100644
-index 0000000..91580ad
 --- /dev/null
 +++ b/lib/stdbool.h
 @@ -0,0 +1,6 @@
@@ -99,8 +99,6 @@ index 0000000..91580ad
 +
 +#endif
 diff --git a/lib/stdint.h b/lib/stdint.h
-new file mode 100644
-index 0000000..0516331
 --- /dev/null
 +++ b/lib/stdint.h
 @@ -0,0 +1,6 @@
@@ -111,19 +109,22 @@ index 0000000..0516331
 +
 +#endif
 diff --git a/lib/xmlparse.c b/lib/xmlparse.c
-index 890a938..4aecbef 100644
 --- a/lib/xmlparse.c
 +++ b/lib/xmlparse.c
-@@ -97,6 +97,12 @@
+@@ -109,7 +109,15 @@
+ #include <stdint.h> /* SIZE_MAX, UINT64_MAX, uint64_t, uintptr_t */
  #include <math.h>   /* isnan */
  #include <errno.h>
- 
+-#include <wchar.h> /* wcsncmp */
++#ifndef NeXT
++#  include <wchar.h> /* wcsncmp */
++#endif
++
 +#ifdef NeXT
 +#  ifndef isnan
 +#    define isnan(x) ((x) != (x))
 +#  endif
 +#endif
-+
+ 
  #ifdef _WIN32
  #  define getpid GetCurrentProcessId
- #else
