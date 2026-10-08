@@ -12,6 +12,14 @@ patch -p1 < "xxhash-$VERSION-openstep.patch"
 # cachedObjs/<hash>/libxxhash.a"), so build and install by hand instead.
 CC=/usr/local/bin/gcc-4.2
 CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DCLOCKS_PER_SEC=CLK_TCK -I/NextDeveloper/Headers/bsd -I. -Icli'
+# xxHash reads words from byte buffers through a packed-union cast by default
+# on GCC (XXH_FORCE_MEMORY_ACCESS=1).  GCC 4.2 on SPARC does not honour the
+# packing there and emits a plain 4-byte load, which bus-errors on an unaligned
+# address (xxhsum --version, in XXH_read32 via XXH3_64bits_withSeed).  Use the
+# memcpy method, which is safe everywhere.
+if [ "${PKG_ARCH-}" = sparc ]; then
+    CFLAGS="$CFLAGS -DXXH_FORCE_MEMORY_ACCESS=0"
+fi
 PREFIX=/usr/local
 INSTALL=/usr/local/bin/install
 
