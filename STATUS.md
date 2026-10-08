@@ -11,11 +11,12 @@ has not been attempted.
 **x86, 2026-10-08:** a rebootstrap on a fresh host built, installed and tested
 all 93 packages in the tree, including the October 2026 CVE fixes (bzip2,
 freetype, libmad, wget, gzip, zip, patch, tar, openssl, emacs, mpg123 1.33.7,
-lha).  The tables below show earlier results.  **Still to upgrade and re-test on
-x86:** ca-certificates 2026.09.25, expat 2.9.0, libpng 1.6.59, python311 3.11.17
-and vim 9.2.1091 (version bumps made after the rebootstrap tree was installed).
-SPARC has not yet been re-tested after the CVE round.  pkg itself gained a retry
-through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
+lha).  The version bumps ca-certificates 2026.09.25, expat 2.9.0, libpng 1.6.59
+and python311 3.11.17 were then upgraded and tested.  **Still to do on x86:**
+vim 9.2.1091 (a fix for the `wait()` declaration clash is pushed, untested).  The
+tables below show earlier results.  SPARC has not yet been re-tested after the CVE
+round.  pkg itself gained a retry through `tarfix` for tarballs whose uid/gid
+exceed OPENSTEP's 16-bit uid_t.
 
 lha is only partly hardened: upstream's 2016 header and symlink fixes are ported
 to 1.14i-ac20050924p1, but two header-read gaps upstream also left are not
