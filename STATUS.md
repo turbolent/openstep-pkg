@@ -10,7 +10,7 @@ has not been attempted.
 
 **x86, 2026-10-08:** a rebootstrap on a fresh host built, installed and tested
 all 93 packages in the tree, including the October 2026 security fixes (bzip2,
-freetype, libmad, wget, gzip, zip, patch, tar, openssl, emacs, lha) and the
+freetype, libmad, wget, gzip, zip, patch, tar, openssl, emacs) and the
 version bumps (mpg123 1.33.7, ca-certificates 2026.09.25, expat 2.9.0, libpng
 1.6.59, python311 3.11.17, vim 9.2.1091).  vim needed seven build fixes for the
 9.2.1091 bump (`wait()` in `osdef.h`, int `W*()` macros, no `<sys/utsname.h>`, no
@@ -20,9 +20,10 @@ rebuilt from scratch in dependency order; bash, curl and gcc42 are done there, a
 the October 2026 security fixes have not been tested on SPARC.  pkg itself gained a
 retry through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
 
-lha is only partly hardened: upstream's 2016 header and symlink fixes are ported
-to 1.14i-ac20050924p1, but two header-read gaps upstream also left are not
-fixed.  Use it for old, known-safe archives only.
+lha was removed from the tree (October 2026): its test failed on x86 even unpatched on the
+rebootstrapped host (`lha a` of a directory adds only the directory entry), and p7zip can
+extract .lzh/.lha archives.  It can be put back from git history (the last version was
+1.14i-ac20050924p1 with a hand-ported security patch).
 
 | Package | x86 | SPARC |
 |---|---|---|
@@ -53,7 +54,6 @@ fixed.  Use it for old, known-safe archives only.
 | help2man | validated | validated |
 | jpeg | validated | — |
 | less | validated | — |
-| lha | validated | — |
 | liba52 | validated | — |
 | libcss | validated | — |
 | libdom | validated | — |
