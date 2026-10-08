@@ -31,7 +31,7 @@ fixed.  Use it for old, known-safe archives only.
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
 | coreutils | validated | validated (with pkg_cmp_shim) |
-| curl | validated | validated |
+| curl | validated | validated (rebuilt on the rebootstrapped host, after the bash fix) |
 | diffutils | validated | — |
 | duktape | validated | — |
 | emacs | validated | — |
