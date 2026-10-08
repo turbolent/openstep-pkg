@@ -43,7 +43,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
-| coreutils | validated | validated 5.0 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
+| coreutils | validated | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt on the rebootstrapped host, after the bash fix) |
 | diffutils | validated | — |
 | duktape | validated | — |
@@ -55,11 +55,11 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | freetype | validated | — |
 | freeze | validated | validated 2.5 (rebootstrap, 2026-10-08) |
 | fribidi | 0.19.7 validated | — |
-| gawk | validated | validated 3.1.8 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
+| gawk | validated | validated 3.1.8 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
-| grep | validated | validated 2.5.4 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
+| grep | validated | validated 2.5.4 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gzip | validated | validated 1.3.12 (rebootstrap, 2026-10-08) |
 | help2man | validated | validated 1.27 |
 | jpeg | validated | validated 8d (rebootstrap, 2026-10-08) |
