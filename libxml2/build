@@ -53,7 +53,7 @@ STDINTFLAGS="-I`pwd`/openstep -DHAVE_STDINT_H=1"
 run_configure --prefix=/usr/local \
   --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-shared --enable-static --disable-dependency-tracking \
-  --without-python --without-threads --without-modules --without-lzma \
+  --without-python --without-threads --without-modules --with-lzma=/usr/local \
   --without-icu --without-readline --with-iconv=/usr/local --with-zlib=/usr/local
 # Keep make from re-running configure or automake over the extracted tree.
 sleep 1
