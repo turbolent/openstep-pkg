@@ -15,10 +15,20 @@ if [ -d "$SRCDIR" ]; then
     cd "$SRCDIR"
 fi
 
+. "$PKG_BUILD_HELPERS"
+
 patch -p1 < "$PATCHFILE"
 patch -p1 < "$CVEPATCH"
-/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O"
-/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O" install_sw DESTDIR="$DESTDIR"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_shim in build-helpers.sh.  Empty on x86.  libcrypto
+# keeps certificate names, key ids and object names in sorted stacks, and the
+# signed comparison broke certificate lookups on SPARC ("unable to verify the
+# first certificate" against a bundle that verifies on x86).
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O $CMPFLAGS"
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O $CMPFLAGS" install_sw DESTDIR="$DESTDIR"
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
