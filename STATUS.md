@@ -81,7 +81,7 @@ fixed.  Use it for old, known-safe archives only.
 | netsurf-buildsystem | validated | — |
 | neXtaw | validated | — |
 | nsgenbind | validated | — |
-| ntp | validated (build, install, test; ntpdate and ntpd run against a server); `rc.ntp` boot script tested on Linux only | — |
+| ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
 | openssl | validated | validated |
 | p7zip | validated | — |
