@@ -51,6 +51,8 @@ $INSTALL -m 644 libxxhash.pc "$DESTDIR$PREFIX/lib/pkgconfig/libxxhash.pc"
 $INSTALL -m 755 xxhsum "$DESTDIR$PREFIX/bin/xxhsum"
 $INSTALL -m 644 cli/xxhsum.1 "$DESTDIR$PREFIX/share/man/man1/xxhsum.1"
 for name in xxh32sum xxh64sum xxh128sum xxh3sum; do
-    /bin/ln -sf xxhsum "$DESTDIR$PREFIX/bin/$name"
-    /bin/ln -sf xxhsum.1 "$DESTDIR$PREFIX/share/man/man1/$name.1"
+    # OPENSTEP's /bin/ln has no -f.
+    /bin/rm -f "$DESTDIR$PREFIX/bin/$name" "$DESTDIR$PREFIX/share/man/man1/$name.1"
+    /bin/ln -s xxhsum "$DESTDIR$PREFIX/bin/$name"
+    /bin/ln -s xxhsum.1 "$DESTDIR$PREFIX/share/man/man1/$name.1"
 done
