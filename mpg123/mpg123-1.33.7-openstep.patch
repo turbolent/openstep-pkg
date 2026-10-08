@@ -343,7 +343,7 @@
 +		fd_set fds;
 +		struct timeval tv;
 +		int ready;
-+		ssize_t part;
++		mpg123_ssize_t part;
 +		FD_ZERO(&fds);
 +		FD_SET(fd, &fds);
 +		tv.tv_sec = param.timeout;
