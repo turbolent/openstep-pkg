@@ -284,6 +284,18 @@ diff -ruN a/src/osdef1.h.in b/src/osdef1.h.in
  // used inside of FD_ZERO macro
  extern void	bzero(void *, size_t);
  #endif
+@@ -98,9 +98,11 @@
+ # ifndef __TANDEM
+ extern int	execvp(const char *, const char **);
+ # endif
++#ifndef NeXT	// <sys/wait.h> declares these differently (union wait)
+ extern int	wait(int *); /* will this break things ...? */
+ extern int	waitpid(pid_t, int *, int);
+ #endif
++#endif
+ 
+ extern int	toupper(int);
+ extern int	tolower(int);
 diff -ruN a/src/pty.c b/src/pty.c
 --- a/src/pty.c
 +++ b/src/pty.c
