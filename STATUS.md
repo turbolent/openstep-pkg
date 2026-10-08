@@ -25,42 +25,50 @@ rebootstrapped host (`lha a` of a directory adds only the directory entry), and 
 extract .lzh/.lha archives.  It can be put back from git history (the last version was
 1.14i-ac20050924p1 with a hand-ported security patch).
 
+In the SPARC column, the number after "validated" is the package version that
+was tested (taken from the tree at the commit that recorded the result).  "tree
+is now X" means the package has since been bumped and the result no longer
+covers it.  A matching version does not cover the October 2026 security
+patches, which changed some packages without bumping them: of the SPARC rows
+below, bzip2, patch and openssl still need a rebuild to pick those up
+(gzip has been rebuilt; tar, wget, zip and mpg123 have no SPARC result).
+
 | Package | x86 | SPARC |
 |---|---|---|
-| bash | validated | validated (rebuilt on the rebootstrapped host) |
-| bison | validated | validated (rebootstrap, 2026-10-08) |
-| bzip2 | validated | validated |
-| ca-certificates | validated | validated |
+| bash | validated | validated 5.3 (rebuilt on the rebootstrapped host) |
+| bison | validated | validated 2.4.3 (rebootstrap, 2026-10-08) |
+| bzip2 | validated | validated 1.0.8 |
+| ca-certificates | validated | validated 2026.05.14 (tree is now 2026.09.25: needs retest) |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
-| coreutils | validated | validated (with pkg_cmp_shim) |
-| curl | validated | validated (rebuilt on the rebootstrapped host, after the bash fix) |
+| coreutils | validated | validated 5.0 (with pkg_cmp_shim) |
+| curl | validated | validated 8.17.0 (rebuilt on the rebootstrapped host, after the bash fix) |
 | diffutils | validated | — |
 | duktape | validated | — |
 | emacs | validated | — |
-| expat | validated | validated |
+| expat | validated | validated 2.8.1 (tree is now 2.9.0: needs retest) |
 | ffmpeg | validated | — |
-| findutils | validated | validated |
-| flex | validated | validated (rebootstrap, 2026-10-08) |
+| findutils | validated | validated 4.2.33 |
+| flex | validated | validated 2.5.39 (rebootstrap, 2026-10-08) |
 | freetype | validated | — |
-| freeze | validated | validated |
+| freeze | validated | validated 2.5 |
 | fribidi | 0.19.7 validated | — |
-| gawk | validated | validated (with pkg_cmp_shim) |
-| gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
-| git | validated | validated (2.55.0; needs the unsigned memcmp/strcmp fix and -O0) |
+| gawk | validated | validated 3.1.8 (with pkg_cmp_shim) |
+| gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
+| git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
-| grep | validated | validated (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
-| gzip | validated | validated (rebootstrap, 2026-10-08) |
-| help2man | validated | validated |
-| jpeg | validated | validated (rebootstrap, 2026-10-08) |
-| less | validated | validated (rebootstrap, 2026-10-08) |
+| grep | validated | validated 2.5.4 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
+| gzip | validated | validated 1.3.12 (rebootstrap, 2026-10-08) |
+| help2man | validated | validated 1.27 |
+| jpeg | validated | validated 8d (rebootstrap, 2026-10-08) |
+| less | validated | validated 710 (rebootstrap, 2026-10-08) |
 | liba52 | validated | — |
 | libcss | validated | — |
 | libdom | validated | — |
 | libgcrypt | 1.5.6 validated | — |
 | libgpg-error | 1.12 validated | — |
 | libhubbub | validated | — |
-| libiconv | validated | validated |
+| libiconv | validated | validated 1.15 |
 | libmad | validated | — |
 | libmpeg2 | validated | — |
 | libnsbmp | validated | — |
@@ -69,30 +77,30 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | libnslog | validated | — |
 | libnsutils | validated | — |
 | libparserutils | validated | — |
-| libpng | validated | validated |
+| libpng | validated | validated 1.6.58 (tree is now 1.6.59: needs retest) |
 | libsvgtiny | validated | — |
 | libwapcaplet | validated | — |
 | libxml2 | validated on x86 (2.15.4: build, install, test) | — |
 | lua | validated | — |
 | lua51 | 5.1.5 validated | — |
 | lz4 | validated | — |
-| m4 | validated | validated |
-| make | validated (built with the system cc) | validated (built with the system cc) |
-| mktemp | validated | validated |
+| m4 | validated | validated 1.4.6 |
+| make | validated (built with the system cc) | validated 3.81 (built with the system cc) |
+| mktemp | validated | validated 1.7 |
 | mpg123 | validated (1.33.7, with private stdint.h/inttypes.h shims; rebuilt on a fresh host) | — |
-| nano | validated | validated |
-| ncurses | validated | validated |
-| nethack | validated (tty and X11) | validated (`pkg test` passes, game starts; a stray "pkg: Stock: not found" after the install was a script replaced mid-run, fixed in pkg) |
+| nano | validated | validated 2.9.8 |
+| ncurses | validated | validated 6.5 |
+| nethack | validated (tty and X11) | validated 3.6.7 (`pkg test` passes, game starts; a stray "pkg: Stock: not found" after the install was a script replaced mid-run, fixed in pkg) |
 | netsurf-buildsystem | validated | — |
 | neXtaw | validated | — |
 | nsgenbind | validated | — |
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
-| openssl | validated | validated |
+| openssl | validated | validated 1.1.1w |
 | p7zip | validated | — |
-| patch | validated | validated |
-| pdksh | validated | validated |
-| perl | validated | validated |
+| patch | validated | validated 2.6.1 |
+| pdksh | validated | validated 5.2.14 |
+| perl | validated | validated 5.8.9 |
 | pkgconf | validated on x86 (3.0.7: build, install, test; replaces pkg-config 0.29) | — |
 | python311 | validated | — |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
@@ -100,24 +108,24 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | — |
 | rsync | validated | — |
 | sdl12 | validated | — |
-| sed | validated | validated (with pkg_cmp_shim) |
+| sed | validated | validated 4.0.9 (with pkg_cmp_shim) |
 | sudo | validated | — |
 | tar | 1.15.1 validated | — |
-| tcsh | validated | validated (rebootstrap, 2026-10-08; vfork.h fix) |
+| tcsh | validated | validated 6.24.13 (rebootstrap, 2026-10-08; vfork.h fix) |
 | termcap | validated | — |
-| texinfo | validated | validated |
-| top | validated | validated |
-| unzip | validated | validated |
+| texinfo | validated | validated 4.8 |
+| top | validated | validated 3.6.1 |
+| unzip | validated | validated 6.0 |
 | utf8proc | validated | — |
-| vim | validated | validated |
+| vim | validated | validated 9.2.0121 (tree is now 9.2.1091: needs retest) |
 | vlc | 0.9.10 validated (runs as root) | — |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
 | wget-bootstrap | 1.19.5 validated | 1.19.5 validated (needs the localtime and unsigned-compare fixes) |
-| xxhash | validated (manual build, after replacing `ln -sf`; rebuilt on a fresh host) | validated (`XXH_FORCE_MEMORY_ACCESS=0`: the default packed-union reads bus-error with gcc 4.2; compiling `xxhash.c` is very slow) |
-| xz | validated | validated |
+| xxhash | validated (manual build, after replacing `ln -sf`; rebuilt on a fresh host) | validated 0.8.4 (`XXH_FORCE_MEMORY_ACCESS=0`: the default packed-union reads bus-error with gcc 4.2; compiling `xxhash.c` is very slow) |
+| xz | validated | validated 5.8.4 |
 | zip | validated | — |
-| zlib | validated | validated |
-| zsh | validated | validated |
+| zlib | validated | validated 1.2.13 |
+| zsh | validated | validated 5.9 |
 | zstd | validated | — |
 
 ## Notes
