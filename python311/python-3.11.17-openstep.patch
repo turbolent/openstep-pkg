@@ -1978,3 +1978,18 @@ new file mode 100644
 +}
 +
 +#endif
+--- a/Modules/expat/expat_external.h
++++ b/Modules/expat/expat_external.h
+@@ -131,7 +131,11 @@
+ 
+ /* Marks a function that Expat still provides but that callers should move off
+    of. */
+-#  if defined(__clang__) || defined(__GNUC__)
++#  if defined(__GNUC__) && ! defined(__clang__)                                 \
++      && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 5))
++/* gcc before 4.5 (OPENSTEP's is 4.2) takes no message in the attribute. */
++#    define XML_ATTR_DEPRECATED(message) __attribute__((__deprecated__))
++#  elif defined(__clang__) || defined(__GNUC__)
+ #    define XML_ATTR_DEPRECATED(message)                                       \
+       __attribute__((__deprecated__(message)))
+ #  elif defined(_MSC_VER)
