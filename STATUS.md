@@ -108,7 +108,7 @@ fixed.  Use it for old, known-safe archives only.
 | vlc | 0.9.10 validated (runs as root) | — |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
 | wget-bootstrap | 1.19.5 validated | 1.19.5 validated (needs the localtime and unsigned-compare fixes) |
-| xxhash | validated | fix pushed (manual build); no result recorded |
+| xxhash | validated (manual build, after replacing `ln -sf`; rebuilt on a fresh host) | fix pushed (manual build); no result recorded |
 | xz | validated | validated |
 | zip | validated | — |
 | zlib | validated | validated |
