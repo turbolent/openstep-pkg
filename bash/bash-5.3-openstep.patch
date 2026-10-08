@@ -309,3 +309,30 @@ diff -ruN -x '*.o' a/x/y.tab.c b/y.tab.c
  #endif
  
  /* Narrow types that promote to a signed type and that can represent a
+--- a/lib/glob/sm_loop.c
++++ b/lib/glob/sm_loop.c
+@@ -16,7 +16,11 @@
+    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
+ */
+ 
+-extern int interrupt_state, terminating_signal;
++/* These are volatile sig_atomic_t in sig.c; sig_atomic_t is narrower than int
++   here, so declaring them int reads a word at an odd address, which faults on
++   SPARC. */
++#include <signal.h>
++extern volatile sig_atomic_t interrupt_state, terminating_signal;
+ 
+ struct STRUCT
+ {
+--- a/lib/sh/zread.c
++++ b/lib/sh/zread.c
+@@ -45,7 +45,8 @@
+ #  define EOF -1
+ #endif
+ 
+-extern int executing_builtin, interrupt_state;
++extern int executing_builtin;
++extern volatile sig_atomic_t interrupt_state;
+ 
+ extern void check_signals_and_traps (void);
+ extern void check_signals (void);
