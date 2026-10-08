@@ -23,7 +23,7 @@ fixed.  Use it for old, known-safe archives only.
 
 | Package | x86 | SPARC |
 |---|---|---|
-| bash | validated | — |
+| bash | validated | validated (rebuilt on the rebootstrapped host) |
 | bison | validated | validated |
 | bzip2 | validated | validated |
 | ca-certificates | validated | validated |
