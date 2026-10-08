@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -fno-builtin-memset -march=i486 fixture.c -o fixture
+/usr/local/bin/gcc-4.2 -O2 -fno-builtin-memset ${PKG_GCC42_ARCH_FLAGS-} fixture.c -o fixture
 ./fixture
 convert()
 {

@@ -28,7 +28,7 @@ int main(void)
     return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -DNeXT -I"$LOCAL_ROOT/include/fribidi"     "$TMP.c" -L"$LOCAL_ROOT/lib" -lfribidi -o "$TMP"
+/usr/local/bin/gcc-4.2 -O2 ${PKG_GCC42_ARCH_FLAGS-} -DNeXT -I"$LOCAL_ROOT/include/fribidi"     "$TMP.c" -L"$LOCAL_ROOT/lib" -lfribidi -o "$TMP"
 "$TMP"
 "$LOCAL_ROOT/bin/fribidi" --version
 echo 'FriBidi installed headers, UTF-8 conversion and bidirectional mapping passed'

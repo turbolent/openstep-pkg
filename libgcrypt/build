@@ -3,7 +3,7 @@ set -e
 DESTDIR=$1
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -fno-builtin-memset -march=i486 -DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE'
+CFLAGS="-O2 -fno-builtin-memset ${PKG_GCC42_ARCH_FLAGS-} -DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE"
 AWK=/usr/local/bin/gawk
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'

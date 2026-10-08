@@ -6,7 +6,7 @@ patch -p1 < "lua-$2-openstep.patch"
 (
     cd src
     /bin/gnumake all CC=/usr/local/bin/gcc-4.2 \
-        'MYCFLAGS=-DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE -fno-builtin-memset -march=i486'
+        "MYCFLAGS=-DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE -fno-builtin-memset ${PKG_GCC42_ARCH_FLAGS-}"
     ./lua -v
     ./luac -v
 )

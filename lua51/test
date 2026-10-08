@@ -45,7 +45,7 @@ int main(void) {
     assert(lua_isstring(L,-1)); lua_close(L); return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -fno-builtin-memset -DNeXT \
+/usr/local/bin/gcc-4.2 -O2 ${PKG_GCC42_ARCH_FLAGS-} -fno-builtin-memset -DNeXT \
     -I"$LOCAL_ROOT/include/lua5.1" "$TMP/api.c" \
     -L"$LOCAL_ROOT/lib" -llua5.1 -lm -o "$TMP/api"
 "$TMP/api"
