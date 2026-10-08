@@ -117,7 +117,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | termcap | validated | validated 1.3.1 (rebootstrap, 2026-10-08) |
 | texinfo | validated | validated 4.8 (rebootstrap, 2026-10-08) |
 | top | validated | validated 3.6.1 |
-| unzip | validated | validated 6.0 |
+| unzip | validated | validated 6.0 (rebootstrap, 2026-10-08) |
 | utf8proc | validated | — |
 | vim | validated | validated 9.2.0121 (tree is now 9.2.1091: needs retest) |
 | vlc | 0.9.10 validated (runs as root) | — |
