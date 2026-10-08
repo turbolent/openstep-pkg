@@ -18,7 +18,13 @@ export DESTDIR VERSION PATH CC PATCHFILE CPPFLAGS
 CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
 
 patch -p1 < "$PATCHFILE"
+# Never use iconv: libiconv depends on coreutils (a cycle), and configure
+# would otherwise find a libiconv that is already installed (a reinstall) and
+# define HAVE_ICONV, but its include directory does not reach the compile
+# ("iconv.h: header file not found" in unicodeio.c).  It is only used there,
+# for \u escapes in printf.
 run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
-  --disable-nls --prefix=/usr/local
+  --disable-nls --prefix=/usr/local \
+  am_cv_func_iconv=no am_cv_lib_iconv=no
 gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS"
 gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" install DESTDIR="$DESTDIR"
