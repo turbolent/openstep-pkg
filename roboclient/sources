@@ -3,3 +3,5 @@ roboclient-testd.c
 roboclient.script
 roboclient.8
 roboclient.conf.dist
+rc.dhcp
+README
