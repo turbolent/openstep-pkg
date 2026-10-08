@@ -690,7 +690,20 @@ fi
 /bin/rm -f probe_ts.c probe_ts.o
 $CC $CFLAGS $nx_tsdef -c openstep_posix.c -o openstep_posix.o
 /bin/rm -f libopenstepntp.a
-/bin/ar rc libopenstepntp.a openstep_rand.o openstep_posix.o
+# configure's setrlimit() check fails here (its own declaration clashes with the
+# one in <sys/resource.h>, which ntp-compat.h pulls in), so HAVE_SETRLIMIT is
+# unset and ntp_config.c omits ntp_rlimit() -- but its callers are guarded by
+# RLIMIT_* and still reference it.  Supply a no-op, in its own archive member so
+# it is only linked when ntp_config.o really lacks the function.  The "rlimit"
+# directive of ntpd.conf is its only user; it is accepted and ignored.
+/bin/cat > openstep_rlimit.c <<'RLEOF'
+void
+ntp_rlimit(int rl_what, int rl_value, int rl_scale, const char *rl_sstr)
+{
+}
+RLEOF
+$CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
+/bin/ar rc libopenstepntp.a openstep_rand.o openstep_posix.o openstep_rlimit.o
 /bin/ranlib libopenstepntp.a
 LIBS="-L`pwd` -lopenstepntp"
 ac_cv_func_arc4random_buf=yes
