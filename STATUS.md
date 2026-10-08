@@ -97,7 +97,7 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | python311 | validated | — |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
 | quickjs | validated | — |
-| roboclient | 1.0 validated; 1.1 adds `rc.dhcp` (tested on Linux, not yet on OPENSTEP) | — |
+| roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | — |
 | rsync | validated | — |
 | sdl12 | validated | — |
 | sed | validated | validated (with pkg_cmp_shim) |
