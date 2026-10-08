@@ -12,14 +12,15 @@ EGREP=/usr/bin/egrep
 export DESTDIR VERSION PATH GREP EGREP
 . "$PKG_BUILD_HELPERS"
 
-# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
-# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
-# time only: configure's own tests do not cope with it.
-CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_obj in build-helpers.sh.  Unsigned definitions are
+# linked into every program (the stock cc ignores the forced -include that
+# pkg_cmp_shim relies on).  Empty on x86.  Used at make time only.
+CMPOBJ=`CC="/bin/cc $PKG_SYSCC_ARCH_FLAGS"; pkg_cmp_obj "\`pwd\`/openstep-cmp"`
 
 patch -p1 < "$PATCHFILE"
 run_configure --prefix=/usr/local
 sed 's|^mkdir_p = $(top_builddir)/\./install-sh -c -d$|mkdir_p = .././install-sh -c -d|' po/Makefile > po/Makefile.tmp
 mv po/Makefile.tmp po/Makefile
-/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS"
-/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" install DESTDIR="$DESTDIR"
+/bin/gnumake LDFLAGS="$LDFLAGS $CMPOBJ"
+/bin/gnumake LDFLAGS="$LDFLAGS $CMPOBJ" install DESTDIR="$DESTDIR"
