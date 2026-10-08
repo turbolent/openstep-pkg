@@ -27,8 +27,16 @@ patch -p1 < "$CVEPATCH"
 # first certificate" against a bundle that verifies on x86).
 CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
 
-/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O $CMPFLAGS"
-/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe -O $CMPFLAGS" install_sw DESTDIR="$DESTDIR"
+# On SPARC the stock cc at -O gets P-384 (and certificate chains that use it)
+# wrong: "openssl ec -pubout" fails and verification stops at "unable to
+# verify the first certificate".  Build without optimisation there.
+# PKG_OPENSSL_OPT overrides the level (for example -O when testing).
+OPT=-O
+[ "${PKG_ARCH-}" = sparc ] && OPT=-O0
+OPT=${PKG_OPENSSL_OPT-$OPT}
+
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS"
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS" install_sw DESTDIR="$DESTDIR"
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"
