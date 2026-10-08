@@ -53,4 +53,149 @@ int main(void)
 }
 EOF
 /bin/cc -I"$LOCAL_ROOT/include" "$TMP/lookup.c" -L"$LOCAL_ROOT/lib" -lcrypto -o "$TMP/lookup"
+echo "== BIO address lookups"
 "$TMP/lookup"
+
+# The checks below need no network and no installed configuration or CA bundle.
+# They exist because a build once passed the lookup test above while its object
+# identifier table lookups were broken (the SPARC libc's signed memcmp): P-384
+# keys could not be read back, and SHA-1, SHA-2 and AES names were not found.
+echo "== every built-in object identifier can be found by its DER bytes"
+cat > "$TMP/oidtest.c" <<'EOF'
+#include <stdio.h>
+#include <string.h>
+#include <openssl/objects.h>
+#include <openssl/asn1.h>
+#include <openssl/err.h>
+
+int main(void)
+{
+    int nid, bad = 0, total = 0;
+    ASN1_OBJECT *o, *probe;
+    const unsigned char *p;
+    unsigned char der[64];
+    char txt[128];
+
+    for (nid = 1; nid < 1300; nid++) {
+        o = OBJ_nid2obj(nid);
+        ERR_clear_error();
+        if (o == NULL || OBJ_length(o) == 0 || OBJ_length(o) > 60)
+            continue;
+        der[0] = 6;
+        der[1] = (unsigned char) OBJ_length(o);
+        memcpy(der + 2, OBJ_get0_data(o), OBJ_length(o));
+        p = der;
+        probe = d2i_ASN1_OBJECT(NULL, &p, OBJ_length(o) + 2);
+        total++;
+        if (probe == NULL || OBJ_obj2nid(probe) != nid) {
+            /* nid 676 ("1.3") shares its OID with another entry. */
+            if (nid != 676) {
+                OBJ_obj2txt(txt, sizeof txt, o, 1);
+                printf("  not found: nid %d %s %s\n", nid, txt, OBJ_nid2sn(nid));
+                bad++;
+            }
+        }
+        if (probe != NULL)
+            ASN1_OBJECT_free(probe);
+    }
+    printf("  %d object identifiers checked, %d not found\n", total, bad);
+    if (OBJ_txt2nid("1.3.132.0.34") != NID_secp384r1
+        || OBJ_txt2nid("1.3.14.3.2.26") != NID_sha1) {
+        printf("  secp384r1 / sha1 OID names did not resolve\n");
+        return 1;
+    }
+    return bad != 0;
+}
+EOF
+/bin/cc -I"$LOCAL_ROOT/include" "$TMP/oidtest.c" -L"$LOCAL_ROOT/lib" -lcrypto -o "$TMP/oidtest"
+"$TMP/oidtest"
+
+echo "== known-answer digests of \"abc\" and a newline"
+digest() {
+    got=`echo abc | "$OPENSSL" dgst -$1 | sed 's/.*= *//'`
+    if [ "$got" != "$2" ]; then
+        echo "  $1: expected $2" >&2
+        echo "  $1: got      $got" >&2
+        exit 1
+    fi
+    echo "  $1 ok"
+}
+digest md5 0bee89b07a248e27c83fc3d5951213c1
+digest sha1 03cfd743661f07975fa2f1220c5194cbaff48451
+digest sha256 edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb
+digest sha384 e8d1420b4ff41c3f12186d894a99e1c4aa681da79c47007e9dadecd9ecb0482ee1e224510e7484078c0289f34396b9c3
+digest sha512 4f285d0c0cc77286d8731798b7aae2639e28270d4166f40d769cbbdca5230714d848483d364e2f39fe6cb9083c15229b39a33615ebc6d57605f7c43f6906739d
+
+echo "== EC keys: generate, derive the public key, read both back"
+for curve in prime256v1 secp256k1 secp384r1 secp521r1; do
+    "$OPENSSL" ecparam -name $curve -genkey -noout -out "$TMP/$curve.key"
+    "$OPENSSL" ec -in "$TMP/$curve.key" -pubout -out "$TMP/$curve.pub" 2>/dev/null
+    "$OPENSSL" ec -pubin -in "$TMP/$curve.pub" -noout -text >/dev/null 2>&1
+    "$OPENSSL" ec -in "$TMP/$curve.key" -noout -check 2>/dev/null
+    echo "  $curve ok"
+done
+
+echo "== EC and RSA signatures: sign, verify, and reject a changed message"
+echo 'message to sign' > "$TMP/msg"
+echo 'message to sigm' > "$TMP/msg2"
+"$OPENSSL" genrsa -out "$TMP/rsa.key" 1024 2>/dev/null
+"$OPENSSL" rsa -in "$TMP/rsa.key" -pubout -out "$TMP/rsa.pub" 2>/dev/null
+for pair in "secp384r1 sha384" "prime256v1 sha256" "secp521r1 sha512" "rsa sha1" "rsa sha256"; do
+    set -- $pair
+    "$OPENSSL" dgst -$2 -sign "$TMP/$1.key" -out "$TMP/sig" "$TMP/msg"
+    "$OPENSSL" dgst -$2 -verify "$TMP/$1.pub" -signature "$TMP/sig" "$TMP/msg" >/dev/null
+    if "$OPENSSL" dgst -$2 -verify "$TMP/$1.pub" -signature "$TMP/sig" "$TMP/msg2" >/dev/null 2>&1; then
+        echo "  $1/$2 verified a message that was changed" >&2
+        exit 1
+    fi
+    echo "  $1 with $2 ok"
+done
+
+echo "== certificate chains: a CA signs a leaf, and verification names the issuer"
+cat > "$TMP/ca.cnf" <<'EOF'
+[req]
+distinguished_name = dn
+prompt = no
+x509_extensions = v3
+[dn]
+CN = pkg test CA
+[v3]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+EOF
+for pair in "secp384r1 sha384" "prime256v1 sha256" "rsa sha256"; do
+    set -- $pair
+    "$OPENSSL" req -x509 -new -key "$TMP/$1.key" -$2 -days 2 -config "$TMP/ca.cnf" -out "$TMP/ca-$1.pem"
+    "$OPENSSL" req -new -key "$TMP/rsa.key" -subj "/CN=leaf-$1" -config "$TMP/ca.cnf" -out "$TMP/leaf.csr"
+    "$OPENSSL" x509 -req -in "$TMP/leaf.csr" -CA "$TMP/ca-$1.pem" -CAkey "$TMP/$1.key" \
+        -set_serial 7 -days 1 -$2 -out "$TMP/leaf-$1.pem" 2>/dev/null
+    "$OPENSSL" verify -CAfile "$TMP/ca-$1.pem" "$TMP/leaf-$1.pem" | grep ': OK' >/dev/null
+    # A certificate from a different CA must not verify.
+    other=ca-secp384r1.pem
+    [ $1 = secp384r1 ] && other=ca-prime256v1.pem
+    if "$OPENSSL" verify -CAfile "$TMP/$other" "$TMP/leaf-$1.pem" >/dev/null 2>&1; then
+        echo "  leaf-$1 verified against the wrong CA" >&2
+        exit 1
+    fi
+    echo "  $1 CA signed with $2: verifies, and fails against another CA"
+done
+
+echo "== AES round trips"
+"$OPENSSL" rand -out "$TMP/plain" 1000
+KEY=000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f
+for cipher in aes-128-cbc aes-256-cbc aes-256-ctr aes-128-ecb; do
+    case $cipher in
+        aes-128-*) key=`echo $KEY | sed 's/^\(................................\).*/\1/'` ;;
+        *) key=$KEY ;;
+    esac
+    case $cipher in
+        *-ecb) iv= ;;
+        *) iv="-iv 000102030405060708090a0b0c0d0e0f" ;;
+    esac
+    "$OPENSSL" enc -$cipher -K $key $iv -in "$TMP/plain" -out "$TMP/enc"
+    "$OPENSSL" enc -d -$cipher -K $key $iv -in "$TMP/enc" -out "$TMP/dec"
+    cmp "$TMP/plain" "$TMP/dec"
+    echo "  $cipher ok"
+done
+
+echo "openssl checks passed"
