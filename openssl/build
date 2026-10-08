@@ -21,20 +21,27 @@ patch -p1 < "$PATCHFILE"
 patch -p1 < "$CVEPATCH"
 
 # OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
-# strncmp(); see pkg_cmp_shim in build-helpers.sh.  Empty on x86.  libcrypto
-# keeps certificate names, key ids and object names in sorted stacks, and the
-# signed comparison broke certificate lookups on SPARC ("unable to verify the
-# first certificate" against a bundle that verifies on x86).
-CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+# strncmp(); see pkg_cmp_named in build-helpers.sh.  Empty on x86.  libcrypto
+# looks object identifiers up by binary search over a table sorted with an
+# unsigned memcmp(), so with the signed one SHA1, the AES and SHA-2 OIDs and
+# the secp384r1 family could not be found: "openssl ec -pubout" failed, and
+# chains using P-384 or SHA-2 names stopped at "unable to verify the first
+# certificate".  The stock cc ignores a forced -include, so the routines are
+# renamed with -D and added to libcrypto.a.
+CC=/bin/cc
+export CC
+CMPFLAGS=`pkg_cmp_named "\`pwd\`/openstep-cmp"`
 
-# On SPARC the stock cc at -O gets P-384 (and certificate chains that use it)
-# wrong: "openssl ec -pubout" fails and verification stops at "unable to
-# verify the first certificate".  Build without optimisation there.
-# PKG_OPENSSL_OPT overrides the level (for example -O when testing).
-OPT=-O
-[ "${PKG_ARCH-}" = sparc ] && OPT=-O0
-OPT=${PKG_OPENSSL_OPT-$OPT}
+# Optimisation level.  (SPARC was once built at -O0 on the theory that the
+# stock cc miscompiled P-384; the real cause was the signed memcmp above.)
+# PKG_OPENSSL_OPT overrides it, for example PKG_OPENSSL_OPT=-O0 to compare.
+OPT=${PKG_OPENSSL_OPT-"-O"}
 
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS" build_libs
+if [ -n "$CMPFLAGS" ]; then
+    ar r libcrypto.a openstep-cmp/ostep-cmp-named.o
+    ranlib libcrypto.a
+fi
 /bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS"
 /bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS" install_sw DESTDIR="$DESTDIR"
 

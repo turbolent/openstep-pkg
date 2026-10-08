@@ -12,10 +12,11 @@ CPPFLAGS='-DMOUNTED=\"/etc/mtab\"'
 export DESTDIR VERSION PATH CC PATCHFILE CPPFLAGS
 . "$PKG_BUILD_HELPERS"
 
-# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
-# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
-# time only: configure's own tests do not cope with it.
-CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_obj in build-helpers.sh.  Unsigned definitions are
+# linked into every program (the stock cc ignores the forced -include that
+# pkg_cmp_shim relies on).  Empty on x86.  Used at make time only.
+CMPOBJ=`pkg_cmp_obj "\`pwd\`/openstep-cmp"`
 
 patch -p1 < "$PATCHFILE"
 # Never use iconv: libiconv depends on coreutils (a cycle), and configure
@@ -26,5 +27,5 @@ patch -p1 < "$PATCHFILE"
 run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-nls --prefix=/usr/local \
   am_cv_func_iconv=no am_cv_lib_iconv=no
-gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS"
-gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" install DESTDIR="$DESTDIR"
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ"
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ" install DESTDIR="$DESTDIR"

@@ -43,7 +43,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
-| coreutils | validated | validated 5.0 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
+| coreutils | validated | validated 5.0 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
 | curl | validated | validated 8.17.0 (rebuilt on the rebootstrapped host, after the bash fix) |
 | diffutils | validated | — |
 | duktape | validated | — |
@@ -55,11 +55,11 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | freetype | validated | — |
 | freeze | validated | validated 2.5 (rebootstrap, 2026-10-08) |
 | fribidi | 0.19.7 validated | — |
-| gawk | validated | validated 3.1.8 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
+| gawk | validated | validated 3.1.8 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
 | gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
-| grep | validated | validated 2.5.4 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
+| grep | validated | validated 2.5.4 (rebootstrap, 2026-10-08; built WITHOUT the unsigned memcmp, since the stock cc ignored pkg_cmp_shim; now uses pkg_cmp_obj: needs retest) |
 | gzip | validated | validated 1.3.12 (rebootstrap, 2026-10-08) |
 | help2man | validated | validated 1.27 |
 | jpeg | validated | validated 8d (rebootstrap, 2026-10-08) |
@@ -98,7 +98,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | nsgenbind | validated | — |
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
-| openssl | validated | validated 1.1.1w |
+| openssl | validated | 1.1.1w FAILS on SPARC: OID lookups by DER (SHA1, AES, SHA-2, secp384r1 and others) fail because libcrypto used the signed libc memcmp; fixed in the build (pkg_cmp_named), not yet rebuilt |
 | p7zip | validated | — |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
