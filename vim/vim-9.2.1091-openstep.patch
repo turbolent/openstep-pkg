@@ -50,7 +50,7 @@ diff -ruN a/src/list.c b/src/list.c
 diff -ruN a/src/os_openstep.h b/src/os_openstep.h
 --- a/src/os_openstep.h
 +++ b/src/os_openstep.h
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,57 @@
 +/* Narrow OPENSTEP fallbacks for the C99 interfaces used by Vim. */
 +#ifndef VIM_OS_OPENSTEP_H
 +#define VIM_OS_OPENSTEP_H
@@ -82,6 +82,15 @@ diff -ruN a/src/os_openstep.h b/src/os_openstep.h
 +
 +typedef int ssize_t;
 +typedef int socklen_t;
++
++/* No struct sockaddr_storage here.  channel.c only needs a buffer that is big
++   enough for any address and aligned for sockaddr_in, and reads ss_family. */
++struct sockaddr_storage {
++    unsigned short	ss_family;
++    char		ss_pad1[2];
++    long		ss_align;
++    char		ss_pad2[120];
++};
 +#ifndef O_NONBLOCK
 +# define O_NONBLOCK FNDELAY
 +#endif
