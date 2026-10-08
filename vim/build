@@ -14,11 +14,14 @@ AWK=/usr/local/bin/gawk
 CONFIG_SHELL=/usr/local/bin/ksh
 # The termios header exists without working functions. Use BSD tty handling.
 ac_cv_header_termios_h=no
+# <sys/utsname.h> exists but declares no struct utsname unless _POSIX_SOURCE is
+# defined; use gethostname() for the host name instead.
+ac_cv_header_sys_utsname_h=no
 # OPENSTEP poll timeouts and strcoll are unusable; select/strcmp work.
 ac_cv_func_poll=no
 ac_cv_func_strcoll=no
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK CONFIG_SHELL
-export ac_cv_header_termios_h ac_cv_func_poll ac_cv_func_strcoll
+export ac_cv_header_termios_h ac_cv_header_sys_utsname_h ac_cv_func_poll ac_cv_func_strcoll
 . "$PKG_BUILD_HELPERS"
 
 # OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
