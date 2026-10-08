@@ -9,14 +9,16 @@ OPENSTEP 4.2 machines; most packages have only been tried on x86 so far.  M68k
 has not been attempted.
 
 **x86, 2026-10-08:** a rebootstrap on a fresh host built, installed and tested
-all 93 packages in the tree, including the October 2026 CVE fixes (bzip2,
-freetype, libmad, wget, gzip, zip, patch, tar, openssl, emacs, mpg123 1.33.7,
-lha).  The version bumps ca-certificates 2026.09.25, expat 2.9.0, libpng 1.6.59
-and python311 3.11.17 were then upgraded and tested.  **Still to do on x86:**
-vim 9.2.1091 (a fix for the `wait()` declaration clash is pushed, untested).  The
-tables below show earlier results.  SPARC has not yet been re-tested after the CVE
-round.  pkg itself gained a retry through `tarfix` for tarballs whose uid/gid
-exceed OPENSTEP's 16-bit uid_t.
+all 93 packages in the tree, including the October 2026 security fixes (bzip2,
+freetype, libmad, wget, gzip, zip, patch, tar, openssl, emacs, lha) and the
+version bumps (mpg123 1.33.7, ca-certificates 2026.09.25, expat 2.9.0, libpng
+1.6.59, python311 3.11.17, vim 9.2.1091).  vim needed seven build fixes for the
+9.2.1091 bump (`wait()` in `osdef.h`, int `W*()` macros, no `<sys/utsname.h>`, no
+`<utime.h>`, `FD_CLOEXEC`, `struct sockaddr_storage`, and `tcgetattr`/`tcsetattr`
+from the BSD ioctls).  The tables below show earlier results.  SPARC is being
+rebuilt from scratch in dependency order; bash, curl and gcc42 are done there, and
+the October 2026 security fixes have not been tested on SPARC.  pkg itself gained a
+retry through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
 
 lha is only partly hardened: upstream's 2016 header and symlink fixes are ported
 to 1.14i-ac20050924p1, but two header-read gaps upstream also left are not
