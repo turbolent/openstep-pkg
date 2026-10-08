@@ -16,7 +16,7 @@ version bumps (mpg123 1.33.7, ca-certificates 2026.09.25, expat 2.9.0, libpng
 9.2.1091 bump (`wait()` in `osdef.h`, int `W*()` macros, no `<sys/utsname.h>`, no
 `<utime.h>`, `FD_CLOEXEC`, `struct sockaddr_storage`, and `tcgetattr`/`tcsetattr`
 from the BSD ioctls).  The tables below show earlier results.  SPARC is being
-rebuilt from scratch in dependency order; bash, curl and gcc42 are done there, and
+rebuilt from scratch in dependency order; bash, curl, gcc42, jpeg, less, flex, bison, gzip, grep and tcsh are done there, and
 the October 2026 security fixes have not been tested on SPARC.  pkg itself gained a
 retry through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
 
@@ -28,7 +28,7 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | Package | x86 | SPARC |
 |---|---|---|
 | bash | validated | validated (rebuilt on the rebootstrapped host) |
-| bison | validated | validated |
+| bison | validated | validated (rebootstrap, 2026-10-08) |
 | bzip2 | validated | validated |
 | ca-certificates | validated | validated |
 | cctools-as | 806 validated | — |
@@ -41,7 +41,7 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | expat | validated | validated |
 | ffmpeg | validated | — |
 | findutils | validated | validated |
-| flex | validated | validated |
+| flex | validated | validated (rebootstrap, 2026-10-08) |
 | freetype | validated | — |
 | freeze | validated | validated |
 | fribidi | 0.19.7 validated | — |
@@ -49,11 +49,11 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | gcc42 | validated | validated (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated (2.55.0; needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | — |
-| grep | validated | validated (with pkg_cmp_shim) |
-| gzip | validated | — |
+| grep | validated | validated (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
+| gzip | validated | validated (rebootstrap, 2026-10-08) |
 | help2man | validated | validated |
-| jpeg | validated | — |
-| less | validated | — |
+| jpeg | validated | validated (rebootstrap, 2026-10-08) |
+| less | validated | validated (rebootstrap, 2026-10-08) |
 | liba52 | validated | — |
 | libcss | validated | — |
 | libdom | validated | — |
@@ -103,7 +103,7 @@ extract .lzh/.lha archives.  It can be put back from git history (the last versi
 | sed | validated | validated (with pkg_cmp_shim) |
 | sudo | validated | — |
 | tar | 1.15.1 validated | — |
-| tcsh | validated | — |
+| tcsh | validated | validated (rebootstrap, 2026-10-08; vfork.h fix) |
 | termcap | validated | — |
 | texinfo | validated | validated |
 | top | validated | validated |
