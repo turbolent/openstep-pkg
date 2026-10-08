@@ -32,14 +32,14 @@ was tested (taken from the tree at the commit that recorded the result).  "tree
 is now X" means the package has since been bumped and the result no longer
 covers it.  A matching version does not cover the October 2026 security
 patches, which changed some packages without bumping them: of the SPARC rows
-below, bzip2 and openssl still need a rebuild to pick those up (gzip, patch and
+below, openssl still needs a rebuild to pick those up (bzip2, gzip, patch and
 tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 
 | Package | x86 | SPARC |
 |---|---|---|
 | bash | validated | validated 5.3 (rebuilt on the rebootstrapped host) |
 | bison | validated | validated 2.4.3 (rebootstrap, 2026-10-08) |
-| bzip2 | validated | validated 1.0.8 |
+| bzip2 | validated | validated 1.0.8 (rebootstrap, 2026-10-08) |
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
