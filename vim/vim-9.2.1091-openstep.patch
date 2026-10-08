@@ -50,7 +50,7 @@ diff -ruN a/src/list.c b/src/list.c
 diff -ruN a/src/os_openstep.h b/src/os_openstep.h
 --- a/src/os_openstep.h
 +++ b/src/os_openstep.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,45 @@
 +/* Narrow OPENSTEP fallbacks for the C99 interfaces used by Vim. */
 +#ifndef VIM_OS_OPENSTEP_H
 +#define VIM_OS_OPENSTEP_H
@@ -60,9 +60,23 @@ diff -ruN a/src/os_openstep.h b/src/os_openstep.h
 +#include <fcntl.h>
 +#include <sys/wait.h>
 +
-+#ifndef WTERMSIG
-+# define WTERMSIG(status) ((status).w_termsig)
-+#endif
++/* <sys/wait.h> here defines the W*() macros for the BSD "union wait" (members
++   w_T and w_S), but Vim keeps wait status in a plain int.  Use the standard int
++   forms (the BSD status layout), as os_unixx.h does when the header has none. */
++#undef WIFEXITED
++#undef WEXITSTATUS
++#undef WIFSIGNALED
++#undef WTERMSIG
++#undef WIFSTOPPED
++#undef WSTOPSIG
++#undef WCOREDUMP
++#define WIFEXITED(s)	(((s) & 0177) == 0)
++#define WEXITSTATUS(s)	(((s) >> 8) & 0377)
++#define WIFSIGNALED(s)	(((s) & 0377) != 0177 && ((s) & 0177) != 0)
++#define WTERMSIG(s)	((s) & 0177)
++#define WIFSTOPPED(s)	(((s) & 0377) == 0177)
++#define WSTOPSIG(s)	(((s) >> 8) & 0377)
++#define WCOREDUMP(s)	((s) & 0200)
 +#define waitpid(pid, status, options) \
 +    wait4((pid), (union wait *)(status), (options), (struct rusage *)0)
 +
