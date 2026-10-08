@@ -27,6 +27,7 @@ patch -p1 < "$PATCHFILE"
 
 run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix="$PREFIX" --disable-shared --enable-static --without-docbook \
+  --with-dev-urandom \
   --without-tests --disable-dependency-tracking
 
 cd lib
