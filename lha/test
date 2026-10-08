@@ -1,5 +1,7 @@
 #!/bin/sh
 set -e
+# Say what is being tested, so a failure shows which step it was.
+step() { echo "lha test: $1" >&2; }
 PREFIX="$LOCAL_ROOT"
 PATH="$PREFIX/bin:/usr/local/bin:/usr/ucb:/bin:/usr/bin"
 export PATH
@@ -21,30 +23,40 @@ printf 'small\n' > "tree/sub/second.txt"
 cp /bin/ls tree/binary
 
 # Create, list, test, extract and compare.
+step "create an archive"
 lha a archive.lzh tree > /dev/null
 [ -f archive.lzh ]
+step "list it"
 lha l archive.lzh | grep 'text.txt' > /dev/null
 lha l archive.lzh | grep 'second.txt' > /dev/null
+step "test it (lha t)"
 lha t archive.lzh > /dev/null
+step "extract it (lha x)"
 mkdir out
 cd out
 lha x ../archive.lzh > /dev/null
 cd ..
+step "compare the extracted files"
 cmp tree/text.txt out/tree/text.txt
 cmp tree/sub/second.txt out/tree/sub/second.txt
 cmp tree/binary out/tree/binary
 
 # Print one member to stdout, and add a file to an existing archive.
+step "print one member (lha pq)"
 lha pq archive.lzh tree/sub/second.txt 2>/dev/null | cmp - tree/sub/second.txt
+step "add a file to the archive"
 printf 'later\n' > later.txt
 lha a archive.lzh later.txt > /dev/null
 lha l archive.lzh | grep 'later.txt' > /dev/null
 
 # Other compression methods (lh5 is the default; lh1 and lh7 exercise others).
+step "other methods (lh5, lh7)"
 lha ao5 methods5.lzh tree/text.txt > /dev/null
 lha ao7 methods7.lzh tree/text.txt > /dev/null
+step "extract the other methods"
 mkdir m5 m7
 (cd m5; lha x ../methods5.lzh > /dev/null)
 (cd m7; lha x ../methods7.lzh > /dev/null)
+step "compare their output"
 cmp tree/text.txt m5/tree/text.txt
 cmp tree/text.txt m7/tree/text.txt
