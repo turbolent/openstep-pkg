@@ -1,0 +1,261 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -DNeXT'
+CPPFLAGS=-I/usr/local/include
+LDFLAGS=-L/usr/local/lib
+# Use the GNU termcap package for tgetent(); it still reads /etc/termcap.
+LIBS=-ltermcap
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+export PATH CC CFLAGS CPPFLAGS LDFLAGS LIBS GREP EGREP AWK
+if test -d "tcsh-$VERSION"; then cd "tcsh-$VERSION"; fi
+. "$PKG_BUILD_HELPERS"
+# configure does not know OPENSTEP hosts; the patch maps *-next-* to system/mach.
+pkg_apply_patch "tcsh-$VERSION-openstep.patch"
+
+# sh.sem.c includes <vfork.h> on any sparc that is not marked MACH or BSD4_4 (it
+# is a SunOS header).  OPENSTEP has none, and its SPARC cc defines "sparc".
+/bin/sed '/^#  include <vfork.h>$/d' sh.sem.c > sh.sem.c.new
+/bin/mv sh.sem.c.new sh.sem.c
+
+# tcsh casts pointers through intptr_t.  Whether OPENSTEP has that type depends
+# on which headers are in play, and a typedef of ours can conflict with the
+# system's, so use long (the same size as a pointer on every OPENSTEP target).
+for f in `/usr/local/bin/grep -l intptr_t *.c *.h`; do
+    /bin/sed 's/intptr_t/long/g' "$f" > "$f.new"
+    /bin/mv "$f.new" "$f"
+done
+
+# tcsh 6.24 needs POSIX signals (struct sigaction, sigprocmask, sigemptyset and
+# friends).  OPENSTEP's libc has none of those functions and, without feature
+# macros, its <signal.h> may not even define the types.  Probe what is missing,
+# complete it in a header forced into every compile, and supply the functions
+# from BSD sigvec(2)/sigblock(2)/sigsetmask(2) in a small object linked in.
+sig_h=`pwd`/openstep-sig.h
+/bin/cat > "$sig_h" <<'SIGEOF'
+#include <sys/types.h>
+#include <signal.h>
+SIGEOF
+probe_sig() {
+    { echo "#include \"$sig_h\""; echo "$1"; } > probe_sig.c
+    $CC $CFLAGS -c probe_sig.c -o probe_sig.o > /dev/null 2>&1
+}
+probe_sig 'uint8_t probe_u8;' || echo 'typedef unsigned char uint8_t;' >> "$sig_h"
+probe_sig 'sigset_t probe_set;' || echo 'typedef unsigned int sigset_t;' >> "$sig_h"
+probe_sig 'int probe_how[3] = { SIG_BLOCK, SIG_UNBLOCK, SIG_SETMASK };' || /bin/cat >> "$sig_h" <<'SIGEOF'
+#define SIG_BLOCK	1
+#define SIG_UNBLOCK	2
+#define SIG_SETMASK	3
+SIGEOF
+probe_sig 'struct sigaction probe_sa; int probe_f(void) { probe_sa.sa_handler = 0; probe_sa.sa_mask = 0; probe_sa.sa_flags = 0; return 0; }' || /bin/cat >> "$sig_h" <<'SIGEOF'
+struct sigaction {
+    void (*sa_handler)();
+    sigset_t sa_mask;
+    int sa_flags;
+};
+SIGEOF
+/bin/cat >> "$sig_h" <<'SIGEOF'
+/* sh.c uses environ; OPENSTEP's headers map it to _environ (after this header
+   is read) without declaring that, so declare both. */
+extern char **environ;
+extern char **_environ;
+/* No multibyte locales here: one byte per character. */
+#ifndef MB_CUR_MAX
+# define MB_CUR_MAX	1
+#endif
+#ifndef MB_LEN_MAX
+# define MB_LEN_MAX	1
+#endif
+#ifndef SA_RESTART
+# define SA_RESTART	0x10000
+#endif
+#ifndef SA_NOCLDSTOP
+# define SA_NOCLDSTOP	0x20000
+#endif
+SIGEOF
+/bin/rm -f probe_sig.c probe_sig.o
+
+/bin/cat > openstep_sig.c <<'SIGEOF'
+#include "openstep-sig.h"
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
+/* OPENSTEP's libc has no snprintf(); tcsh only formats short paths and host
+   names with it.  Format into a large buffer and copy out what fits. */
+int
+snprintf(char *buf, size_t size, const char *fmt, ...)
+{
+    static char tmp[8192];
+    va_list ap;
+    int n;
+
+    va_start(ap, fmt);
+    n = vsprintf(tmp, fmt, ap);
+    va_end(ap);
+    if (n >= 0 && size > 0) {
+	size_t m = ((size_t)n < size - 1) ? (size_t)n : size - 1;
+	memcpy(buf, tmp, m);
+	buf[m] = 0;
+    }
+    return n;
+}
+
+extern int sigvec();
+extern int sigblock();
+extern int sigsetmask();
+extern int sigpause();
+
+#define SIGBIT(sig)	(1 << ((sig) - 1))
+
+int
+sigemptyset(sigset_t *set)
+{
+    *set = 0;
+    return 0;
+}
+
+int
+sigfillset(sigset_t *set)
+{
+    *set = ~0;
+    return 0;
+}
+
+int
+sigaddset(sigset_t *set, int sig)
+{
+    if (sig <= 0 || sig > 31) {
+	errno = EINVAL;
+	return -1;
+    }
+    *set |= SIGBIT(sig);
+    return 0;
+}
+
+int
+sigdelset(sigset_t *set, int sig)
+{
+    if (sig <= 0 || sig > 31) {
+	errno = EINVAL;
+	return -1;
+    }
+    *set &= ~SIGBIT(sig);
+    return 0;
+}
+
+int
+sigismember(const sigset_t *set, int sig)
+{
+    if (sig <= 0 || sig > 31) {
+	errno = EINVAL;
+	return -1;
+    }
+    return (*set & SIGBIT(sig)) != 0;
+}
+
+int
+sigprocmask(int how, const sigset_t *set, sigset_t *oset)
+{
+    int old;
+
+    if (set == 0)
+	old = sigblock(0);
+    else switch (how) {
+    case SIG_BLOCK:
+	old = sigblock((int)*set);
+	break;
+    case SIG_UNBLOCK:
+	old = sigsetmask(sigblock(0) & ~(int)*set);
+	break;
+    case SIG_SETMASK:
+	old = sigsetmask((int)*set);
+	break;
+    default:
+	errno = EINVAL;
+	return -1;
+    }
+    if (oset)
+	*oset = (sigset_t)old;
+    return 0;
+}
+
+int
+sigsuspend(const sigset_t *mask)
+{
+    return sigpause((int)*mask);
+}
+
+/* POSIX handlers are not restarted unless SA_RESTART; BSD sigvec() restarts
+   unless SV_INTERRUPT, so the sense of the flag is reversed. */
+int
+sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
+{
+    struct sigvec nsv, osv;
+    int r;
+
+    if (act) {
+	nsv.sv_handler = (void (*)())act->sa_handler;
+	nsv.sv_mask = (int)act->sa_mask;
+	nsv.sv_flags = (act->sa_flags & SA_RESTART) ? 0 : SV_INTERRUPT;
+    }
+    r = sigvec(sig, act ? &nsv : (struct sigvec *)0, &osv);
+    if (r == 0 && oact) {
+	oact->sa_handler = (void (*)())osv.sv_handler;
+	oact->sa_mask = (sigset_t)osv.sv_mask;
+	oact->sa_flags = (osv.sv_flags & SV_INTERRUPT) ? 0 : SA_RESTART;
+    }
+    return r;
+}
+SIGEOF
+$CC $CFLAGS -I. -c openstep_sig.c -o openstep_sig.o
+
+# The build also makes a helper program, gethost, from gethost.c alone: it links
+# against nothing but libc, yet calls tcsh's renamed allocator (tcsh_calloc,
+# tcsh_free) and snprintf().  Give it a small object defining them.
+/bin/cat > openstep_gethost.c <<'SIGEOF'
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void *tcsh_malloc(size_t n) { return malloc(n); }
+void *tcsh_calloc(size_t n, size_t m) { return calloc(n, m); }
+void *tcsh_realloc(void *p, size_t n) { return realloc(p, n); }
+void tcsh_free(void *p) { free(p); }
+
+int
+snprintf(char *buf, size_t size, const char *fmt, ...)
+{
+    static char tmp[8192];
+    va_list ap;
+    int n;
+
+    va_start(ap, fmt);
+    n = vsprintf(tmp, fmt, ap);
+    va_end(ap);
+    if (n >= 0 && size > 0) {
+	size_t m = ((size_t)n < size - 1) ? (size_t)n : size - 1;
+	memcpy(buf, tmp, m);
+	buf[m] = 0;
+    }
+    return n;
+}
+SIGEOF
+$CC $CFLAGS -c openstep_gethost.c -o openstep_gethost.o
+GETHOST_OBJ=`pwd`/openstep_gethost.o
+CPPFLAGS="$CPPFLAGS -include $sig_h"
+LIBS="`pwd`/openstep_sig.o $LIBS"
+export CPPFLAGS LIBS
+run_configure --prefix=/usr/local --build=$PKG_TARGET --host=$PKG_TARGET \
+    --disable-nls --disable-nls-catalogs --disable-rpath
+/bin/gnumake LDFLAGS_FOR_BUILD="$LDFLAGS $GETHOST_OBJ"
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/bin" "$DESTDIR/usr/local/man/man1"
+# Makefile.in sets MKDIR_P with GNU make's ?=, which the system gnumake lacks.
+/bin/gnumake install DESTDIR="$DESTDIR" MKDIR_P="/usr/local/bin/mkdir -p"

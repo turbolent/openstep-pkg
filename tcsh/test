@@ -1,0 +1,51 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+TCSH="$PREFIX/bin/tcsh"
+PATH="$PREFIX/bin:/usr/local/bin:/usr/ucb:/bin:/usr/bin"
+export PATH
+WORK=/tmp/pkg-tcsh.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"' 0 1 2 3 15
+
+[ -x "$TCSH" ]
+# -f skips startup files; -c runs a command string.
+test "`"$TCSH" -f -c 'echo hello'`" = hello
+"$TCSH" -f -c 'echo $version' | grep tcsh > /dev/null
+
+# Exit status propagates.
+status=0
+"$TCSH" -f -c 'exit 3' || status=$?
+test "$status" -eq 3
+
+# Variables, arrays, arithmetic, loops, conditionals.
+test "`"$TCSH" -f -c 'set a = (1 2 3); echo $#a $a[2]'`" = "3 2"
+test "`"$TCSH" -f -c '@ n = 3 + 4; echo $n'`" = 7
+printf 'foreach i (a b c)\necho -n $i\nend\necho\n' | "$TCSH" -f > "$WORK/loop"
+test "`cat "$WORK/loop"`" = abc
+test "`"$TCSH" -f -c 'if (1 < 2) echo yes'`" = yes
+test "`"$TCSH" -f -c 'set s = hello; echo $s:u'`" = Hello
+test "`"$TCSH" -f -c 'echo \`echo nested\`'`" = nested
+
+# Scripts from stdin and from a file, with job-free pipelines and redirection.
+printf 'set x = 5\necho value $x\n' | "$TCSH" -f > "$WORK/out"
+test "`cat "$WORK/out"`" = "value 5"
+cat > "$WORK/script.csh" <<'SEOF'
+#!/usr/local/bin/tcsh -f
+set total = 0
+foreach n (1 2 3 4)
+    @ total += $n
+end
+echo total $total
+echo data | tr a-z A-Z > $0.out
+cat $0.out
+SEOF
+test "`"$TCSH" -f "$WORK/script.csh"`" = "total 10
+DATA"
+
+# Globbing, command substitution in a directory, and builtin which/where.
+mkdir "$WORK/g"
+: > "$WORK/g/one.txt"
+: > "$WORK/g/two.txt"
+test "`"$TCSH" -f -c "echo $WORK/g/*.txt | wc -w"`" -eq 2
+"$TCSH" -f -c 'which echo' | grep echo > /dev/null

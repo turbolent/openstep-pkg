@@ -21,7 +21,13 @@ SRCDIR="$BUILDROOT/gcc-gcc-5666.3"
 # expanded absolute filename under the package cache.
 PATCHFILE=gcc-5666.3-openstep.patch
 BUILDDIR="$SRCDIR/build-openstep"
-TARGET=i386-next-openstep4
+# Build the compiler for the architecture this system runs.  OPENSTEP's arch(1)
+# prints i386, sparc, ...; GCC42_ARCH overrides it.  i386 stays the default.
+case "${GCC42_ARCH:-`/usr/bin/arch 2>/dev/null`}" in
+sparc*) ARCH=sparc ;;
+*)      ARCH=i386 ;;
+esac
+TARGET=$ARCH-next-openstep4
 PREFIX=/usr/local
 PATH=/usr/local/bin:/bin:/usr/bin:/usr/ucb
 TMPDIR=/tmp
@@ -43,6 +49,17 @@ FLEX=/usr/local/bin/flex
 BISON=/usr/local/bin/bison
 BUILD_CFLAGS='-O2 -D_POSIX_SOURCE'
 BOOT_CFLAGS="$BUILD_CFLAGS --param ggc-min-expand=5 --param ggc-min-heapsize=4096"
+# Extra flags for the stage 2/3 compiles only.  A stage-1 compiler built before
+# the sparc/next.h ASM_OUTPUT_ALIGNED_BSS fix needs -fno-zero-initialized-in-bss
+# (the same placement the fix gives) when resuming with GCC42_RESUME=1.
+BOOT_CFLAGS="$BOOT_CFLAGS $GCC42_BOOT_EXTRA_CFLAGS"
+# Stage 2 and 3 link with direct calls, so ld pulls libiberty's getopt.o, whose
+# data symbols System also defines.  OPENSTEP/SPARC ld rejects that unless
+# multiple definitions are allowed (-m, the first definition wins).
+BOOT_LDFLAGS=
+if [ "$ARCH" = sparc ]; then
+    BOOT_LDFLAGS="-Wl,-m"
+fi
 SEED_CFLAGS='-O0 -D_POSIX_SOURCE'
 CFLAGS=$BUILD_CFLAGS
 CXXFLAGS=$BUILD_CFLAGS
@@ -54,7 +71,7 @@ CXXFLAGS_FOR_TARGET=$BUILD_CFLAGS
 am_cv_CC_dependencies_compiler_type=none
 ac_cv_func_mmap=no
 
-export DESTDIR VERSION BUILDROOT SRCDIR PATCHFILE BUILDDIR TARGET PREFIX
+export ARCH DESTDIR VERSION BUILDROOT SRCDIR PATCHFILE BUILDDIR TARGET PREFIX
 export PATH TMPDIR CONFIG_SHELL CC CXX AS LD NM AS_FOR_TARGET LD_FOR_TARGET NM_FOR_TARGET
 export MAKEINFO FLEX BISON BUILD_CFLAGS CPPFLAGS CC_FOR_BUILD AWK MAKE CFLAGS CXXFLAGS
 export CFLAGS_FOR_BUILD CXXFLAGS_FOR_BUILD CFLAGS_FOR_TARGET CXXFLAGS_FOR_TARGET
@@ -66,7 +83,11 @@ if [ "`"$AWK" 'BEGIN { printf "%d", -1 }'`" != -1 ]; then
     exit 1
 fi
 
+# GCC42_RESUME=1 continues an interrupted build in place: it skips the patch,
+# the mtime reset and configure, and goes straight back to make.  Run this
+# script from inside the extracted source directory, as pkg does.
 cd "$SRCDIR"
+if [ -z "$GCC42_RESUME" ]; then
 # Import only the verified GNU runtime subtree, preserving Apple's compiler.
 mv "$BUILDROOT/gcc-runtime/gcc-4.2.1/libstdc++-v3" .
 patch -p1 < "$PATCHFILE"
@@ -75,10 +96,12 @@ patch -p1 < "$PATCHFILE"
 # after extraction so Automake's clock-sanity check and make dependencies do
 # not inherit UTC/local-time skew from the transported archives.
 /usr/bin/find . -type f -exec /usr/bin/touch {} \;
+fi
 
 test -d "$BUILDDIR" || mkdir "$BUILDDIR"
 cd "$BUILDDIR"
 
+if [ -z "$GCC42_RESUME" ]; then
 "$CONFIG_SHELL" ../configure \
     --build="$TARGET" \
     --host="$TARGET" \
@@ -103,12 +126,13 @@ cd "$BUILDDIR"
     --disable-symvers \
     --disable-tls \
     --disable-visibility
+fi
 
 # Three native compiler stages, followed by GCC's stage-2/stage-3 comparison.
 # Stock cc cannot optimize insn-attrtab.c within this host's resources.
 # Optimize the two self-built stages and runtimes; compare stages 2 and 3.
 "$MAKE" -j1 SHELL="$CONFIG_SHELL" STAGE1_CFLAGS="$SEED_CFLAGS" \
-    BOOT_CFLAGS="$BOOT_CFLAGS" bootstrap
+    BOOT_CFLAGS="$BOOT_CFLAGS" BOOT_LDFLAGS="$BOOT_LDFLAGS" bootstrap
 
 # Force a fresh comparison rather than accepting the existing comparison stamp.
 /bin/rm -f compare
@@ -145,15 +169,18 @@ test -d "$LIBSTDCXX_MERGE_DIR" || mkdir "$LIBSTDCXX_MERGE_DIR"
 
 # The package installer's legacy tar cannot transport these four paths even
 # though the OPENSTEP filesystem accepts them.  Stage short-path copies for
-# post-install to restore after the image has been extracted.
-DRIVERKIT_FIXED="$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/include/driverkit/__next_i386__"
-DRIVERKIT_HOLD="$DESTDIR/usr/local/lib/gcc42-header-hold"
-test -d "$DRIVERKIT_HOLD" || /usr/local/bin/mkdir -p "$DRIVERKIT_HOLD"
-for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
-    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
-do
-    /bin/cp "$DRIVERKIT_FIXED/$header" "$DRIVERKIT_HOLD/$header"
-done
+# post-install to restore after the image has been extracted.  (i386 only: the
+# driverkit headers exist only for that architecture.)
+if [ "$ARCH" = i386 ]; then
+    DRIVERKIT_FIXED="$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/include/driverkit/__next_i386__"
+    DRIVERKIT_HOLD="$DESTDIR/usr/local/lib/gcc42-header-hold"
+    test -d "$DRIVERKIT_HOLD" || /usr/local/bin/mkdir -p "$DRIVERKIT_HOLD"
+    for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+        IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+    do
+        /bin/cp "$DRIVERKIT_FIXED/$header" "$DRIVERKIT_HOLD/$header"
+    done
+fi
 
 for archive in \
     "$DESTDIR/usr/local/lib/gcc/$TARGET/4.2.1/libgcc.a" \

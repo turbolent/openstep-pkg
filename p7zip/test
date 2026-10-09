@@ -1,0 +1,70 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+SZ="$PREFIX/bin/7za"
+PATH="$PREFIX/bin:/usr/ucb:/bin:/usr/bin"
+export PATH
+WORK=/tmp/pkg-p7zip.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"' 0 1 2 3 15
+cd "$WORK"
+
+[ -x "$SZ" ]
+"$SZ" | grep '7-Zip' > /dev/null
+
+mkdir tree tree/sub tree/empty
+i=0
+: > tree/text.txt
+while [ $i -lt 300 ]; do
+    printf 'OPENSTEP 7za test line %d, plenty of repetition to compress\n' "$i" >> tree/text.txt
+    i=`expr $i + 1`
+done
+printf 'second\n' > tree/sub/second.txt
+printf 'name with spaces\n' > "tree/sub/a file.txt"
+cp /bin/ls tree/binary
+
+# Round-trip every archive format; extraction must reproduce the tree.
+for fmt in 7z zip tar; do
+    "$SZ" a -t$fmt -bd -y "archive.$fmt" tree > /dev/null
+    [ -f "archive.$fmt" ]
+    "$SZ" t -bd "archive.$fmt" > /dev/null
+    "$SZ" l "archive.$fmt" | grep 'second.txt' > /dev/null
+    mkdir "out-$fmt"
+    "$SZ" x -bd -y "-oout-$fmt" "archive.$fmt" > /dev/null
+    cmp tree/text.txt "out-$fmt/tree/text.txt"
+    cmp tree/sub/second.txt "out-$fmt/tree/sub/second.txt"
+    cmp "tree/sub/a file.txt" "out-$fmt/tree/sub/a file.txt"
+    cmp tree/binary "out-$fmt/tree/binary"
+done
+
+# Single-file formats.
+for pair in gzip:gz bzip2:bz2 xz:xz; do
+    fmt=${pair%:*}
+    ext=${pair#*:}
+    "$SZ" a -t$fmt -bd -y "text.txt.$ext" tree/text.txt > /dev/null
+    mkdir "single-$fmt"
+    "$SZ" x -bd -y "-osingle-$fmt" "text.txt.$ext" > /dev/null
+    cmp tree/text.txt "single-$fmt/text.txt"
+done
+
+# Compression really shrinks compressible text.
+test "`wc -c < text.txt.xz | tr -d ' '`" -lt "`wc -c < tree/text.txt | tr -d ' '`"
+
+# Encryption: right password extracts, wrong one fails.
+"$SZ" a -t7z -bd -y -psecret -mhe=on secret.7z tree/sub > /dev/null
+mkdir right
+"$SZ" x -bd -y -psecret -oright secret.7z > /dev/null
+cmp tree/sub/second.txt right/tree/sub/second.txt
+mkdir wrong
+if "$SZ" x -bd -y -pnotit -owrong secret.7z > /dev/null 2>&1; then
+    echo "7za accepted a wrong password" >&2
+    exit 1
+fi
+
+# Update an archive, then delete from it.
+printf 'later\n' > later.txt
+"$SZ" a -bd -y archive.7z later.txt > /dev/null
+"$SZ" l archive.7z | grep 'later.txt' > /dev/null
+"$SZ" d -bd -y archive.7z later.txt > /dev/null
+"$SZ" l archive.7z | grep 'later.txt' > /dev/null && exit 1
+"$SZ" t -bd archive.7z > /dev/null

@@ -1,0 +1,175 @@
+#!/bin/sh
+# List the packages in this tree that are not installed.
+#
+# usage: pkg-missing [-v] [-d <tree>]
+#
+#   (no option)  one package name per line: every package directory in the tree
+#                (one holding a "build" and a "version" file) with no entry in the
+#                installed package database, in alphabetical order
+#   -v           also show packages installed at a different version than the
+#                tree's, and installed packages the tree does not have; the
+#                missing list is then printed under a heading, with a summary
+#   -d <tree>    the package tree to compare (default: the directory this script
+#                is in)
+#
+# The database is the one pkg uses: $PKG_DB, or <PKG_ROOT>/usr/local/var/pkg/db.
+# Handy for a rebootstrap: something like
+#   for p in `sh ./pkg-missing`; do sh ./pkg install $p; done
+# Packages that need a pkg.conf option you have not set (see "requires") are
+# listed like any other; pkg itself refuses them with a clear message.
+#
+# The script runs under pdksh (the stock OPENSTEP /bin/sh is too limited for it).
+# If pdksh is not installed it says "install pdksh first" and exits 1.  Set KSH to
+# use another shell.
+
+usage() {
+    sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# Re-run under pdksh.  Without it almost nothing in the tree is installed (nearly
+# every package depends on pdksh, directly or not), so say so and stop.
+if [ -z "$PKG_MISSING_REEXEC" ] && [ "x$1" != x-h ] && [ "x$1" != x--help ]; then
+    root=`echo "$PKG_ROOT" | sed 's#/*$##'`
+    ksh=${KSH:-$root/usr/local/bin/ksh}
+    if [ ! -x "$ksh" ]; then
+        echo "pkg-missing: install pdksh first ($ksh is not installed)" >&2
+        exit 1
+    fi
+    PKG_MISSING_REEXEC=1
+    export PKG_MISSING_REEXEC
+    exec "$ksh" "$0" ${1+"$@"}
+fi
+
+verbose=0
+tree=
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -v)
+            verbose=1
+            shift
+        ;;
+        -d)
+            [ $# -ge 2 ] || { echo "pkg-missing: -d needs a directory" >&2; exit 2; }
+            tree=$2
+            shift 2
+        ;;
+        -h|--help)
+            usage
+            exit 0
+        ;;
+        *)
+            echo "pkg-missing: unknown argument: $1" >&2
+            usage >&2
+            exit 2
+        ;;
+    esac
+done
+
+if [ -z "$tree" ]; then
+    case $0 in
+        */*) tree=`echo "$0" | sed 's#/[^/]*$##'` ;;
+        *) tree=. ;;
+    esac
+    [ -n "$tree" ] || tree=/
+fi
+[ -d "$tree" ] || { echo "pkg-missing: no such directory: $tree" >&2; exit 2; }
+tree=`cd "$tree" && pwd`
+
+root=`echo "$PKG_ROOT" | sed 's#/*$##'`
+db=${PKG_DB:-$root/usr/local/var/pkg/db}
+installed_dir=$db/installed
+
+work=${TMPDIR:-/tmp}/pkg-missing.$$
+mkdir "$work" || exit 2
+trap 'rm -rf "$work"' 0
+trap 'exit 1' 1 2 3 15
+
+# The tree: a directory is a package when it has build and version files.
+# (Plain if tests, no "continue" or pipelines around the loop: the stock
+# OPENSTEP /bin/sh is picky about both.)
+: > "$work/tree.raw"
+for d in "$tree"/*; do
+    if [ -d "$d" ]; then
+        if [ -f "$d/build" ]; then
+            if [ -f "$d/version" ]; then
+                echo "$d" | sed 's#.*/##' >> "$work/tree.raw"
+            fi
+        fi
+    fi
+done
+sort "$work/tree.raw" > "$work/tree"
+
+# The database: one directory per installed package, holding its version file.
+: > "$work/installed.raw"
+if [ -d "$installed_dir" ]; then
+    for d in "$installed_dir"/*; do
+        if [ -d "$d" ]; then
+            echo "$d" | sed 's#.*/##' >> "$work/installed.raw"
+        fi
+    done
+fi
+sort "$work/installed.raw" > "$work/installed"
+
+if [ ! -s "$work/tree" ]; then
+    echo "pkg-missing: no packages found in $tree (a package directory holds build and version files)" >&2
+    for d in "$tree"/gzip "$tree"/make; do
+        if [ -d "$d" ]; then
+            echo "pkg-missing: $d: build `[ -f "$d/build" ] && echo yes || echo no`, version `[ -f "$d/version" ] && echo yes || echo no`" >&2
+            ls -l "$d" >&2
+            break
+        fi
+    done
+    exit 2
+fi
+
+# Missing: the same test pkg itself makes, a directory in the installed database.
+# (A plain loop, not comm, which varies between systems.)
+: > "$work/missing"
+while read name; do
+    [ -d "$installed_dir/$name" ] || echo "$name" >> "$work/missing"
+done < "$work/tree"
+
+if [ $verbose -eq 0 ]; then
+    cat "$work/missing"
+    exit 0
+fi
+
+n_tree=`wc -l < "$work/tree" | sed 's/ //g'`
+n_inst=`wc -l < "$work/installed" | sed 's/ //g'`
+n_miss=`wc -l < "$work/missing" | sed 's/ //g'`
+
+echo "Package tree: $tree"
+echo "Database:     $installed_dir"
+echo
+echo "Not installed ($n_miss):"
+sed 's/^/  /' "$work/missing"
+
+# Installed, but at a different version than the tree has.
+comm -12 "$work/tree" "$work/installed" > "$work/both"
+: > "$work/stale"
+while read name; do
+    read tree_ver rest < "$tree/$name/version" || tree_ver=
+    inst_ver=
+    if [ -f "$installed_dir/$name/version" ]; then
+        read inst_ver rest < "$installed_dir/$name/version" || inst_ver=
+    fi
+    if [ "x$tree_ver" != "x$inst_ver" ]; then
+        echo "$name: installed $inst_ver, tree has $tree_ver" >> "$work/stale"
+    fi
+done < "$work/both"
+
+n_stale=`wc -l < "$work/stale" | sed 's/ //g'`
+echo
+echo "Installed at a different version than the tree ($n_stale):"
+sed 's/^/  /' "$work/stale"
+
+# Installed, but not in the tree.
+comm -13 "$work/tree" "$work/installed" > "$work/extra"
+echo
+echo "Installed but not in the tree (`wc -l < "$work/extra" | sed 's/ //g'`):"
+sed 's/^/  /' "$work/extra"
+
+echo
+echo "$n_tree packages in the tree, $n_inst installed, $n_miss not installed."
+exit 0

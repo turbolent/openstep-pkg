@@ -1,4 +1,5 @@
 https://github.com/apple-oss-distributions/gcc/archive/refs/tags/gcc-5666.3.tar.gz
 https://gcc.gnu.org/pub/gcc/releases/gcc-4.2.1/gcc-g++-4.2.1.tar.gz gcc-runtime
+gcc-sparc-config-4.2.1.tar.gz gcc-gcc-5666.3
 gcc-5666.3-openstep.patch gcc-gcc-5666.3
 bootstrap-compare gcc-gcc-5666.3

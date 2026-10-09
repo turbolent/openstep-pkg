@@ -1,0 +1,108 @@
+#!/bin/sh
+# rc.ntp - set the clock with ntpdate at boot, then start ntpd.
+#
+# Call it from /etc/rc.local (or /etc/rc) after the network is up:
+#
+#     /usr/local/etc/rc.ntp
+#
+# ntpdate steps the clock once from an NTP server so that ntpd starts close to
+# the right time.  If no server answers it prints an error and starts ntpd anyway
+# (with -g, so ntpd can make the first, large correction itself when a server
+# becomes reachable).  It returns 1 if the clock could not be set or ntpd did not
+# start, and 0 otherwise.
+#
+# ntpdate asks one server: the first "server" or "pool" line in
+# /usr/local/etc/ntpd.conf, or RC_NTP_SERVERS if that is set.  ntpd itself uses
+# all the servers in ntpd.conf.
+#
+# Settings (shell syntax) come from /usr/local/etc/rc.ntp.conf:
+#   RC_NTP_SERVERS=           server(s) for ntpdate instead of the first one in ntpd.conf
+#   RC_NTP_TIMEOUT=3          seconds ntpdate waits for each server's answer
+#   RC_NTP_DATE_OPTS=         extra ntpdate options
+#   RC_NTP_OPTS=              extra ntpd options
+
+PREFIX=${RC_NTP_PREFIX:-/usr/local}
+RC_NTP_SERVERS=
+RC_NTP_TIMEOUT=3
+RC_NTP_DATE_OPTS=
+RC_NTP_OPTS=
+[ -f $PREFIX/etc/rc.ntp.conf ] && . $PREFIX/etc/rc.ntp.conf
+
+NTPDATE=${NTPDATE:-$PREFIX/bin/ntpdate}
+NTPD=${NTPD:-$PREFIX/sbin/ntpd}
+NTPD_CONF=${NTPD_CONF:-$PREFIX/etc/ntpd.conf}
+VAR=${RC_NTP_VAR:-$PREFIX/var/run}
+PIDFILE=$VAR/ntpd.pid
+[ -d "$VAR" ] || mkdir -p "$VAR" 2>/dev/null
+
+say() {
+    echo "$*"
+}
+
+if [ ! -x "$NTPD" ]; then
+    say "NTP: $NTPD is not installed"
+    exit 1
+fi
+
+# Already running (rc.ntp run twice)?
+if [ -f "$PIDFILE" ]; then
+    pid=`cat "$PIDFILE" 2>/dev/null`
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        say "NTP: ntpd is already running (pid $pid)"
+        exit 0
+    fi
+    rm -f "$PIDFILE"
+fi
+
+# Pick the server for ntpdate: RC_NTP_SERVERS, else the first server or pool in
+# ntpd.conf.
+servers=$RC_NTP_SERVERS
+from=rc.ntp.conf
+if [ -z "$servers" ] && [ -f "$NTPD_CONF" ]; then
+    servers=`awk '$1 == "server" || $1 == "pool" { print $2; exit }' "$NTPD_CONF"`
+    from="first server in ntpd.conf"
+fi
+
+failed=0
+if [ ! -x "$NTPDATE" ]; then
+    say "NTP: ERROR - $NTPDATE is not installed; the clock was not set"
+    failed=1
+elif [ -z "$servers" ]; then
+    say "NTP: ERROR - no server in $NTPD_CONF and RC_NTP_SERVERS is not set; the clock was not set"
+    failed=1
+else
+    say "NTP: setting the clock from $servers ($from)..."
+    out=`$NTPDATE -b -t "$RC_NTP_TIMEOUT" $RC_NTP_DATE_OPTS $servers 2>&1`
+    status=$?
+    result=`echo "$out" | grep -i 'time server' | sed -n '$s/^.*ntpdate\[[0-9]*\]: //p'`
+    if [ $status -eq 0 ] && [ -n "$result" ]; then
+        say "NTP: $result"
+    else
+        say "NTP: ERROR - could not reach an NTP server; the clock was not set"
+        failed=1
+    fi
+fi
+[ $failed -eq 0 ] || say "NTP: starting ntpd anyway; it will set the clock once a server answers"
+
+say "NTP: starting ntpd..."
+if [ -f "$NTPD_CONF" ]; then
+    $NTPD -g -c "$NTPD_CONF" -p "$PIDFILE" $RC_NTP_OPTS
+else
+    $NTPD -g -p "$PIDFILE" $RC_NTP_OPTS
+fi
+status=$?
+
+# ntpd writes its pid file when it has forked.
+i=0
+while [ $i -lt 5 ] && [ ! -f "$PIDFILE" ]; do
+    sleep 1
+    i=`expr $i + 1`
+done
+if [ $status -eq 0 ] && [ -f "$PIDFILE" ]; then
+    say "NTP: ntpd started (pid `cat "$PIDFILE"`)"
+else
+    say "NTP: ERROR - ntpd did not start"
+    failed=1
+fi
+
+exit $failed

@@ -1,0 +1,10 @@
+gcc42
+make
+coreutils
+sed
+grep
+gawk
+gzip
+termcap
+patch
+?HAVE_X11:neXtaw

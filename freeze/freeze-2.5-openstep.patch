@@ -1,0 +1,39 @@
+diff -ru a/Makefile.in b/Makefile.in
+--- a/Makefile.in	1993-02-24 13:36:56.000000000 +0000
++++ b/Makefile.in	2026-10-05 20:26:20.980747432 +0000
+@@ -19,8 +19,8 @@
+ 
+ # Added the prefix macro, so that it was easier to change installation place.
+ prefix        = /usr/local
+-DEST          = $(prefix)/bin
+-MANDEST       = $(prefix)/man/man1
++DEST          = $(DESTDIR)$(prefix)/bin
++MANDEST       = $(DESTDIR)$(prefix)/man/man1
+ SEC           = 1
+ 
+ HDRS          = bitio.h\
+diff -ru a/freeze.h b/freeze.h
+--- a/freeze.h	1993-02-24 13:36:58.000000000 +0000
++++ b/freeze.h	2026-10-05 20:26:20.980903465 +0000
+@@ -5,21 +5,6 @@
+ # include <sys/stdtypes.h>
+ #endif
+ 
+-#ifndef getc
+-# ifdef m88k                   /* Green Hill C library bug. */
+-#  define getc(p)         (--(p)->_cnt < 0 ? __filbuf(p) : (int) *(p)->_ptr++)
+-# else
+-#  define getc(p)         (--(p)->_cnt < 0 ? _filbuf(p) : (int) *(p)->_ptr++)
+-# endif
+-#endif
+-#ifndef putc
+-# ifdef m88k                   /* Green Hill C library bug. */
+-#  define putc(x, p)      (--(p)->_cnt < 0 ? __flsbuf((unsigned char) (x), (p)) : (int) (*(p)->_ptr++ = (unsigned char) (x)))
+-# else
+-#  define putc(x, p)      (--(p)->_cnt < 0 ? _flsbuf((unsigned char) (x), (p)) : (int) (*(p)->_ptr++ = (unsigned char) (x)))
+-# endif
+-#endif
+-
+ #if !defined(MSDOS) && defined(__MSDOS__)
+ # define MSDOS
+ #endif

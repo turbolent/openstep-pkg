@@ -1,0 +1,31 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -DNeXT'
+export PATH CC CFLAGS
+if test -d "termcap-$VERSION"; then cd "termcap-$VERSION"; fi
+. "$PKG_BUILD_HELPERS"
+# This 2002-era configure ships no config.sub, so no --build/--host triple.
+# Never install termcap.src over the system's /etc/termcap (that breaks
+# Terminal.app and xterm).  The "install-data" step that would do it is only
+# wired into "make install" by --enable-install-termcap, so refuse that, and
+# check the generated Makefile and the staged image rather than trust it.
+run_configure --prefix=/usr/local --disable-install-termcap
+if grep '^install:' Makefile | grep install-data >/dev/null 2>&1; then
+    echo "termcap: configure enabled install-data; refusing to touch /etc/termcap" >&2
+    exit 1
+fi
+/bin/gnumake
+# The Makefile ignores DESTDIR: override the install directories, and blank
+# oldincludedir so termcap.h is not also copied into /usr/include.
+/bin/gnumake install \
+    prefix="$DESTDIR/usr/local" exec_prefix="$DESTDIR/usr/local" \
+    oldincludedir=
+/bin/ranlib "$DESTDIR/usr/local/lib/libtermcap.a"
+if test -e "$DESTDIR/etc/termcap"; then
+    echo "termcap: the image contains /etc/termcap; refusing to ship it" >&2
+    exit 1
+fi

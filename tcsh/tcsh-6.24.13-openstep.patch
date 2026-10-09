@@ -1,0 +1,103 @@
+diff -ruN a/configure b/configure
+--- a/configure	2026-10-06 04:38:14.528213399 +0000
++++ b/configure	2026-10-06 04:38:14.585554518 +0000
+@@ -6089,6 +6089,10 @@
+   *-qnx6*) :
+         tcsh_config_file=qnx6
+    ;; #(
++  ## NeXT, OPENSTEP (Mach); system/mach has the NeXT settings
++  *-next-*) :
++        tcsh_config_file=mach
++   ;; #(
+   *) :
+     as_fn_error $? "Tcsh can't guess the configuration file name
+ for \`${host}' systems.
+diff -ruN a/sh.file.c b/sh.file.c
+--- a/sh.file.c	2026-10-06 04:38:14.540854321 +0000
++++ b/sh.file.c	2026-10-06 04:38:14.555125755 +0000
+@@ -218,6 +218,7 @@
+ # endif /* POSIX */
+ #else
+     struct sgttyb tty, tty_normal;
++    char c;	/* the BSD tty code below uses it, but never declared it */
+ #endif /* TERMIO */
+ 
+     pintr_disabled++;
+diff -ruN a/sh.proc.c b/sh.proc.c
+--- a/sh.proc.c	2026-10-06 04:38:14.541787794 +0000
++++ b/sh.proc.c	2026-10-06 04:38:14.573999425 +0000
+@@ -43,7 +43,7 @@
+ # define HZ 16
+ #endif /* aiws */
+ 
+-#if defined(_BSD) || (defined(IRIS4D) && __STDC__) || defined(__lucid)
++#if defined(_BSD) || (defined(IRIS4D) && __STDC__) || defined(__lucid) || defined(NeXT)
+ # define BSDWAIT
+ #endif /* _BSD || (IRIS4D && __STDC__) || __lucid */
+ #ifndef WTERMSIG
+diff -ruN a/sh.types.h b/sh.types.h
+--- a/sh.types.h	2026-10-06 04:38:14.542503662 +0000
++++ b/sh.types.h	2026-10-06 04:38:14.575321310 +0000
+@@ -166,10 +166,8 @@
+  *** NeXT OS 3.x
+  ***/
+ #ifdef NeXT
+-# ifndef _SPEED_T
+-#  define _SPEED_T
+-   typedef unsigned int speed_t;
+-# endif /* _SPEED_T */
++/* OPENSTEP's headers already define speed_t (with a different type), and
++   redefining it is an error, so there is nothing to do. */
+ #endif /* NeXT */
+ 
+ /***
+@@ -361,7 +359,7 @@
+     typedef int pid_t;
+ # endif /* _PID_T */
+ 
+-# ifndef _SPEED_T
++# if !defined(_SPEED_T) && !defined(NeXT)
+ #  define _SPEED_T
+     typedef unsigned int speed_t;
+ # endif /* _SPEED_T */
+diff -ruN a/tc.func.c b/tc.func.c
+--- a/tc.func.c	2026-10-06 04:38:14.544376003 +0000
++++ b/tc.func.c	2026-10-06 04:53:54.234910322 +0000
+@@ -2051,7 +2051,19 @@
+ {
+     struct sigaction sa;
+     struct strbuf hostname = strbuf_INIT;
+-    int fds[2], wait_options, status;
++    int fds[2], wait_options;
++#ifdef NeXT
++    /* OPENSTEP has BSD union wait (its WIF*() macros need it) and no
++       waitpid(); wait4() is the same call plus an rusage. */
++    union wait status;
++    extern int wait4();
++# define waitpid(p, s, o)	wait4((p), (s), (o), (void *) 0)
++# ifndef WEXITSTATUS
++#  define WEXITSTATUS(w)	((w).w_retcode)
++# endif
++#else
++    int status;
++#endif
+     pid_t pid, wait_res;
+ 
+     sa.sa_handler = SIG_DFL; /* Make sure a zombie is created */
+diff -ruN a/tc.os.h b/tc.os.h
+--- a/tc.os.h	2026-10-06 04:38:14.544726763 +0000
++++ b/tc.os.h	2026-10-06 04:38:14.575807536 +0000
+@@ -449,10 +449,13 @@
+ /*
+  * From Tony_Mason@transarc.com, override NeXT's malloc stuff.
+  */
++/* tc.alloc.c only defines these when SYSMALLOC is not set. */
++# ifndef SYSMALLOC
+ # define malloc tcsh_malloc
+ # define calloc tcsh_calloc
+ # define realloc tcsh_realloc
+ # define free tcsh_free
++# endif /* !SYSMALLOC */
+ #endif /* NeXT */
+ 
+ #if defined(HAVE_GETHOSTNAME) && !HAVE_DECL_GETHOSTNAME
