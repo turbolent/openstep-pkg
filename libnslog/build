@@ -33,7 +33,9 @@ fi
 patch -p1 < "$PATCHFILE"
 
 cat > Makefile.config <<'EOF'
-CFLAGS := $(CFLAGS) -DNeXT
+# bison's skeleton declares its own malloc/free, which clashes with the
+# system prototypes; make it use the libc ones.
+CFLAGS := $(CFLAGS) -DNeXT -include stdlib.h -DYYMALLOC=malloc -DYYFREE=free
 EOF
 
 gnumake Q= PREFIX="$PREFIX" WARNFLAGS=
