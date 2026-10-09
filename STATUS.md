@@ -119,7 +119,7 @@ mpg123 have no SPARC result.
 | top | validated | validated 3.6.1 (2026-10-09; needed work: the SPARC kernel refuses the `utask` read through /dev/kmem that holds the command name, so reads are non-fatal and names come from one `ps -axc` snapshot per refresh; the process list matches the x86 one; the earlier SPARC result was only an install) |
 | unzip | validated | validated 6.0 (rebootstrap, 2026-10-08) |
 | utf8proc | validated | — |
-| vim | validated | validated 9.2.0121 (tree is now 9.2.1091: needs retest) |
+| vim | validated | validated 9.2.1091 (rebuilt 2026-10-09) |
 | vlc | 0.9.10 validated (runs as root) | — |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
 | wget-bootstrap | 1.19.5 validated | validated 1.19.5 (needs the localtime and unsigned-compare fixes; rebootstrap, 2026-10-08) |
