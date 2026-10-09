@@ -40,7 +40,7 @@ new file mode 100644
 index 0000000..95f2083
 --- /dev/null
 +++ b/machine/m_next32.c
-@@ -0,0 +1,1114 @@
+@@ -0,0 +1,1117 @@
 +/*
 + * top - a top users display for Unix
 + * NEXTSTEP v.0.5  11/26/1996 tpugh
@@ -798,7 +798,10 @@ index 0000000..95f2083
 +	for(i=0; i<40; i++) printf("utask[%i]=%i, %s\n", i, uutask[i], &uutask[i]);
 +*/
 +
-+	if(!getkval((unsigned long)p->task, (int *)&task, sizeof(struct task), "task")) {
++	/* The "!" makes a failed read non-fatal.  On SPARC the kernel will not
++	 * serve the task and utask addresses through /dev/kmem ("Bad address"),
++	 * and without it top printed that and exited. */
++	if(!getkval((unsigned long)p->task, (int *)&task, sizeof(struct task), "!task")) {
 +#ifdef DEBUG
 +		perror("getkval(p->task)");
 +#endif
@@ -811,7 +814,7 @@ index 0000000..95f2083
 +		return(-1);
 +	}
 +
-+	if(!getkval(utask_addr, (int *)&utask, sizeof(struct utask), "utask")) {
++	if(!getkval(utask_addr, (int *)&utask, sizeof(struct utask), "!utask")) {
 +#ifdef DEBUG
 +		perror("getkval(task->utask)");
 +#endif
