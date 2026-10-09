@@ -128,7 +128,7 @@ mpg123 have no SPARC result.
 | zip | validated | validated 3.0 (2026-10-09) |
 | zlib | validated | validated 1.2.13 (rebootstrap, 2026-10-08) |
 | zsh | validated | validated 5.9 |
-| zstd | validated | — |
+| zstd | validated | rebuilt 2026-10-09 with memcpy memory access (MEM_FORCE_MEMORY_ACCESS=0); tests clean |
 
 ## Notes
 
