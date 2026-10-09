@@ -52,9 +52,9 @@ mpg123 have no SPARC result.
 | ffmpeg | validated | — |
 | findutils | validated | validated 4.2.33 |
 | flex | validated | validated 2.5.39 (rebootstrap, 2026-10-08) |
-| freetype | validated | — |
+| freetype | validated | validated 2.14.3 (2026-10-09) |
 | freeze | validated | validated 2.5 (rebootstrap, 2026-10-08) |
-| fribidi | 0.19.7 validated | — |
+| fribidi | 0.19.7 validated | validated 0.19.7 (2026-10-09) |
 | gawk | validated | validated 3.1.8 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
