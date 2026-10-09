@@ -10,10 +10,17 @@ patch -p1 < "zstd-$VERSION-openstep.patch"
 # $(MAKEFILE_LIST)))), which the system gnumake cannot evaluate; from the
 # programs directory that left the source list empty and the zstd program was
 # linked without the library.  Say where the sources are.
+# gcc 4.2 on SPARC miscompiles the "unaligned" packed-attribute access that zstd
+# (mem.h) and its bundled xxhash pick by default for GCC, and the program dies
+# with a bus error (see the xxhash package).  Use the memcpy method there.
+ZSTD_MEM=
+if [ "${PKG_ARCH-}" = sparc ]; then
+    ZSTD_MEM="-DMEM_FORCE_MEMORY_ACCESS=0 -DXXH_FORCE_MEMORY_ACCESS=0"
+fi
 zstd_libdir=.
 make_zstd() {
     /usr/local/bin/gnumake CC=/usr/local/bin/gcc-4.2 SHELL=/usr/local/bin/ksh \
-        CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DCLOCKS_PER_SEC=CLK_TCK -D_POSIX_SOURCE -I/usr/local/include' \
+        CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS $ZSTD_MEM"' -DCLOCKS_PER_SEC=CLK_TCK -D_POSIX_SOURCE -I/usr/local/include' \
         LDFLAGS=-L/usr/local/lib DEBUGFLAGS= DEPFLAGS= ZSTD_NO_ASM=1 ARFLAGS=rc \
         BUILD_DIR=obj/openstep UNAME=OPENSTEP LIBVER="$VERSION" \
         LIBVER_MAJOR=1 LIBVER_MINOR=5 LIBVER_PATCH=7 ZSTD_VERSION="$VERSION" \
