@@ -8,10 +8,16 @@ export PATH CONFIG_SHELL
 if test -d "ffmpeg-$VERSION"; then cd "ffmpeg-$VERSION"; fi
 patch -p1 < "ffmpeg-$VERSION-openstep.patch"
 
+# FFmpeg's name for this machine's architecture.
+case $PKG_ARCH in
+    i386) FFMPEG_ARCH=x86 ;;
+    *) FFMPEG_ARCH=$PKG_ARCH ;;
+esac
+
 # FFmpeg's configure is not Autoconf and does not accept run_configure's
 # CONFIG_SHELL argument. Invoke the installed shell explicitly.
 "$CONFIG_SHELL" ./configure --cc=/usr/local/bin/gcc-4.2 \
-    --prefix=/usr/local --target-os=openstep --arch=x86 \
+    --prefix=/usr/local --target-os=openstep --arch=$FFMPEG_ARCH \
     --extra-cflags="-O2 -fno-builtin-memset $PKG_GCC42_ARCH_FLAGS -DNeXT -I/usr/local/include ${CFLAGS-}" \
     --extra-ldflags=-L/usr/local/lib --enable-static --disable-shared \
     --disable-ffplay --disable-ffserver --disable-devices --disable-vhook \
