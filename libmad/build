@@ -1,13 +1,14 @@
 #!/bin/sh
 set -e
 DESTDIR=$1
+VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
 CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DNeXT'
 AWK=/usr/local/bin/gawk
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
-export PATH CC CFLAGS AWK GREP EGREP
+export DESTDIR VERSION PATH CC CFLAGS AWK GREP EGREP
 . "$PKG_BUILD_HELPERS"
 # Security fixes (CVE-2017-8372/8373/8374): bounds checks, from Debian 0.15.1b-9.
 pkg_apply_patch "libmad-$VERSION-cve.patch"
