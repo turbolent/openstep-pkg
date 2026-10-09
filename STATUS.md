@@ -116,7 +116,7 @@ mpg123 have no SPARC result.
 | tcsh | validated | validated 6.24.13 (rebootstrap, 2026-10-08; vfork.h fix) |
 | termcap | validated | validated 1.3.1 (rebootstrap, 2026-10-08) |
 | texinfo | validated | validated 4.8 (rebootstrap, 2026-10-08) |
-| top | validated | 3.6.1 installs, but was not really validated on SPARC: its `test` failed. `top` reads each process's `utask` (which holds the command name) through /dev/kmem, and the SPARC kernel refuses that ("Bad address"); the read was fatal, so `top` exited with an empty list. Reads are now non-fatal and the names come from one `ps -axc` snapshot per refresh; built but untested |
+| top | validated | validated 3.6.1 (2026-10-09; needed work: the SPARC kernel refuses the `utask` read through /dev/kmem that holds the command name, so reads are non-fatal and names come from one `ps -axc` snapshot per refresh; the process list matches the x86 one; the earlier SPARC result was only an install) |
 | unzip | validated | validated 6.0 (rebootstrap, 2026-10-08) |
 | utf8proc | validated | — |
 | vim | validated | validated 9.2.0121 (tree is now 9.2.1091: needs retest) |
