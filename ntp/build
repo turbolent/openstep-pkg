@@ -707,17 +707,22 @@ $CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
 /bin/ranlib libopenstepntp.a
 LIBS="-L`pwd` -lopenstepntp"
 ac_cv_func_arc4random_buf=yes
-# <memory.h> here declares memcpy/memcmp/memset the old way ("char *memcpy()"),
-# which conflicts with the ANSI prototypes in <string.h> that ntp includes
-# right after it.  <string.h> provides everything, so pretend there is none.
-ac_cv_header_memory_h=no
-export LIBS ac_cv_func_arc4random_buf ac_cv_header_memory_h
+export LIBS ac_cv_func_arc4random_buf
 
 run_configure --prefix=/usr/local --sysconfdir=/usr/local/etc \
     --build=$PKG_TARGET --host=$PKG_TARGET \
     --without-crypto --without-sntp --without-ntpsnmpd --disable-debugging \
     --disable-thread-support --disable-dependency-tracking \
     --disable-all-clocks --enable-LOCAL-CLOCK
+# <memory.h> here declares memcpy/memcmp/memset the old way ("char *memcpy()"),
+# which conflicts with the ANSI prototypes in <string.h> that ntp includes
+# right after it.  <string.h> provides everything, so stop ntp using it.
+# (configure itself insists the header exists, so this is done afterwards.)
+for cfg in `/usr/bin/find . -name config.h -print`
+do
+    /bin/sed 's|^#define HAVE_MEMORY_H 1|/* #undef HAVE_MEMORY_H */|' "$cfg" > "$cfg.new"
+    /bin/mv "$cfg.new" "$cfg"
+done
 # Leave the libevent tearoff unbuilt (see above).
 /bin/sed 's|cd $(top_builddir)/sntp/libevent && $(MAKE) $(AM_MAKEFLAGS)|: libevent is not needed|' \
     libntp/Makefile > libntp/Makefile.new
