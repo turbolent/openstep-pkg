@@ -32,8 +32,8 @@ was tested (taken from the tree at the commit that recorded the result).  "tree
 is now X" means the package has since been bumped and the result no longer
 covers it.  A matching version does not cover the October 2026 security
 patches, which changed some packages without bumping them: of the SPARC rows
-below, openssl still needs a rebuild to pick those up (bzip2, gzip, patch and
-tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
+below, bzip2, gzip, patch, tar and openssl have been rebuilt with them; wget, zip and
+mpg123 have no SPARC result.
 
 | Package | x86 | SPARC |
 |---|---|---|
@@ -98,7 +98,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | nsgenbind | validated | — |
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
-| openssl | validated | 1.1.1w FAILS on SPARC: OID lookups by DER (SHA1, AES, SHA-2, secp384r1 and others) fail because libcrypto used the signed libc memcmp; fixed in the build (pkg_cmp_named), not yet rebuilt |
+| openssl | validated | validated 1.1.1w (rebuilt 2026-10-09 with the unsigned memcmp via pkg_cmp_named, which fixed OID lookups by DER bytes: SHA1, AES, SHA-2, secp384r1 and others had failed; the broadened `pkg test` passes: OIDs, digests, EC keys, signatures, chains, AES). Still to check on SPARC: oidtest, and the libraries that link libcrypto (curl, openssh) |
 | p7zip | validated | — |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
