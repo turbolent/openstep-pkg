@@ -40,7 +40,7 @@ new file mode 100644
 index 0000000..95f2083
 --- /dev/null
 +++ b/machine/m_next32.c
-@@ -0,0 +1,1117 @@
+@@ -0,0 +1,1218 @@
 +/*
 + * top - a top users display for Unix
 + * NEXTSTEP v.0.5  11/26/1996 tpugh
@@ -82,6 +82,8 @@ index 0000000..95f2083
 +#include <sys/param.h>
 +
 +#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
 +#include <nlist.h>
 +#include <math.h>
 +#include <sys/dir.h>
@@ -506,6 +508,92 @@ index 0000000..95f2083
 +    si->memory = memory_stats;
 +}
 +
++/*
++ * On SPARC the kernel does not let us read a process's utask through
++ * /dev/kmem ("Bad address"), and the command name lives there.  So take the
++ * names from ps(1) instead: one snapshot per refresh, and only when a utask
++ * could not be read.  ps(1) prints the command last; its column is found from
++ * the COMMAND heading, since the STAT and TIME columns vary in width and a name
++ * may hold spaces ("kernel idle").  Entries with pid -1 are Mach tasks with no
++ * Unix process behind them.
++ */
++struct ps_name {
++    int pid;
++    char name[MAXCOMLEN + 1];
++};
++static struct ps_name *ps_names = NULL;
++static int ps_count = 0;
++static int ps_alloc = 0;
++static int ps_loaded = 0;
++
++static void load_ps_names(void)
++{
++    FILE *fp;
++    char line[256];
++    char *s;
++    int col = -1;
++    int pid;
++    int len;
++    struct ps_name *np;
++
++    ps_loaded = 1;
++    ps_count = 0;
++    fp = popen("/bin/ps -axc 2>/dev/null", "r");
++    if (fp == NULL) {
++        return;
++    }
++    while (fgets(line, sizeof(line), fp) != NULL) {
++        if (col < 0) {
++            s = strstr(line, "COMMAND");
++            if (s != NULL) {
++                col = (int)(s - line);
++            }
++            continue;
++        }
++        pid = atoi(line);
++        if (pid < 0) {
++            continue;
++        }
++        len = (int)strlen(line);
++        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'
++                           || line[len - 1] == ' ')) {
++            line[--len] = '\0';
++        }
++        if (len <= col) {
++            continue;
++        }
++        if (ps_count >= ps_alloc) {
++            ps_alloc = ps_alloc ? ps_alloc * 2 : 128;
++            np = (struct ps_name *)realloc(ps_names,
++                                           ps_alloc * sizeof(struct ps_name));
++            if (np == NULL) {
++                break;
++            }
++            ps_names = np;
++        }
++        ps_names[ps_count].pid = pid;
++        (void) strncpy(ps_names[ps_count].name, line + col, MAXCOMLEN);
++        ps_names[ps_count].name[MAXCOMLEN] = '\0';
++        ps_count++;
++    }
++    (void) pclose(fp);
++}
++
++static char *ps_name_for(int pid)
++{
++    int i;
++
++    if (!ps_loaded) {
++        load_ps_names();
++    }
++    for (i = 0; i < ps_count; i++) {
++        if (ps_names[i].pid == pid) {
++            return ps_names[i].name;
++        }
++    }
++    return NULL;
++}
++
 +static struct handle handle;
 +
 +caddr_t get_process_info(struct system_info *si,
@@ -527,6 +615,9 @@ index 0000000..95f2083
 +    int show_system;
 +    int show_uid;
 +    int show_command;
++
++    /* the ps(1) names are read again, when needed, for each refresh */
++    ps_loaded = 0;
 +
 +    /* get a pointer to the states summary array */
 +    si->procstates = process_states;
@@ -665,7 +756,17 @@ index 0000000..95f2083
 +    where = getu(pp, &u);
 +    if (where == -1)
 +    {
-+		(void) strcpy(u.u_comm, "<swapped>");
++		char *psn = ps_name_for((int)pp->p_pid);
++
++		if (psn != NULL)
++		{
++			(void) strncpy(u.u_comm, psn, MAXCOMLEN);
++			u.u_comm[MAXCOMLEN] = '\0';
++		}
++		else
++		{
++			(void) strcpy(u.u_comm, "<swapped>");
++		}
 +		cputime = 0;
 +    }
 +    else
