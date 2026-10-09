@@ -1736,7 +1736,7 @@ new file mode 100644
 index 0000000..2c4c90b
 --- /dev/null
 +++ b/openstep/netinet/in.h
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,20 @@
 +#ifndef EMACS_OPENSTEP_NETINET_IN_H
 +#define EMACS_OPENSTEP_NETINET_IN_H
 +#include_next <netinet/in.h>
@@ -1746,8 +1746,10 @@ index 0000000..2c4c90b
 +#define BIG_ENDIAN 4321
 +#if defined __i386__
 +#define BYTE_ORDER LITTLE_ENDIAN
++#elif defined __sparc__ || defined __sparc
++#define BYTE_ORDER BIG_ENDIAN
 +#else
-+#error This compatibility layer currently targets OPENSTEP i386.
++#error This compatibility layer targets OPENSTEP i386 and SPARC.
 +#endif
 +#endif
 +extern unsigned short htons (unsigned short);
@@ -1760,10 +1762,11 @@ new file mode 100644
 index 0000000..ce1f866
 --- /dev/null
 +++ b/openstep/stdint.h
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,130 @@
 +#ifndef EMACS_OPENSTEP_STDINT_H
 +#define EMACS_OPENSTEP_STDINT_H
-+/* Integer types for the OPENSTEP i386 ABI, including configure probes. */
++/* Integer types for the OPENSTEP ABI (ILP32 on i386 and SPARC), including
++   configure probes. */
 +#include <limits.h>
 +typedef signed char int8_t;
 +typedef unsigned char uint8_t;
