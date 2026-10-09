@@ -46,6 +46,15 @@ ensure_dir() {
 
 /usr/local/bin/patch -p1 < sdl12-1.2.15-openstep.patch
 
+# The bundled build script hardcodes -m486; use the per-arch cc flags instead
+# (and say so explicitly that SPARC is big-endian).
+ARCH_CFLAGS=$PKG_SYSCC_ARCH_FLAGS
+if test "$PKG_ARCH" = sparc; then
+    ARCH_CFLAGS="$ARCH_CFLAGS -DSDL_BYTEORDER=4321"
+fi
+/bin/sed "s/-m486/$ARCH_CFLAGS/" build-openstep.csh > build-openstep.csh.tmp
+/bin/mv build-openstep.csh.tmp build-openstep.csh
+
 /bin/csh -f ./build-openstep.csh
 
 ensure_dir "$DESTDIR$PREFIX/include/SDL"
