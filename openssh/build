@@ -27,8 +27,13 @@ run_configure \
   --with-ssl-dir=/usr/local \
   --with-zlib=/usr/local
 
-gnumake
-gnumake install-nokeys DESTDIR="$DESTDIR"
+# configure sets PICFLAG=-fPIC, and openbsd-compat compiles every object with it.
+# That is position-independent code, whose GOT setup the SPARC assembler cannot
+# relocate ("can't relocate expression" on __GLOBAL_OFFSET_TABLE_-(L13-.)).  The
+# PIC objects only go into the optional standalone security-key library, which
+# is not built here, so build without them.
+gnumake PICFLAG=
+gnumake PICFLAG= install-nokeys DESTDIR="$DESTDIR"
 
 # The boot-time script, its default settings and the README.
 /usr/local/bin/mkdir -p "$DESTDIR/usr/local/etc" "$DESTDIR/usr/local/share/openssh"
