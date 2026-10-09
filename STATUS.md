@@ -18,7 +18,7 @@ version bumps (mpg123 1.33.7, ca-certificates 2026.09.25, expat 2.9.0, libpng
 from the BSD ioctls).  The tables below show earlier results.  SPARC is being
 rebuilt from scratch in dependency order (2026-10-08): so far the packages marked "rebootstrap, 2026-10-08" or "2026-10-09" below have been
 rebuilt, installed and tested there, including bash, curl, gcc42, tar, patch,
-python311, expat, ca-certificates, openssl, openssh and curl; vim, wget and the
+python311, expat, ca-certificates, openssl and openssh; vim, wget and the
 remaining 20 or so packages are still to come.  The October 2026 security fixes are only partly covered on SPARC.  pkg itself gained a
 retry through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
 
