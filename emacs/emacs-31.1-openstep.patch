@@ -1746,7 +1746,7 @@ index 0000000..2c4c90b
 +#define BIG_ENDIAN 4321
 +#if defined __i386__
 +#define BYTE_ORDER LITTLE_ENDIAN
-+#elif defined __sparc__ || defined __sparc
++#elif defined __sparc__ || defined __sparc || defined sparc || defined __SPARC__ || defined __BIG_ENDIAN__ || defined _BIG_ENDIAN || defined __m68k__ || defined __mc68000__ || defined __hppa__
 +#define BYTE_ORDER BIG_ENDIAN
 +#else
 +#error This compatibility layer targets OPENSTEP i386 and SPARC.
