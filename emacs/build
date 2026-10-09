@@ -40,8 +40,14 @@ run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
     --without-native-compilation --with-wide-int
 # Use the complete upstream Info manuals. Texinfo 4.8 cannot regenerate
 # the current Texinfo sources; no documentation sources are changed here.
-"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=:
-"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: install DESTDIR="$DESTDIR"
+# lisp/Makefile compiles in chunks produced by `xargs echo` and passes each
+# chunk as TARGETS="..." to a sub-make, which exports it (twice, with
+# MAKEFLAGS) to every recipe.  OPENSTEP's ARG_MAX is only about 20 KB, and a
+# GNU xargs chunk of up to 128 KB makes execvp fail with "arg list too long".
+XARGS_LIMIT="-n 40"
+"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: XARGS_LIMIT="$XARGS_LIMIT"
+"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: XARGS_LIMIT="$XARGS_LIMIT" \
+    install DESTDIR="$DESTDIR"
 # Upstream ignores some install errors; reject an incomplete image.
 test -f "$DESTDIR/usr/local/share/emacs/$VERSION/lisp/simple.elc"
 test -x "$DESTDIR/usr/local/bin/emacs"
