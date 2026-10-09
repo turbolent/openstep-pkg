@@ -34,8 +34,7 @@ printf '<root xmlns:xi="http://www.w3.org/2001/XInclude"><xi:include href="child
 test "`"$XMLLINT" --xinclude --xpath 'string(/root/child)' include.xml`" = included
 "$PREFIX/bin/gzip" -c input.xml > input.xml.gz
 test "`"$XMLLINT" --xpath 'sum(/root/n)' input.xml.gz`" = 12
-"$PREFIX/bin/xz" -c input.xml > input.xml.xz
-test "`"$XMLLINT" --xpath 'sum(/root/n)' input.xml.xz`" = 12
+# (No .xz input: libxml2 2.15 removed LZMA support.  gzip input, above, is kept.)
 "$PREFIX/bin/xmlcatalog" --create --noout catalog.xml
 "$PREFIX/bin/xmlcatalog" --noout --add system urn:pkg-libxml2 child.xml catalog.xml
 test "`"$PREFIX/bin/xmlcatalog" catalog.xml urn:pkg-libxml2`" = child.xml
