@@ -707,7 +707,11 @@ $CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
 /bin/ranlib libopenstepntp.a
 LIBS="-L`pwd` -lopenstepntp"
 ac_cv_func_arc4random_buf=yes
-export LIBS ac_cv_func_arc4random_buf
+# <memory.h> here declares memcpy/memcmp/memset the old way ("char *memcpy()"),
+# which conflicts with the ANSI prototypes in <string.h> that ntp includes
+# right after it.  <string.h> provides everything, so pretend there is none.
+ac_cv_header_memory_h=no
+export LIBS ac_cv_func_arc4random_buf ac_cv_header_memory_h
 
 run_configure --prefix=/usr/local --sysconfdir=/usr/local/etc \
     --build=$PKG_TARGET --host=$PKG_TARGET \
