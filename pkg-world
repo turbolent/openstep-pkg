@@ -1,0 +1,768 @@
+#!/bin/sh
+# pkg-world - test, rebuild or remake every package, and log the results.
+#
+# usage: pkg-world [options] test world
+#        pkg-world [options] verify world
+#        pkg-world [options] reinstall world
+#        pkg-world [options] remake entire-world
+#
+#   test world           run "pkg test" for every installed package
+#   verify world         run "pkg verify" for every installed package: are the
+#                        installed files all there, with their checksums
+#   reinstall world      rebuild and reinstall every installed package ("pkg
+#                        reinstall"), dependencies first, then test it
+#   remake entire-world  remove every installed package, then rebuild the tree
+#                        from an empty system: install every package in the
+#                        tree, dependencies first, and test each one
+#
+# options:
+#   -l DIR   put the logs in DIR (default: $PKG_WORLD_LOGS, else
+#            <tree>/world-logs, plus a directory named for the mode and time)
+#   -n       do not run the tests after a build (reinstall and remake)
+#   -q       verify world: only check that the files exist (pkg verify --quick)
+#   -s       stop at the first failure instead of carrying on
+#   -y       do not ask before "remake entire-world" removes everything
+#   -i       remake: put back only the packages that were installed, not the
+#            whole tree
+#   -o "A B" work on only these packages (a quick way to try the script)
+#   -h       this text
+#
+#   sh ./pkg-world check dependencies
+#            looks for dependency loops among all the packages in the tree and
+#            prints one if it finds it (exit 2).  "reinstall world" and
+#            "remake entire-world" run this first, before they change anything.
+#
+# Logs: summary.log lists every step as one line, "PASS" or "FAIL" (or "SKIP"),
+# the action, the package and the time; <package>.<action>.log holds the whole
+# output of that step.  The script ends with the totals and the failures, and
+# exits 1 if anything failed.  It does not change the packages' own behaviour:
+# every step is a plain "pkg test", "pkg reinstall", "pkg install" or "pkg
+# remove", so any of them can be repeated by hand.
+#
+# It runs under the stock /bin/sh (it must work on an empty system), uses the
+# pkg in its own directory, and honours PKG_ROOT, PKG_DB, PKG_CONF and the other
+# pkg settings in the environment.
+
+usage() {
+    sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+logdir=
+run_tests=1
+verify_quick=
+st_opt=
+stop_on_fail=0
+assume_yes=0
+installed_only=0
+only=
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -l)
+            [ $# -ge 2 ] || { echo "pkg-world: -l needs a directory" >&2; exit 2; }
+            logdir=$2
+            shift 2
+        ;;
+        -o)
+            [ $# -ge 2 ] || { echo "pkg-world: -o needs a list of packages" >&2; exit 2; }
+            only=$2
+            shift 2
+        ;;
+        -n)
+            run_tests=0
+            shift
+        ;;
+        -q)
+            verify_quick=--quick
+            shift
+        ;;
+        -s)
+            stop_on_fail=1
+            shift
+        ;;
+        -y)
+            assume_yes=1
+            shift
+        ;;
+        -i)
+            installed_only=1
+            shift
+        ;;
+        -h|--help)
+            usage
+            exit 0
+        ;;
+        -*)
+            echo "pkg-world: unknown option: $1" >&2
+            usage >&2
+            exit 2
+        ;;
+        *)
+            break
+        ;;
+    esac
+done
+
+mode=
+case "$*" in
+    "test world")
+        mode=test
+    ;;
+    "verify world")
+        mode=verify
+    ;;
+    "reinstall world")
+        mode=reinstall
+    ;;
+    "remake entire-world")
+        mode=remake
+    ;;
+    "check dependencies")
+        mode=check
+    ;;
+    *)
+        usage >&2
+        exit 2
+    ;;
+esac
+
+# No dirname here: the stock system lacks it (it comes with coreutils, which
+# "remake entire-world" removes).
+case $0 in
+    */*) here=`echo "$0" | sed 's#/[^/]*$##'` ;;
+    *) here=. ;;
+esac
+[ -n "$here" ] || here=/
+tree=`cd "$here" && pwd`
+PKG="$tree/pkg"
+[ -f "$PKG" ] || { echo "pkg-world: no pkg in $tree" >&2; exit 2; }
+
+root=`echo "$PKG_ROOT" | sed 's#/*$##'`
+db=${PKG_DB:-$root/usr/local/var/pkg/db}
+installed_dir=$db/installed
+
+# The stock date takes no +format (it comes with coreutils, which "remake
+# entire-world" removes), so use the format when it works and the plain "Thu Oct
+# 8 10:10:36 MDT 2026" output when it does not.
+date_year=`date '+%Y' 2>/dev/null`
+case $date_year in
+    [0-9][0-9][0-9][0-9]) date_formats=1 ;;
+    *) date_formats=0 ;;
+esac
+
+stamp() {
+    if [ $date_formats = 1 ]; then
+        date '+%Y-%m-%d %H:%M:%S'
+    else
+        date
+    fi
+}
+
+# A file-name-safe date and time, for the log directory.
+stamp_name() {
+    if [ $date_formats = 1 ]; then
+        date '+%Y%m%d-%H%M%S'
+    else
+        set -- `date`
+        sn_mon=$2
+        sn_day=$3
+        sn_time=`echo "$4" | sed 's/://g'`
+        eval sn_year=\${$#}
+        case $sn_day in
+            [0-9]) sn_day=0$sn_day ;;
+        esac
+        echo "$sn_year$sn_mon$sn_day-$sn_time"
+    fi
+}
+
+# ---- package sets -----------------------------------------------------------
+# A set is a string of names separated by spaces.
+
+installed_set() {
+    is_out=
+    if [ -d "$installed_dir" ]; then
+        # Unquoted, as pkg itself does: the stock /bin/sh does not expand "$dir"/*.
+        for is_d in $installed_dir/*; do
+            if [ -d "$is_d" ]; then
+                is_n=`echo "$is_d" | sed 's#.*/##'`
+                is_out="$is_out $is_n"
+            fi
+        done
+    fi
+    echo $is_out
+}
+
+tree_set() {
+    ts_out=
+    for ts_d in $tree/*; do
+        if [ -d "$ts_d" ]; then
+            if [ -f "$ts_d/build" ]; then
+                if [ -f "$ts_d/version" ]; then
+                    ts_n=`echo "$ts_d" | sed 's#.*/##'`
+                    ts_out="$ts_out $ts_n"
+                fi
+            fi
+        fi
+    done
+    echo $ts_out
+}
+
+in_set() {
+    case " $2 " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+# The dependencies named in a package's depends file: options are ignored (an
+# optional dependency is listed, and only matters for ordering when it is in
+# the set), and "!conflict" lines are dropped.
+deps_of() {
+    if [ -f "$tree/$1/depends" ]; then
+        sed -e 's/#.*//' -e 's/^ *//' -e 's/ *$//' -e 's/^?[^:]*://' \
+            -e '/^!/d' -e '/^$/d' "$tree/$1/depends"
+    fi
+}
+
+# Print the packages of a set one per line, each after the packages it depends
+# on (the ones that are in the set).
+order_set() {
+    os_set=" $1 "
+    os_done=" "
+    os_left=$1
+    while [ -n "$os_left" ]; do
+        os_next=
+        os_progress=0
+        for os_n in $os_left; do
+            os_ready=1
+            for os_d in `deps_of "$os_n"`; do
+                if [ "$os_d" != "$os_n" ]; then
+                    case $os_set in
+                        *" $os_d "*)
+                            case $os_done in
+                                *" $os_d "*) : ;;
+                                *) os_ready=0 ;;
+                            esac
+                        ;;
+                    esac
+                fi
+            done
+            if [ $os_ready = 1 ]; then
+                os_done="$os_done$os_n "
+                echo "$os_n"
+                os_progress=1
+            else
+                os_next="$os_next $os_n"
+            fi
+        done
+        if [ $os_progress = 0 ]; then
+            # A dependency cycle (should not happen): list the rest as they are.
+            echo "pkg-world: dependency cycle among:$os_next" >&2
+            for os_n in $os_next; do
+                echo "$os_n"
+            done
+            os_left=
+        else
+            os_left=$os_next
+        fi
+    done
+}
+
+# The same set, last dependency first (for removing).
+reverse_set() {
+    rs_out=
+    for rs_n in $1; do
+        rs_out="$rs_n $rs_out"
+    done
+    echo $rs_out
+}
+
+order_words() {
+    ow_out=
+    for ow_n in `order_set "$1"`; do
+        ow_out="$ow_out $ow_n"
+    done
+    echo $ow_out
+}
+
+# Look for a dependency loop among the packages of a set (all of the tree by
+# default).  Every package other than pdksh also depends on pdksh, the build
+# shell that pkg installs first.  Optional dependencies count (a loop through
+# one is real whenever its option is on).  Prints the loop and returns 1, or
+# returns 0.
+check_cycles() {
+    cc_set=" $1 "
+    cc_done=" "
+    cc_left=$1
+    while [ -n "$cc_left" ]; do
+        cc_next=
+        cc_progress=0
+        for cc_n in $cc_left; do
+            cc_ready=1
+            for cc_d in `cc_deps "$cc_n"`; do
+                case $cc_set in
+                    *" $cc_d "*)
+                        case $cc_done in
+                            *" $cc_d "*) : ;;
+                            *) cc_ready=0 ;;
+                        esac
+                    ;;
+                esac
+            done
+            if [ $cc_ready = 1 ]; then
+                cc_done="$cc_done$cc_n "
+                cc_progress=1
+            else
+                cc_next="$cc_next $cc_n"
+            fi
+        done
+        if [ $cc_progress = 0 ]; then
+            # Everything left either is in a loop or needs one.  Every left-over
+            # package has a dependency that is left over too, so follow those
+            # until a package comes round again: that is a loop.
+            cc_stuck=" $cc_next "
+            for cc_n in $cc_next; do break; done
+            cc_path=" "
+            while :; do
+                case $cc_path in
+                    *" $cc_n "*) break ;;
+                esac
+                cc_path="$cc_path$cc_n "
+                cc_pick=
+                for cc_d in `cc_deps "$cc_n"`; do
+                    case $cc_stuck in
+                        *" $cc_d "*)
+                            if [ -z "$cc_pick" ]; then
+                                cc_pick=$cc_d
+                            fi
+                        ;;
+                    esac
+                done
+                cc_n=$cc_pick
+            done
+            cc_loop=$cc_n
+            cc_started=0
+            for cc_p in $cc_path; do
+                if [ "$cc_p" = "$cc_n" ]; then
+                    cc_started=1
+                fi
+                if [ $cc_started = 1 ] && [ "$cc_p" != "$cc_n" ]; then
+                    cc_loop="$cc_loop -> $cc_p"
+                fi
+            done
+            echo "pkg-world: dependency loop: $cc_loop -> $cc_n" >&2
+            return 1
+        fi
+        cc_left=$cc_next
+    done
+    return 0
+}
+
+# A package's dependencies for the loop check: its depends file, plus pdksh.
+cc_deps() {
+    deps_of "$1"
+    if [ "$1" != pdksh ] && [ -d "$tree/pdksh" ]; then
+        echo pdksh
+    fi
+}
+
+# ---- logging ----------------------------------------------------------------
+
+n_pass=0
+n_fail=0
+n_skip=0
+failures=
+stop_now=0
+
+say() {
+    echo "$*"
+    echo "$*" >> "$summary"
+}
+
+# record STATUS ACTION PACKAGE [NOTE]
+record() {
+    rec_note=
+    if [ -n "$4" ]; then
+        rec_note="  ($4)"
+    fi
+    rec_action=$2
+    while [ `echo "$rec_action" | wc -c | sed 's/ //g'` -lt 11 ]; do
+        rec_action="$rec_action "
+    done
+    say "`stamp`  $1  $rec_action$3$rec_note"
+    case $1 in
+        PASS) n_pass=`expr $n_pass + 1` ;;
+        SKIP) n_skip=`expr $n_skip + 1` ;;
+        FAIL)
+            n_fail=`expr $n_fail + 1`
+            failures="$failures
+  $2 $3"
+            if [ $stop_on_fail = 1 ]; then
+                stop_now=1
+            fi
+        ;;
+    esac
+}
+
+# Did the step really succeed?  The exit status of pkg is not trusted on its
+# own: the stock sh has been seen to lose a failing status, so a step only
+# passes if pkg also printed its success line (and no "error:" line) and, for a
+# removal, the package is gone.  Prints why it did not, if it did not.
+verify_step() {
+    vs_action=$1
+    vs_pkg=$2
+    vs_log=$3
+    if grep '^error:' "$vs_log" > /dev/null 2>&1; then
+        echo "pkg printed an error"
+        return 1
+    fi
+    case $vs_action in
+        test)
+            if grep "test passed for $vs_pkg " "$vs_log" > /dev/null 2>&1; then
+                return 0
+            fi
+            echo "no 'test passed' line"
+            return 1
+        ;;
+        verify)
+            if grep "==> verified $vs_pkg " "$vs_log" > /dev/null 2>&1; then
+                return 0
+            fi
+            echo "no 'verified' line"
+            return 1
+        ;;
+        install|reinstall)
+            if grep "==> installed $vs_pkg " "$vs_log" > /dev/null 2>&1; then
+                return 0
+            fi
+            if grep "==> already installed: $vs_pkg " "$vs_log" > /dev/null 2>&1; then
+                return 0
+            fi
+            echo "no 'installed' line"
+            return 1
+        ;;
+        remove)
+            if [ -d "$installed_dir/$vs_pkg" ]; then
+                echo "still installed"
+                return 1
+            fi
+            return 0
+        ;;
+    esac
+    return 0
+}
+
+# step runs "pkg $st_action $st_arg" for package $st_pkg (all three set by the
+# caller; no function arguments, no shift, no "$@": the stock sh has mangled
+# them) with its output in <package>.<action>.log, and records PASS or FAIL.
+step() {
+    case $st_action in
+        install) st_verb=building ;;
+        reinstall) st_verb=rebuilding ;;
+        remove) st_verb=removing ;;
+        verify) st_verb=verifying ;;
+        *) st_verb=testing ;;
+    esac
+    say "`stamp`  ...   $st_verb $st_pkg"
+    st_log=$logdir/$st_pkg.$st_action.log
+    {
+        echo "### $st_action $st_pkg  `stamp`"
+        echo "### /bin/sh $PKG $st_action $st_opt $st_arg"
+    } > "$st_log"
+    /bin/sh "$PKG" "$st_action" $st_opt "$st_arg" >> "$st_log" 2>&1
+    st_rc=$?
+    echo "### exit status $st_rc  `stamp`" >> "$st_log"
+    st_why=`verify_step "$st_action" "$st_pkg" "$st_log"`
+    st_ok=$?
+    # An install is a build then an install: report the build on its own, so a
+    # package that compiles but fails to install says so.
+    case $st_action in
+        install|reinstall)
+            if grep "^==> built $st_pkg " "$st_log" > /dev/null 2>&1; then
+                record PASS build "$st_pkg"
+            elif [ $st_rc -ne 0 ] || [ $st_ok -ne 0 ]; then
+                if [ $st_rc -ne 0 ]; then
+                    record FAIL build "$st_pkg" "exit $st_rc, see $st_pkg.$st_action.log"
+                else
+                    record FAIL build "$st_pkg" "exit 0 but $st_why, see $st_pkg.$st_action.log"
+                fi
+                return 1
+            fi
+        ;;
+    esac
+    if [ $st_rc -eq 0 ] && [ $st_ok -eq 0 ]; then
+        record PASS "$st_action" "$st_pkg"
+        return 0
+    fi
+    if [ $st_rc -ne 0 ]; then
+        st_detail=
+        if [ "$st_action" = verify ]; then
+            st_detail=`grep '^verify FAILED' "$st_log" | sed -e 's/^[^:]*: //' -e 's/ (of .*//' | head -1`
+        fi
+        if [ -n "$st_detail" ]; then
+            record FAIL "$st_action" "$st_pkg" "$st_detail; see $st_pkg.$st_action.log; reinstall it"
+        else
+            record FAIL "$st_action" "$st_pkg" "exit $st_rc, see $st_pkg.$st_action.log"
+        fi
+        return $st_rc
+    fi
+    record FAIL "$st_action" "$st_pkg" "exit 0 but $st_why, see $st_pkg.$st_action.log"
+    return 1
+}
+
+# ---- the work ---------------------------------------------------------------
+
+# run_test: test package $rt_name
+run_test() {
+    if [ -f "$installed_dir/$rt_name/test" ]; then
+        st_action=test
+        st_pkg=$rt_name
+        st_arg=$rt_name
+        step
+    else
+        record SKIP test "$rt_name" "no test hook"
+    fi
+}
+
+# The architecture pkg is running on, and whether package $1 is built for it
+# (a package directory may have an "arch" file listing the ones it supports).
+host_arch=`/bin/sh "$PKG" arch 2>/dev/null | sed -n 's/^PKG_ARCH=//p'`
+arch_note=
+arch_supported() {
+    arch_note=
+    if [ ! -f "$tree/$1/arch" ] || [ -z "$host_arch" ]; then
+        return 0
+    fi
+    as_list=`cat "$tree/$1/arch" | tr '\n' ' '`
+    case " $as_list " in
+        *" $host_arch "*) return 0 ;;
+    esac
+    arch_note="only for: `echo $as_list`"
+    return 1
+}
+
+# build_and_test: build package $bt_name with pkg action $bt_action (install or
+# reinstall), then test it
+build_and_test() {
+    bt_present=0
+    if [ -d "$tree/$bt_name" ] && [ -f "$tree/$bt_name/build" ] && [ -f "$tree/$bt_name/version" ]; then
+        bt_present=1
+    fi
+    bt_arch_ok=1
+    if [ $bt_present = 1 ]; then
+        arch_supported "$bt_name" || bt_arch_ok=0
+    fi
+    if [ $bt_present = 0 ]; then
+        record SKIP "$bt_action" "$bt_name" "not in this package tree"
+    elif [ $bt_arch_ok = 0 ]; then
+        record SKIP "$bt_action" "$bt_name" "$arch_note"
+    else
+        st_action=$bt_action
+        st_pkg=$bt_name
+        st_arg=$tree/$bt_name
+        if step; then
+            if [ $run_tests = 1 ]; then
+                rt_name=$bt_name
+                run_test
+            fi
+        else
+            if [ $run_tests = 1 ]; then
+                record SKIP test "$bt_name" "the build failed"
+            fi
+        fi
+    fi
+}
+
+finish() {
+    say ""
+    say "==== `stamp`  $mode world finished ===="
+    say "passed: $n_pass   failed: $n_fail   skipped: $n_skip"
+    if [ $n_fail -gt 0 ]; then
+        say "FAILURES:$failures"
+        say "logs: $logdir"
+        exit 1
+    fi
+    say "No failures.  Logs: $logdir"
+    exit 0
+}
+
+if [ $mode = check ]; then
+    if check_cycles "`tree_set`"; then
+        echo "pkg-world: no dependency loops among `tree_set | wc -w | sed 's/ //g'` packages"
+        exit 0
+    fi
+    exit 2
+fi
+if [ $mode != test ] && [ $mode != verify ]; then
+    check_cycles "`tree_set`" || { echo "pkg-world: not starting; fix the loop first" >&2; exit 2; }
+fi
+
+if [ -z "$logdir" ]; then
+    logdir=${PKG_WORLD_LOGS:-$tree/world-logs}/$mode-`stamp_name`
+fi
+# mkdir -p is coreutils' too: make the directory one component at a time.
+mkdirs() {
+    md_path=
+    case $1 in
+        /*) md_path= ;;
+        *) md_path=`pwd` ;;
+    esac
+    md_save_ifs=$IFS
+    IFS=/
+    set -- $1
+    IFS=$md_save_ifs
+    for md_c
+    do
+        if [ -n "$md_c" ]; then
+            md_path=$md_path/$md_c
+            if [ ! -d "$md_path" ]; then
+                mkdir "$md_path" || return 1
+            fi
+        fi
+    done
+    return 0
+}
+mkdirs "$logdir" || { echo "pkg-world: cannot create $logdir" >&2; exit 2; }
+case $logdir in
+    /*) : ;;
+    *) logdir=`pwd`/$logdir ;;
+esac
+summary=$logdir/summary.log
+: > "$summary"
+
+installed=`installed_set`
+selected=$only
+
+say "==== `stamp`  pkg-world $mode world ===="
+say "tree:   $tree"
+say "root:   ${PKG_ROOT:-/}"
+say "host:   `hostname 2>/dev/null`"
+say "logs:   $logdir"
+say "tests after builds: `if [ $run_tests = 1 ]; then echo yes; else echo no; fi`"
+say ""
+
+tree_pkgs=`tree_set`
+if [ -z "$tree_pkgs" ]; then
+    say "ERROR: no packages found in the tree $tree (a package directory holds build and version files)"
+    exit 2
+fi
+if [ -z "$installed" ] && [ $mode != remake ]; then
+    say "ERROR: no installed packages found in $installed_dir (PKG_ROOT=${PKG_ROOT:-unset}, PKG_DB=${PKG_DB:-unset}); nothing to do"
+    exit 2
+fi
+
+case $mode in
+    test)
+        set_to_do=$installed
+        if [ -n "$selected" ]; then
+            set_to_do=$selected
+        fi
+        for name in $set_to_do; do
+            if [ $stop_now = 0 ]; then
+                if in_set "$name" "$installed"; then
+                    rt_name=$name
+                    run_test
+                else
+                    record SKIP test "$name" "not installed"
+                fi
+            fi
+        done
+    ;;
+    verify)
+        set_to_do=$installed
+        if [ -n "$selected" ]; then
+            set_to_do=$selected
+        fi
+        for name in $set_to_do; do
+            if [ $stop_now = 0 ]; then
+                if in_set "$name" "$installed"; then
+                    st_action=verify
+                    st_pkg=$name
+                    st_arg=$name
+                    st_opt=$verify_quick
+                    step || :
+                    st_opt=
+                else
+                    record SKIP verify "$name" "not installed"
+                fi
+            fi
+        done
+    ;;
+    reinstall)
+        set_to_do=$installed
+        if [ -n "$selected" ]; then
+            set_to_do=$selected
+        fi
+        say "reinstalling, dependencies first: `order_words "$set_to_do"`"
+        say ""
+        for name in `order_set "$set_to_do"`; do
+            if [ $stop_now = 0 ]; then
+                if in_set "$name" "$installed"; then
+                    bt_action=reinstall
+                    bt_name=$name
+                    build_and_test
+                else
+                    record SKIP reinstall "$name" "not installed"
+                fi
+            fi
+        done
+    ;;
+    remake)
+        if [ $installed_only = 1 ]; then
+            target=$installed
+        else
+            target=`tree_set`
+        fi
+        if [ -n "$selected" ]; then
+            target=$selected
+            to_remove=
+            for name in $selected; do
+                if in_set "$name" "$installed"; then
+                    to_remove="$to_remove $name"
+                fi
+            done
+        else
+            to_remove=$installed
+        fi
+        if [ $assume_yes = 0 ]; then
+            echo "This will REMOVE every installed package (`echo $to_remove | wc -w | sed 's/ //g'`)"
+            echo "from ${PKG_ROOT:-/}, then rebuild `echo $target | wc -w | sed 's/ //g'` package(s) from the tree."
+            echo "Type yes to go ahead:"
+            read answer
+            if [ "x$answer" != xyes ]; then
+                echo "Nothing done."
+                exit 2
+            fi
+        fi
+        say "removing, last dependency first"
+        remove_order=`order_words "$to_remove"`
+        remove_order=`reverse_set "$remove_order"`
+        for name in $remove_order; do
+            if [ $stop_now = 0 ]; then
+                st_action=remove
+                st_pkg=$name
+                st_arg=$name
+                step
+            fi
+        done
+        left=`installed_set`
+        if [ -n "$left" ] && [ -z "$selected" ]; then
+            say "WARNING: still installed after removal: $left"
+        fi
+        say ""
+        say "rebuilding, dependencies first: `order_words "$target"`"
+        say ""
+        for name in `order_set "$target"`; do
+            if [ $stop_now = 0 ]; then
+                bt_action=install
+                bt_name=$name
+                build_and_test
+            fi
+        done
+    ;;
+esac
+
+if [ $stop_now = 1 ]; then
+    say "stopped at the first failure (-s)"
+fi
+finish

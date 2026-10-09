@@ -8,6 +8,52 @@ die() {
     exit 1
 }
 
+# One build per package at a time.  Two builds in the same tree overwrite each
+# other's files (configure's conftest.c, objects, the staged image) and fail in
+# confusing ways.  The lock is a directory beside the build tree holding the
+# pid of the pkg that owns it.  A lock whose pid is gone (a build that was
+# interrupted, failed or died) is stale and is removed automatically; PKG_RESUME does
+# not override a live one.  PKG_BREAK_LOCK=1 removes the lock regardless.
+BUILD_LOCK_DIR=
+
+acquire_build_lock() {
+    ab_dir=$CACHE_ROOT/build/$PKG_NAME.lock
+    ensure_dir "$CACHE_ROOT/build"
+    ab_tries=0
+    while :; do
+        if mkdir "$ab_dir" 2>/dev/null; then
+            echo $$ > "$ab_dir/pid"
+            BUILD_LOCK_DIR=$ab_dir
+            return 0
+        fi
+        ab_pid=`cat "$ab_dir/pid" 2>/dev/null || :`
+        if [ -z "$ab_pid" ] && [ $ab_tries -lt 3 ]; then
+            # The owner may be between mkdir and writing its pid.
+            ab_tries=`expr $ab_tries + 1`
+            sleep 1
+            continue
+        fi
+        if [ -n "$ab_pid" ] && [ "$ab_pid" != "$$" ] && kill -0 "$ab_pid" 2>/dev/null; then
+            if [ "${PKG_BREAK_LOCK-}" = 1 ]; then
+                log "removing the build lock of $PKG_NAME held by pid $ab_pid (PKG_BREAK_LOCK=1)"
+            else
+                die "another pkg (pid $ab_pid) is already building $PKG_NAME; wait for it to finish, or stop it. If you are sure none is running, PKG_BREAK_LOCK=1 removes the lock ($ab_dir)"
+            fi
+        else
+            log "removing a stale build lock for $PKG_NAME (${ab_pid:-no pid})"
+        fi
+        rm -rf "$ab_dir"
+        ab_tries=0
+    done
+}
+
+release_build_lock() {
+    if [ -n "$BUILD_LOCK_DIR" ]; then
+        rm -rf "$BUILD_LOCK_DIR"
+        BUILD_LOCK_DIR=
+    fi
+}
+
 log() {
     echo "==> $*"
 }
@@ -22,26 +68,369 @@ trace_enabled() {
     return 1
 }
 
+# Work out which OPENSTEP architecture we are running on and export it, along
+# with the default compiler flags for it.  arch(1) prints i386, sparc, m68k or
+# hppa; when it is missing, assume i386 as pkg always has.  An architecture
+# pkg does not know is passed through with no default flags.
+detect_arch() {
+    arch_raw=${PKG_ARCH:-`/usr/bin/arch 2>/dev/null`}
+
+    case $arch_raw in
+        ""|i[3-9]86|i386*)  PKG_ARCH=i386 ;;
+        sparc*)             PKG_ARCH=sparc ;;
+        m68*)               PKG_ARCH=m68k ;;
+        hppa*)              PKG_ARCH=hppa ;;
+        *)                  PKG_ARCH=$arch_raw ;;
+    esac
+
+    PKG_TARGET=$PKG_ARCH-next-openstep4
+
+    case $PKG_ARCH in
+        i386)
+            arch_syscc=-m486
+            arch_gcc42=-march=i486
+        ;;
+        sparc)
+            # gcc-4.2 is configured for V8 (sun4m), so it needs no flag.
+            arch_syscc=-mv8
+            arch_gcc42=
+        ;;
+        *)
+            arch_syscc=
+            arch_gcc42=
+        ;;
+    esac
+
+    PKG_SYSCC_ARCH_FLAGS=${PKG_SYSCC_ARCH_FLAGS-$arch_syscc}
+    PKG_GCC42_ARCH_FLAGS=${PKG_GCC42_ARCH_FLAGS-$arch_gcc42}
+
+    export PKG_ARCH PKG_TARGET PKG_SYSCC_ARCH_FLAGS PKG_GCC42_ARCH_FLAGS
+}
+
+# Site configuration lives outside the package tree, in a plain sh file of
+# VAR=value lines: $PKG_CONF, else $PKG_ROOT/usr/local/etc/pkg.conf.  Every
+# option has a default, so the file is optional.  The options are exported to
+# build, test, post-install and pre-remove.
+load_config() {
+    conf_file=$PKG_CONF
+    if [ "x$conf_file" = x ]; then
+        conf_file=$PKG_ROOT/usr/local/etc/pkg.conf
+    fi
+    PKG_CONF_FILE=$conf_file
+
+    # HAVE_X11: 1 when an X11 server (CubXWindow or similar) and its
+    # development headers and libraries are installed, else 0.
+    HAVE_X11=${HAVE_X11-0}
+
+    # X11_PREFIX: directory holding the X11 include/ and lib/ (CubXWindow
+    # installs under /usr/X11R6).
+    X11_PREFIX=${X11_PREFIX-/usr/X11R6}
+
+    # WITH_PYTHON: 1 to build packages' optional Python support (git-p4 in git)
+    # against the python311 package, 0 to leave it out.
+    WITH_PYTHON=${WITH_PYTHON-1}
+
+    if [ -f "$conf_file" ]; then
+        . "$conf_file"
+    fi
+
+    case $HAVE_X11 in
+        0|1)
+        ;;
+        *)
+            die "$conf_file: HAVE_X11 must be 0 or 1, not '$HAVE_X11'"
+        ;;
+    esac
+
+    case $WITH_PYTHON in
+        0|1)
+        ;;
+        *)
+            die "$conf_file: WITH_PYTHON must be 0 or 1, not '$WITH_PYTHON'"
+        ;;
+    esac
+
+    export PKG_CONF_FILE HAVE_X11 X11_PREFIX WITH_PYTHON
+}
+
+# A package's optional `requires` file names the pkg.conf options it needs:
+#   HAVE_X11     required; build and install are refused when it is not 1
+#   ?HAVE_X11    optional; the build script enables extra features when it is 1
+# Comments (#) and blank lines are allowed.
+option_value() {
+    case $1 in
+        HAVE_X11)
+            echo "$HAVE_X11"
+        ;;
+        WITH_PYTHON)
+            echo "$WITH_PYTHON"
+        ;;
+        *)
+            return 1
+        ;;
+    esac
+}
+
+# Print "required" or "optional" lines for each entry in DIR/requires, as
+# "<kind> <option>"; dies on an unknown option.
+read_requires() {
+    rr_file=$1/requires
+    rr_pkg=$2
+
+    [ -f "$rr_file" ] || return 0
+
+    while read rr_entry rr_extra || [ -n "$rr_entry" ]; do
+        case $rr_entry in
+            ''|\#*)
+                continue
+            ;;
+            \?*)
+                rr_kind=optional
+                rr_opt=`echo "$rr_entry" | sed 's/^?//'`
+            ;;
+            *)
+                rr_kind=required
+                rr_opt=$rr_entry
+            ;;
+        esac
+
+        option_value "$rr_opt" > /dev/null ||
+            die "unknown option in $rr_pkg requires: $rr_entry"
+        echo "$rr_kind $rr_opt"
+    done < "$rr_file"
+}
+
+# Check the requires files of a package and everything it would pull in via
+# depends, before anything is built.  Dependencies that are already installed
+# are skipped.
+check_requires_tree() {
+    rq_top=$1
+    rq_root=`path_parent "$rq_top"`
+    rq_todo=$rq_top
+    rq_seen=:
+    rq_bad=
+
+    while [ -n "$rq_todo" ]; do
+        set -- $rq_todo
+        rq_cur=$1
+        shift
+        rq_todo="$*"
+
+        rq_name=`path_leaf "$rq_cur"`
+        case $rq_seen in
+            *:$rq_name:*)
+                continue
+            ;;
+        esac
+        rq_seen=$rq_seen$rq_name:
+
+        rq_list=`read_requires "$rq_cur" "$rq_name"` || exit 1
+        while read rq_kind rq_opt; do
+            [ "x$rq_kind" = xrequired ] || continue
+            rq_val=`option_value "$rq_opt"`
+            if [ "x$rq_val" != x1 ]; then
+                rq_bad="$rq_bad
+  $rq_name needs $rq_opt=1"
+            fi
+        done <<EOF
+$rq_list
+EOF
+
+        [ -f "$rq_cur/depends" ] || continue
+
+        while read rq_dep rq_extra || [ -n "$rq_dep" ]; do
+            rq_dep=`dep_resolve "$rq_dep"` || exit 1
+            case $rq_dep in
+                ''|\#*|!*)
+                    continue
+                ;;
+            esac
+            [ -d "$DB_ROOT/installed/$rq_dep" ] && continue
+            for rq_cand in "$rq_root/$rq_dep" "$rq_dep"
+            do
+                if [ -d "$rq_cand" ]; then
+                    rq_todo="$rq_todo $rq_cand"
+                    break
+                fi
+            done
+        done < "$rq_cur/depends"
+    done
+
+    if [ -n "$rq_bad" ]; then
+        die "cannot build $PKG_NAME with the current configuration ($PKG_CONF_FILE):$rq_bad"
+    fi
+}
+
+# Tell the person which optional features this build will use.
+log_optional_features() {
+    rq_list=`read_requires "$PKG_DIR" "$PKG_NAME"` || exit 1
+    while read rq_kind rq_opt; do
+        [ "x$rq_kind" = xoptional ] || continue
+        rq_val=`option_value "$rq_opt"`
+        if [ "x$rq_val" = x1 ]; then
+            log "optional feature $rq_opt: enabled"
+        else
+            log "optional feature $rq_opt: disabled"
+        fi
+    done <<EOF
+$rq_list
+EOF
+}
+
+# Record the optional options this build saw, so a later change to pkg.conf can
+# be noticed ("built without HAVE_X11; reinstall to enable").
+write_features_to() {
+    wf_file=$1
+    rq_list=`read_requires "$PKG_DIR" "$PKG_NAME"` || exit 1
+    rm -f "$wf_file"
+    while read rq_kind rq_opt; do
+        [ "x$rq_kind" = xoptional ] || continue
+        rq_val=`option_value "$rq_opt"`
+        echo "$rq_opt=$rq_val" >> "$wf_file"
+    done <<EOF
+$rq_list
+EOF
+}
+
+write_features() {
+    write_features_to "$INST_DIR/features"
+}
+
+# Print the optional options whose value now differs from the recorded build.
+stale_features() {
+    sf_dir=$1
+    [ -f "$sf_dir/features" ] || return 0
+    while read sf_line; do
+        sf_opt=`echo "$sf_line" | sed 's/=.*//'`
+        sf_old=`echo "$sf_line" | sed 's/.*=//'`
+        sf_now=`option_value "$sf_opt"` || continue
+        if [ "x$sf_now" != "x$sf_old" ]; then
+            echo "$sf_opt (built with $sf_old, now $sf_now)"
+        fi
+    done < "$sf_dir/features"
+}
+
 usage() {
     cat <<'EOF'
 usage:
-  pkg download <package-dir>
+  pkg [options] download <package-dir>
   pkg build <package-dir>
   pkg install <package-dir>...
+  pkg reinstall <package-dir>...    (alias: forceinstall)
+  pkg binpkg <package-dir>...
+  pkg installpkg <file>...
   pkg list
   pkg remove <name>
   pkg test <name>...
+  pkg verify [--quick] [<name>...]
+  pkg arch
+  pkg config
+
+options (before the action; each also works as an environment variable set to 1):
+  --preserve-download      keep the downloaded sources (PKG_PRESERVE_DOWNLOAD)
+                           in <cache>/sources/<package> instead of deleting
+                           them after a successful build
+  --preserve-build-tree    keep the build tree (PKG_PRESERVE_BUILD_TREE) in
+                           <cache>/build/<package> after a successful build; the
+                           next build of that package replaces it unless
+                           PKG_RESUME is set
+  --preserve-install-tree  keep the staged image (PKG_PRESERVE_INSTALL_TREE)
+                           as <cache>/pkg/<package>.installed after the install
+  They apply to every package that run builds, dependencies included.  A build
+  that fails always keeps its tree.
+
+install actions:
+  install      builds and installs a package and what it depends on; a package
+               already installed at the same version is skipped
+  reinstall    rebuilds and installs the named package even when it is already
+               installed at that version (its dependencies are only installed
+               when missing)
+  binpkg       builds a package like install does, but instead of installing it
+               writes <name>-<version>-<arch>.binpkg.tar.gz (into PKG_BINPKG_DIR,
+               default the current directory); dependencies are installed first,
+               as the build needs them
+  installpkg   installs such a file: it replaces any installed version, copies
+               the files in, records the package database and runs post-install,
+               as install does.  It first checks the file's SHA-256 against
+               <file>.sha256 (written by binpkg) or PKG_SHA256, and refuses a
+               package that fails, or has no checksum, unless PKG_NO_VERIFY=1.
+               It also refuses a package built for another PKG_ARCH, and one
+               whose dependencies are not installed (unless --no-deps, which
+               the bootstrap installer uses: the dependencies of gcc42 and git
+               are mostly needed to build them, not to run them)
+
+verify:
+  An install records every installed file in <db>/installed/<name>/files, with
+  a SHA-256 for each regular file when sha256sum or openssl is available (taken
+  after post-install, so what a hook changed is the baseline).  pkg verify
+  checks that each recorded file, directory and link is there and unchanged and,
+  if it fails, lists what is missing or different and recommends a reinstall.
+  With no names it checks every installed package.  --quick checks only that
+  each exists, without comparing checksums (and needs no hash tool).  A package
+  installed before this was recorded is checked for existence only.  Exit
+  status 1 if anything failed.
+  Paths a person edits on purpose can be skipped: a package may carry a
+  verify-ignore file, and <db>/verify-ignore is the site's own list.  Each holds
+  shell patterns for paths under the root, one per line (# starts a comment;
+  * also matches /), for example /usr/local/etc/*.conf.  An ignored path is not
+  reported whether it is changed or gone.
+
+configuration:
+  pkg reads options from /usr/local/etc/pkg.conf (override with PKG_CONF; under
+  PKG_ROOT when that is set).  The file is optional, plain sh VAR=value lines.
+  See pkg.conf.example.  Options are exported to build, test, post-install and
+  pre-remove.
+    HAVE_X11   1 if an X11 server (CubXWindow or similar) and its development
+               headers are installed; default 0
+    X11_PREFIX directory holding the X11 include/ and lib/; default /usr/X11R6
+               (where CubXWindow installs)
+    WITH_PYTHON 1 (default) builds optional Python support (git-p4 in git) and
+               depends on python311; 0 leaves it out
+
+architecture:
+  pkg detects the machine with arch(1) (override with PKG_ARCH=i386|sparc|m68k|hppa)
+  and exports these to build, test, post-install and pre-remove:
+    PKG_ARCH               i386, sparc, m68k or hppa
+    PKG_TARGET             <arch>-next-openstep4, for configure --build/--host
+    PKG_SYSCC_ARCH_FLAGS   default flags for the system /bin/cc (i386 -m486, sparc -mv8)
+    PKG_GCC42_ARCH_FLAGS   default flags for gcc-4.2 (i386 -march=i486, sparc none:
+                           V8 is its default)
+  Set either *_FLAGS variable (even to empty) to override it.
 
 package layout:
   build         required build script
   version       required, contains version
-  depends       optional, one package name per line
+  arch          optional, the architectures the package builds for (i386 sparc ...); without it, all
+  depends       optional, one package name per line (?OPTION:name = only when OPTION is 1)
+  requires      optional, pkg.conf options: HAVE_X11 (needed) or ?HAVE_X11 (extra features)
   sources       optional, one source per line
   checksums     SHA-256 and filename for each remote source
   post-install  optional shell hook
   pre-remove    optional shell hook
   test          optional installed-package test hook
 EOF
+}
+
+# A depends entry may be conditional on a pkg.conf option: "?HAVE_X11:neXtaw"
+# is a dependency on neXtaw only when HAVE_X11 is 1 (and is ignored otherwise).
+# Print the entry to act on: the plain entry, or nothing when it is inactive.
+dep_resolve() {
+    dr_entry=$1
+
+    case $dr_entry in
+        \?*:*)
+            dr_opt=`echo "$dr_entry" | sed 's/^?//; s/:.*//'`
+            dr_rest=`echo "$dr_entry" | sed 's/^[^:]*://'`
+            dr_val=`option_value "$dr_opt"` ||
+                die "unknown option in depends entry: $dr_entry"
+            if [ "x$dr_val" = x1 ]; then
+                echo "$dr_rest"
+            fi
+        ;;
+        *)
+            echo "$dr_entry"
+        ;;
+    esac
 }
 
 dep_name() {
@@ -182,7 +571,11 @@ requires_pdksh_sh() {
 }
 
 build_shell_path() {
-    if requires_pdksh_sh "$1"; then
+    # PKG_BUILD_SHELL overrides the shell for every build and test script, for
+    # when pdksh trips over a package (e.g. PKG_BUILD_SHELL=/usr/local/bin/bash).
+    if [ -n "${PKG_BUILD_SHELL-}" ]; then
+        echo "$PKG_BUILD_SHELL"
+    elif requires_pdksh_sh "$1"; then
         echo /usr/local/bin/ksh
     else
         echo /bin/sh
@@ -235,6 +628,11 @@ load_pkg() {
     [ -n "$PKG_VERSION" ] || die "version file did not contain a version"
     [ -z "$PKG_VERSION_EXTRA" ] || die "version file must contain exactly one field"
 
+    set_paths
+}
+
+# Work out the install, cache and database locations for PKG_NAME.
+set_paths() {
     ROOT_DIR=`default_value "$PKG_ROOT" "/"`
     ROOT_DIR=`trim_slash "$ROOT_DIR"`
     LOCAL_ROOT=$ROOT_DIR/usr/local
@@ -328,7 +726,8 @@ fetch_source() (
             protocols=`"$curl_path" -V 2>/dev/null | sed -n 's/^Protocols: *//p'`
             case " $protocols " in
                 *" $scheme "*)
-                    "$curl_path" -fL --connect-timeout 30 -o "$output" "$url"
+                    # -C - continues a partial file left by an earlier attempt.
+                    "$curl_path" -fL -C - --retry 3 --connect-timeout 30 -o "$output" "$url"
                     exit $?
                 ;;
             esac
@@ -340,8 +739,19 @@ fetch_source() (
                 features=`"$wget_path" --version 2>/dev/null || :`
                 case $features in *+https*) : ;; *) continue ;; esac
             fi
-            "$wget_path" --timeout=30 --tries=2 -O "$output" "$url"
-            exit $?
+            # --continue resumes the partial file from an earlier attempt
+            # instead of starting over.  The retries are done here, one wget
+            # process per attempt, because wget's own retry (which sleeps in
+            # xsleep() first) hangs on some OPENSTEP builds.
+            wget_try=1
+            while :; do
+                "$wget_path" --continue --timeout=30 --tries=1 -O "$output" "$url" &&
+                    exit 0
+                [ "$wget_try" -lt 5 ] || exit 1
+                wget_try=`expr $wget_try + 1`
+                log "download interrupted; retrying (attempt $wget_try of 5)" >&2
+                sleep 2
+            done
         done
     done
     die "wget-bootstrap did not provide a downloader supporting $scheme"
@@ -374,15 +784,27 @@ download_one() (
                 rm -f "$out"
             fi
 
-            log "downloading $src"
-            partial=$out.part-$$
+            # A download that fails or is interrupted leaves its partial file in
+            # the cache; the next attempt continues it.  It is dropped when the
+            # finished file does not match its checksum.
+            partial=$out.part
+            if [ -f "$partial" ]; then
+                partial_size=`wc -c < "$partial" | sed 's/ //g'`
+                log "resuming download of $src ($partial_size bytes already fetched)"
+            else
+                log "downloading $src"
+            fi
             # Stock sh can report zero in an EXIT trap after an error.
             cleanup_status=1
-            trap 'rm -f "$partial"; exit "$cleanup_status"' 0
+            trap 'exit "$cleanup_status"' 0
             trap 'exit 1' 1 2 3 15
-            fetch_source "$src" "$partial" || die "download failed: $src"
+            fetch_source "$src" "$partial" ||
+                die "download failed: $src (the partial file $partial is kept; run again to resume, or delete it to start over)"
             actual=`hash_file "$partial"` || exit 1
-            [ "$actual" = "$expected" ] || die "SHA-256 mismatch: $src"
+            if [ "$actual" != "$expected" ]; then
+                rm -f "$partial"
+                die "SHA-256 mismatch: $src (partial file discarded; run again to fetch it afresh)"
+            fi
             mv "$partial" "$out" || die "cannot cache $src_name"
             cleanup_status=0
         ;;
@@ -412,6 +834,19 @@ pkg_tar() (
     fi
 )
 
+# TAR_NOOWNER is --no-same-owner when the gnutar has it (the stock one does
+# not; without it, extraction just keeps the archive's owners).
+TAR_NOOWNER_PROBED=0
+TAR_NOOWNER=
+tar_owner_opt() {
+    if [ $TAR_NOOWNER_PROBED = 0 ]; then
+        TAR_NOOWNER_PROBED=1
+        if pkg_tar --help 2>&1 | grep 'no-same-owner' > /dev/null 2>&1; then
+            TAR_NOOWNER=--no-same-owner
+        fi
+    fi
+}
+
 copy_local_source() {
     src=$1
     dest=$2
@@ -436,7 +871,7 @@ copy_local_source() {
         copy_tree "$path" "$target_dir"
     else
         case $path in
-            *.tar.gz|*.tgz|*.tar|*.tar.bz2|*.tbz2|*.tar.xz|*.txz)
+            *.tar.gz|*.tgz|*.tar|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst)
                 extract_archive "$path" "$dest"
             ;;
             *)
@@ -444,6 +879,32 @@ copy_local_source() {
             ;;
         esac
     fi
+}
+
+# gnutar 1.15.1 rejects an archive whose uid or gid does not fit OPENSTEP's
+# 16-bit uid_t ("Archive value 197609 is out of uid_t range").  Retry through
+# tarfix, which zeroes the owner fields; $3... is the command that writes the
+# archive as a plain tar stream on stdout when given the file name.
+#
+# NB: the stock sh does not restore a caller's $1... after a call to a function
+# with arguments, so $@ is flattened into a variable before anything (log!) is
+# called.
+untar_retry() {
+    ur_archive=$1
+    ur_dir=$2
+    shift 2
+    ur_cmd="$*"
+    ur_src=$PKG_DIR/../tarfix.c
+    [ -f "$ur_src" ] || return 1
+    ur_bin=$BUILD_ROOT/.tarfix-$$
+    log "extraction failed; retrying with owner ids cleared"
+    ( ${PKG_TARFIX_CC:-cc} -o "$ur_bin" "$ur_src" ) || return 1
+    tar_owner_opt
+    $ur_cmd "$ur_archive" | "$ur_bin" |
+        pkg_tar -xf - $TAR_NOOWNER -C "$ur_dir"
+    ur_status=$?
+    rm -f "$ur_bin"
+    return $ur_status
 }
 
 extract_archive() {
@@ -458,18 +919,22 @@ extract_archive() {
     fi
 
     ensure_dir "$target_dir"
+    tar_owner_opt
 
     case $archive in
         *.tar.gz|*.tgz)
-            pkg_tar -xzf "$archive" -C "$target_dir"
+            pkg_tar -xzf "$archive" $TAR_NOOWNER -C "$target_dir" ||
+                untar_retry "$archive" "$target_dir" gzip -dc
         ;;
         *.tar)
-            pkg_tar -xf "$archive" -C "$target_dir"
+            pkg_tar -xf "$archive" $TAR_NOOWNER -C "$target_dir" ||
+                untar_retry "$archive" "$target_dir" cat
         ;;
-        *.tar.bz2|*.tbz2|*.tar.xz|*.txz)
+        *.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst)
             (
                 case $archive in
                     *.tar.bz2|*.tbz2) unpacker=bzip2 ;;
+                    *.tar.zst|*.tzst) unpacker=zstd ;;
                     *) unpacker=xz ;;
                 esac
                 unpack_path=`find_tool "$unpacker" 2>/dev/null || :`
@@ -481,7 +946,8 @@ extract_archive() {
                 trap 'exit 1' 1 2 3 15
                 "$unpack_path" -dc "$archive" > "$unpack_tmp" ||
                     die "decompression failed: $archive"
-                pkg_tar -xf "$unpack_tmp" -C "$target_dir" || exit 1
+                pkg_tar -xf "$unpack_tmp" $TAR_NOOWNER -C "$target_dir" ||
+                    untar_retry "$unpack_tmp" "$target_dir" cat || exit 1
                 cleanup_status=0
             )
         ;;
@@ -510,12 +976,26 @@ stage_source() {
 }
 
 prepare_build_root() {
-    log "preparing build root $BUILD_ROOT"
-    rm -rf "$BUILD_ROOT" "$IMAGE_DIR"
-    ensure_dir "$BUILD_ROOT"
+    # PKG_RESUME=1 keeps the build tree of an earlier, failed run (sources
+    # already extracted, patched and configured, objects already built) instead
+    # of starting over; the package's build script skips the steps it has
+    # already completed (see pkg_step and pkg_apply_patch in build-helpers.sh).
+    resume_build=
+    if [ -n "${PKG_RESUME-}" ] && [ -d "$BUILD_ROOT" ]; then
+        resume_build=1
+    fi
+
+    if [ -n "$resume_build" ]; then
+        log "resuming build in $BUILD_ROOT"
+        rm -rf "$IMAGE_DIR"
+    else
+        log "preparing build root $BUILD_ROOT"
+        rm -rf "$BUILD_ROOT" "$IMAGE_DIR"
+        ensure_dir "$BUILD_ROOT"
+    fi
     ensure_dir "$IMAGE_DIR"
 
-    if [ -f "$PKG_DIR/sources" ]; then
+    if [ -z "$resume_build" ] && [ -f "$PKG_DIR/sources" ]; then
         while read src dest || [ -n "$src" ]; do
             case $src in
                 ''|\#*)
@@ -543,10 +1023,12 @@ run_build() {
     build_trace_flag=
     check_build_shell
     check_depends
+    acquire_build_lock
     download_pkg
     prepare_build_root
 
     log "building $PKG_NAME $PKG_VERSION"
+    log_optional_features
     log "build directory $BUILD_CWD"
     log "image directory $IMAGE_DIR"
     log "build shell $build_shell"
@@ -563,6 +1045,7 @@ run_build() {
         "$build_shell" $build_trace_flag "$PKG_DIR/build" "$IMAGE_DIR" "$PKG_VERSION"
     )
 
+    release_build_lock
     clean_work_cache
 }
 
@@ -634,6 +1117,7 @@ check_depends() {
     conflicts=
 
     while read dep extra || [ -n "$dep" ]; do
+        dep=`dep_resolve "$dep"` || exit 1
         case $dep in
             ''|\#*)
                 continue
@@ -702,6 +1186,7 @@ install_depends() {
     parent_pkg_name=$PKG_NAME
 
     while read dep extra || [ -n "$dep" ]; do
+        dep=`dep_resolve "$dep"` || exit 1
         case $dep in
             ''|\#*)
                 continue
@@ -786,35 +1271,425 @@ write_manifest() {
     ) > "$INST_DIR/manifest"
 
     echo "$PKG_VERSION" > "$INST_DIR/version"
+    if [ -n "$FEATURES_FILE" ]; then
+        rm -f "$INST_DIR/features"
+        if [ -f "$FEATURES_FILE" ]; then
+            cp "$FEATURES_FILE" "$INST_DIR/features"
+        fi
+    else
+        write_features
+    fi
 
     for hook in pre-remove post-install test; do
-        if [ -f "$PKG_DIR/$hook" ]; then
-            cp "$PKG_DIR/$hook" "$INST_DIR/$hook"
+        if [ -f "$HOOK_DIR/$hook" ]; then
+            cp "$HOOK_DIR/$hook" "$INST_DIR/$hook"
             chmod +x "$INST_DIR/$hook" 2>/dev/null || :
         else
             rm -f "$INST_DIR/$hook"
         fi
     done
+
+    # Paths pkg verify skips for this package (not a hook, so not executable).
+    if [ -f "$HOOK_DIR/verify-ignore" ]; then
+        cp "$HOOK_DIR/verify-ignore" "$INST_DIR/verify-ignore"
+    else
+        rm -f "$INST_DIR/verify-ignore"
+    fi
 }
 
-clean_image_cache() {
+# ---- file lists and verify ----------------------------------------------------
+# A successful install records every installed file in <db>/installed/<pkg>/files:
+#   # pkg files 1 sha256         (or "none": no hash tool was found)
+#   d - /usr/local/share/foo       a directory
+#   l target /usr/local/bin/bar    a symbolic link and where it points
+#   f <hash> /usr/local/bin/foo    a file and its SHA-256, or "-" when none was taken
+# (the path is last, so it may contain spaces; a link target may not)
+# "pkg verify" checks the installed files against it.  The list is taken after
+# post-install has run, so what a hook changes is part of the baseline.  Paths
+# with white space or shell wildcard characters are listed but not checksummed.
+
+# Find a SHA-256 tool without installing anything (hash_file may bootstrap
+# wget-bootstrap, which verify must never do).  Sets VF_HASH_KIND to sha256sum,
+# openssl, or empty.
+pick_hash_tool() {
+    VF_HASH_KIND=
+    VF_HASH_TOOL=
+    PATH=$PATH:${LOCAL_ROOT:-/usr/local}/bin
+    VF_HASH_TOOL=`find_tool sha256sum 2>/dev/null || :`
+    if [ -n "$VF_HASH_TOOL" ]; then
+        VF_HASH_KIND=sha256sum
+        return 0
+    fi
+    VF_HASH_TOOL=`find_tool openssl 2>/dev/null || :`
+    if [ -n "$VF_HASH_TOOL" ]; then
+        VF_HASH_KIND=openssl
+    fi
+    return 0
+}
+
+# Hash the files named (one path per line, relative to the root) in the file
+# $hp_list, which sit under $hp_root.  Prints "<hash> <path>" lines.  Many
+# files go to the tool at a time: forking once per file is slow on a slow machine.
+hash_paths() {
+    hp_batch=
+    hp_count=0
+    while read hp_p; do
+        case $hp_p in
+            *' '*|*'	'*|*'*'*|*'?'*|*'['*|*'"'*|*"'"*|*'$'*|*'`'*|*'\'*) continue ;;
+        esac
+        hp_batch="$hp_batch $hp_root$hp_p"
+        hp_count=`expr $hp_count + 1`
+        if [ $hp_count -ge 40 ]; then
+            hash_batch
+            hp_batch=
+            hp_count=0
+        fi
+    done < "$hp_list"
+    if [ -n "$hp_batch" ]; then
+        hash_batch
+    fi
+}
+
+hash_batch() {
+    case $VF_HASH_KIND in
+        sha256sum)
+            "$VF_HASH_TOOL" $hp_batch 2>/dev/null |
+                sed -e 's/^\([0-9a-f][0-9a-f]*\)[ *][ *]*\(.*\)$/\1 \2/' \
+                    -e "s|^\\([0-9a-f]*\\) $hp_root|\\1 |"
+        ;;
+        openssl)
+            "$VF_HASH_TOOL" dgst -sha256 $hp_batch 2>/dev/null |
+                sed -e 's|^[A-Za-z0-9-]*(\(.*\))= *\([0-9a-f][0-9a-f]*\)$|\2 \1|' \
+                    -e "s|^\\([0-9a-f]*\\) $hp_root|\\1 |"
+        ;;
+    esac
+}
+
+# Record the files of the package just installed (INST_DIR, ROOT_DIR set).
+write_files() {
+    wf_tmp=${TMPDIR:-/tmp}/pkg-files-$$
+    wf_out=$INST_DIR/files
+    : > "$wf_tmp.dirs"
+    : > "$wf_tmp.links"
+    : > "$wf_tmp.regular"
+
+    while read wf_rel; do
+        wf_path=$ROOT_DIR$wf_rel
+        if [ -h "$wf_path" ]; then
+            wf_target=`ls -ld "$wf_path" | sed 's/.* -> //'`
+            echo "l $wf_target $wf_rel" >> "$wf_tmp.links"
+        elif [ -d "$wf_path" ]; then
+            echo "d - $wf_rel" >> "$wf_tmp.dirs"
+        elif [ -f "$wf_path" ]; then
+            echo "$wf_rel" >> "$wf_tmp.regular"
+        fi
+    done < "$INST_DIR/manifest"
+
+    pick_hash_tool
+    : > "$wf_tmp.hashes"
+    if [ -n "$VF_HASH_KIND" ]; then
+        hp_list=$wf_tmp.regular
+        hp_root=$ROOT_DIR
+        hash_paths > "$wf_tmp.hashes"
+    fi
+
+    {
+        if [ -n "$VF_HASH_KIND" ]; then
+            echo "# pkg files 1 sha256"
+        else
+            echo "# pkg files 1 none"
+        fi
+        cat "$wf_tmp.dirs" "$wf_tmp.links"
+        # Files with a checksum, then the rest of the regular files without one.
+        sed 's/^\([0-9a-f]*\) \(.*\)$/f \1 \2/' "$wf_tmp.hashes"
+        sort "$wf_tmp.regular" > "$wf_tmp.allsorted"
+        sed 's/^[0-9a-f]* //' "$wf_tmp.hashes" | sort > "$wf_tmp.hashedsorted"
+        comm -23 "$wf_tmp.allsorted" "$wf_tmp.hashedsorted" | sed 's/^\(.*\)$/f - \1/'
+    } | sort > "$wf_out.new"
+    mv "$wf_out.new" "$wf_out"
+    wf_total=`wc -l < "$wf_out" | sed 's/ //g'`
+    rm -f "$wf_tmp".dirs "$wf_tmp".links "$wf_tmp".regular "$wf_tmp".hashes \
+        "$wf_tmp".allsorted "$wf_tmp".hashedsorted
+    return 0
+}
+
+# True when the path in vf_rel matches a pattern in VF_PATTERNS (shell patterns
+# over the path under the root, such as /usr/local/etc/ssh_config or
+# /usr/local/ssl/*.cnf; * also matches /).  Globbing must be off (set -f).
+vf_is_ignored() {
+    for vf_pat in $VF_PATTERNS; do
+        case $vf_rel in
+            $vf_pat) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+# The patterns that apply to VF_NAME: its own verify-ignore (from the package)
+# and <db>/verify-ignore (the site's, for files its users edit on purpose).
+# One pattern per line, # starts a comment, no white space inside a pattern.
+vf_load_patterns() {
+    VF_PATTERNS=
+    for vf_ign in "$DB_ROOT/installed/$VF_NAME/verify-ignore" "$DB_ROOT/verify-ignore"; do
+        if [ -f "$vf_ign" ]; then
+            while read vf_line; do
+                case $vf_line in
+                    '#'*|'') continue ;;
+                esac
+                for vf_w in $vf_line; do
+                    VF_PATTERNS="$VF_PATTERNS $vf_w"
+                done
+            done < "$vf_ign"
+        fi
+    done
+}
+
+# Check one installed package (VF_NAME).  Sets VF_BAD to 1 when it fails.
+verify_one() {
+    vf_inst=$DB_ROOT/installed/$VF_NAME
+    if [ ! -d "$vf_inst" ]; then
+        echo "error: package is not installed: $VF_NAME" >&2
+        VF_BAD=1
+        return 0
+    fi
+    read vf_version vf_extra < "$vf_inst/version" || vf_version=unknown
+    log "verifying $VF_NAME $vf_version"
+
+    set -f
+    vf_load_patterns
+    vf_ignored=0
+
+    vf_tmp=${TMPDIR:-/tmp}/pkg-verify-$$
+    : > "$vf_tmp.missing"
+    : > "$vf_tmp.changed"
+    : > "$vf_tmp.expected"
+    : > "$vf_tmp.present"
+    vf_checked=0
+    vf_unsummed=0
+
+    if [ -f "$vf_inst/files" ]; then
+        vf_list=$vf_inst/files
+        vf_kind=full
+    else
+        require_file "$vf_inst/manifest"
+        vf_list=$vf_inst/manifest
+        vf_kind=manifest
+    fi
+
+    if [ "$vf_kind" = manifest ]; then
+        # No types in the old list: all that can be checked is that it exists.
+        while read vf_rel; do
+            if vf_is_ignored; then
+                vf_ignored=`expr $vf_ignored + 1`
+                continue
+            fi
+            vf_checked=`expr $vf_checked + 1`
+            vf_path=$ROOT_DIR$vf_rel
+            if [ ! -e "$vf_path" ] && [ ! -h "$vf_path" ]; then
+                echo "$vf_rel" >> "$vf_tmp.missing"
+            fi
+        done < "$vf_list"
+    else
+        while read vf_type vf_arg vf_rel; do
+            case $vf_type in
+                '#'*|'') continue ;;
+            esac
+            if vf_is_ignored; then
+                vf_ignored=`expr $vf_ignored + 1`
+                continue
+            fi
+            vf_path=$ROOT_DIR$vf_rel
+            vf_checked=`expr $vf_checked + 1`
+            case $vf_type in
+                d)
+                    [ -d "$vf_path" ] || echo "$vf_rel" >> "$vf_tmp.missing"
+                ;;
+                l)
+                    if [ -h "$vf_path" ]; then
+                        vf_now=`ls -ld "$vf_path" | sed 's/.* -> //'`
+                        [ "$vf_now" = "$vf_arg" ] || echo "$vf_rel" >> "$vf_tmp.changed"
+                    else
+                        echo "$vf_rel" >> "$vf_tmp.missing"
+                    fi
+                ;;
+                f)
+                    if [ -f "$vf_path" ] || [ -h "$vf_path" ]; then
+                        if [ "x$vf_arg" = x- ]; then
+                            vf_unsummed=`expr $vf_unsummed + 1`
+                        else
+                            echo "$vf_arg $vf_rel" >> "$vf_tmp.expected"
+                            echo "$vf_rel" >> "$vf_tmp.present"
+                        fi
+                    else
+                        echo "$vf_rel" >> "$vf_tmp.missing"
+                    fi
+                ;;
+            esac
+        done < "$vf_list"
+    fi
+
+    vf_summed=`wc -l < "$vf_tmp.expected" | sed 's/ //g'`
+    vf_nohash=0
+    vf_note=
+    if [ "$VF_QUICK" = 1 ]; then
+        vf_nohash=2
+        vf_note="--quick: only checked that the files exist, not their checksums"
+    elif [ "$vf_summed" -gt 0 ]; then
+        pick_hash_tool
+        if [ -z "$VF_HASH_KIND" ]; then
+            vf_note="no sha256sum or openssl to compare checksums with; only checked that the files exist"
+            vf_nohash=1
+        else
+            hp_list=$vf_tmp.present
+            hp_root=$ROOT_DIR
+            hash_paths | sort > "$vf_tmp.actual"
+            sort "$vf_tmp.expected" > "$vf_tmp.expected.sorted"
+            # Expected lines that did not come back: the file differs.
+            comm -23 "$vf_tmp.expected.sorted" "$vf_tmp.actual" |
+                sed 's/^[0-9a-f]* //' >> "$vf_tmp.changed"
+        fi
+    fi
+    if [ "$vf_kind" = manifest ]; then
+        vf_note="installed before checksums were recorded; only checked that the files exist"
+    fi
+    # The quick-mode success line already says so; don't repeat it as a note.
+    if [ "$vf_nohash" = 2 ]; then
+        vf_note=
+    fi
+
+    vf_inote=
+    if [ "$vf_ignored" -gt 0 ]; then
+        vf_inote=" ($vf_ignored ignored)"
+    fi
+    vf_nmissing=`wc -l < "$vf_tmp.missing" | sed 's/ //g'`
+    vf_nchanged=`wc -l < "$vf_tmp.changed" | sed 's/ //g'`
+    if [ "$vf_nmissing" -gt 0 ] || [ "$vf_nchanged" -gt 0 ]; then
+        VF_BAD=1
+        echo "verify FAILED for $VF_NAME $vf_version: $vf_nmissing missing, $vf_nchanged changed (of $vf_checked entries)$vf_inote"
+        if [ "$vf_nmissing" -gt 0 ]; then
+            sort "$vf_tmp.missing" | sed -n '1,50p' | sed 's/^/  missing:  /'
+            [ "$vf_nmissing" -le 50 ] || echo "  ... and `expr $vf_nmissing - 50` more missing"
+        fi
+        if [ "$vf_nchanged" -gt 0 ]; then
+            sort "$vf_tmp.changed" | sed -n '1,50p' | sed 's/^/  changed:  /'
+            [ "$vf_nchanged" -le 50 ] || echo "  ... and `expr $vf_nchanged - 50` more changed"
+        fi
+        [ -z "$vf_note" ] || echo "  note: $vf_note"
+        [ "$vf_nohash" != 2 ] || echo "  note: --quick checked only that the files exist, not their checksums"
+        echo "  recommended: pkg reinstall $VF_NAME"
+        VF_FAILED="$VF_FAILED $VF_NAME"
+    else
+        if [ "$vf_kind" = manifest ]; then
+            log "verified $VF_NAME $vf_version: all $vf_checked entries exist$vf_inote"
+        elif [ "$vf_nohash" = 2 ]; then
+            log "verified $VF_NAME $vf_version: all $vf_checked entries exist (--quick: $vf_summed checksums not compared)$vf_inote"
+        elif [ "$vf_nohash" = 1 ]; then
+            log "verified $VF_NAME $vf_version: all $vf_checked entries exist; $vf_summed checksums not compared$vf_inote"
+        else
+            log "verified $VF_NAME $vf_version: all $vf_checked entries exist, $vf_summed checksums match, $vf_unsummed files have no checksum$vf_inote"
+        fi
+        [ -z "$vf_note" ] || log "note: $vf_note"
+    fi
+    rm -f "$vf_tmp".missing "$vf_tmp".changed "$vf_tmp".expected "$vf_tmp".present \
+        "$vf_tmp".actual "$vf_tmp".expected.sorted
+    set +f
+    return 0
+}
+
+# pkg verify [name ...]: every installed package when no name is given.
+verify_pkgs() {
+    ROOT_DIR=`default_value "$PKG_ROOT" "/"`
+    ROOT_DIR=`trim_slash "$ROOT_DIR"`
+    LOCAL_ROOT=$ROOT_DIR/usr/local
+    DB_ROOT=`default_value "$PKG_DB" "$LOCAL_ROOT/var/pkg/db"`
+
+    VF_QUICK=0
+    vf_names=
+    for vf_word in $PKG_ARGS; do
+        case $vf_word in
+            --quick) VF_QUICK=1 ;;
+            -*) die "unknown verify option: $vf_word" ;;
+            *) vf_names="$vf_names $vf_word" ;;
+        esac
+    done
+    if [ -z "$vf_names" ]; then
+        vf_names=
+        for vf_d in $DB_ROOT/installed/*; do
+            if [ -d "$vf_d" ]; then
+                vf_names="$vf_names `path_leaf "$vf_d"`"
+            fi
+        done
+        [ -n "$vf_names" ] || die "no installed packages to verify"
+    fi
+
+    VF_BAD=0
+    VF_FAILED=
+    for vf_each in $vf_names; do
+        VF_NAME=$vf_each
+        verify_one
+    done
+
+    if [ "$VF_BAD" -ne 0 ]; then
+        if [ -n "$VF_FAILED" ]; then
+            echo "verify failed for:$VF_FAILED -- reinstall them with: pkg reinstall <name>" >&2
+        fi
+        exit 1
+    fi
+    log "verify passed"
+}
+
+# True when a --preserve-* option (or the PKG_PRESERVE_* variable) asks to keep
+# something that is normally deleted.
+preserving() {
+    case ${1-} in
+        ''|0) return 1 ;;
+    esac
+    return 0
+}
+
+# Remove the staged image unconditionally (before a rebuild, and when a step
+# failed and the image is useless).
+discard_image_cache() {
     if [ -d "$IMAGE_DIR" ]; then
         log "cleaning staged image $IMAGE_DIR"
         rm -rf "$IMAGE_DIR"
     fi
 }
 
+# The staged image after a package was installed or packed.  With
+# --preserve-install-tree it is kept, under another name so that a later
+# install never mistakes it for a build to reuse.
+clean_image_cache() {
+    if [ -d "$IMAGE_DIR" ]; then
+        if preserving "$PKG_PRESERVE_INSTALL_TREE"; then
+            rm -rf "$IMAGE_DIR.installed"
+            mv "$IMAGE_DIR" "$IMAGE_DIR.installed"
+            log "keeping the staged image as $IMAGE_DIR.installed"
+        else
+            discard_image_cache
+        fi
+    fi
+}
+
 clean_source_cache() {
     if [ -d "$SRC_CACHE" ]; then
-        log "cleaning source cache $SRC_CACHE"
-        rm -rf "$SRC_CACHE"
+        if preserving "$PKG_PRESERVE_DOWNLOAD"; then
+            log "keeping the downloaded sources in $SRC_CACHE"
+        else
+            log "cleaning source cache $SRC_CACHE"
+            rm -rf "$SRC_CACHE"
+        fi
     fi
 }
 
 clean_build_cache() {
     if [ -d "$BUILD_ROOT" ]; then
-        log "cleaning build root $BUILD_ROOT"
-        rm -rf "$BUILD_ROOT"
+        if preserving "$PKG_PRESERVE_BUILD_TREE"; then
+            log "keeping the build tree $BUILD_ROOT (the next build of $PKG_NAME replaces it, unless PKG_RESUME is set)"
+        else
+            log "cleaning build root $BUILD_ROOT"
+            rm -rf "$BUILD_ROOT"
+        fi
     fi
 }
 
@@ -851,6 +1726,9 @@ restore_install_context() {
 
 install_pkg() {
     pkg_arg=$1
+    # Only the package named on the command line is forced, not its dependencies.
+    install_force=$PKG_FORCE
+    PKG_FORCE=0
     saved_install_stack=$PKG_INSTALL_STACK
     saved_pkg_dir=$PKG_DIR
     saved_pkg_name=$PKG_NAME
@@ -873,31 +1751,85 @@ install_pkg() {
         ;;
     esac
 
+    if [ -z "$PKG_INSTALL_STACK" ]; then
+        check_requires_tree "$PKG_DIR"
+    fi
+
     PKG_INSTALL_STACK=$PKG_INSTALL_STACK:$PKG_NAME
     export PKG_INSTALL_STACK
 
     log "starting install for $PKG_NAME"
+    check_arch_supported
     install_depends
     check_depends
 
-    if installed_same_version; then
+    if [ "x$install_force" != x1 ] && installed_same_version; then
         log "already installed: $PKG_NAME $PKG_VERSION"
+        stale=`stale_features "$INST_DIR"`
+        if [ -n "$stale" ]; then
+            log "note: $PKG_NAME was built with different options: $stale"
+            log "      remove and reinstall it to pick up the current configuration"
+        fi
         restore_install_context
         return 0
     fi
 
     check_build_shell
 
-    if [ ! -d "$IMAGE_DIR" ] || [ -z "`find "$IMAGE_DIR" -print 2>/dev/null | sed 1d`" ]; then
-        run_build
-    else
-        log "using existing staged image $IMAGE_DIR"
+    if [ "x$install_force" = x1 ]; then
+        log "reinstalling $PKG_NAME $PKG_VERSION: rebuilding it"
+        discard_image_cache
     fi
 
+    build_or_reuse_image
+
+    HOOK_DIR=$PKG_DIR
+    FEATURES_FILE=
+    commit_install
+
+    restore_install_context
+}
+
+# A package directory may hold an "arch" file naming the architectures it can
+# be built for (words such as i386 sparc); without one it is built everywhere.
+check_arch_supported() {
+    [ -f "$PKG_DIR/arch" ] || return 0
+    arch_list=
+    arch_ok=0
+    while read arch_line; do
+        for arch_word in $arch_line; do
+            arch_list="$arch_list $arch_word"
+            if [ "$arch_word" = "$PKG_ARCH" ]; then
+                arch_ok=1
+            fi
+        done
+    done < "$PKG_DIR/arch"
+    if [ $arch_ok = 0 ]; then
+        die "$PKG_NAME is not available for $PKG_ARCH (it is for:$arch_list)"
+    fi
+}
+
+# Build the package into its staged image unless one is already there.
+build_or_reuse_image() {
+    if [ ! -d "$IMAGE_DIR" ] || [ -z "`find "$IMAGE_DIR" -print 2>/dev/null | sed 1d`" ]; then
+        run_build
+        log "built $PKG_NAME $PKG_VERSION"
+    else
+        log "using existing staged image $IMAGE_DIR"
+        log "built $PKG_NAME $PKG_VERSION (existing staged image)"
+    fi
+}
+
+# Install the staged image of PKG_NAME into ROOT_DIR, replacing any installed
+# version, record it in the package database and run its post-install hook.
+# HOOK_DIR holds the package's hooks; FEATURES_FILE, when set, is the recorded
+# feature list to keep (otherwise it is worked out from PKG_DIR).  Shared by
+# install, reinstall and installpkg.
+commit_install() {
     if [ -d "$INST_DIR" ]; then
         log "replacing installed package $PKG_NAME"
         remove_name "$PKG_NAME"
-        load_pkg "$pkg_arg"
+        set_paths
     fi
 
     log_install_contents
@@ -913,18 +1845,255 @@ install_pkg() {
             sh "$INST_DIR/post-install"
     fi
 
+    write_files || log "warning: could not record the file list with checksums for $PKG_NAME"
+
     clean_image_cache
     log "installed $PKG_NAME $PKG_VERSION"
-
-    restore_install_context
 }
 
 install_pkgs() {
-    [ $# -ge 1 ] || die "install requires at least one <package-dir>"
+    [ $# -ge 1 ] || die "$ACTION requires at least one <package-dir>"
 
     for pkg_arg
     do
+        PKG_FORCE=$FORCE_INSTALL
         install_pkg "$pkg_arg"
+    done
+}
+
+# --- binary packages -------------------------------------------------------
+#
+# A binary package is a gzipped tar of a built package's staged image, plus a
+# .pkg/ directory at its top with what installpkg needs:
+#   format  name  version  arch  target   identification
+#   depends     the resolved depends entries (!name = conflicts)
+#   requires    pkg.conf options the package needs
+#   features    optional options it was built with
+#   post-install, pre-remove, test   the package's hooks, when it has them
+#   verify-ignore   the paths pkg verify skips, when it has any
+# installpkg then does what install does after the build: it replaces any
+# installed version, copies the files in, records the package database and
+# runs post-install.
+
+write_resolved_depends() {
+    [ -f "$PKG_DIR/depends" ] || return 0
+
+    while read rd_dep rd_extra || [ -n "$rd_dep" ]; do
+        rd_dep=`dep_resolve "$rd_dep"` || exit 1
+        case $rd_dep in
+            ''|\#*)
+                continue
+            ;;
+        esac
+        echo "$rd_dep"
+    done < "$PKG_DIR/depends"
+}
+
+binpkg_pkg() {
+    pkg_arg=$1
+
+    load_pkg "$pkg_arg"
+    check_requires_tree "$PKG_DIR"
+
+    PKG_INSTALL_STACK=$PKG_INSTALL_STACK:$PKG_NAME
+    export PKG_INSTALL_STACK
+
+    log "starting binary package build for $PKG_NAME"
+    install_depends
+    check_depends
+    check_build_shell
+    build_or_reuse_image
+
+    bp_dir=`default_value "$PKG_BINPKG_DIR" "."`
+    ensure_dir "$bp_dir"
+    bp_dir=`cd "$bp_dir" && pwd`
+    bp_file=$bp_dir/$PKG_NAME-$PKG_VERSION-$PKG_ARCH.binpkg.tar.gz
+
+    bp_meta=$IMAGE_DIR/.pkg
+    [ ! -e "$bp_meta" ] || die "$PKG_NAME's image already contains a .pkg: $bp_meta"
+    mkdir "$bp_meta"
+
+    echo 1 > "$bp_meta/format"
+    echo "$PKG_NAME" > "$bp_meta/name"
+    echo "$PKG_VERSION" > "$bp_meta/version"
+    echo "$PKG_ARCH" > "$bp_meta/arch"
+    echo "$PKG_TARGET" > "$bp_meta/target"
+    write_resolved_depends > "$bp_meta/depends"
+    write_features_to "$bp_meta/features"
+    if [ -f "$PKG_DIR/requires" ]; then
+        cp "$PKG_DIR/requires" "$bp_meta/requires"
+    fi
+    for hook in pre-remove post-install test verify-ignore; do
+        if [ -f "$PKG_DIR/$hook" ]; then
+            cp "$PKG_DIR/$hook" "$bp_meta/$hook"
+        fi
+    done
+
+    log "writing $bp_file"
+    rm -f "$bp_file"
+    (
+        cd "$IMAGE_DIR"
+        pkg_tar -czf "$bp_file" .
+    ) || { rm -rf "$bp_meta"; rm -f "$bp_file"; die "could not write $bp_file"; }
+    rm -rf "$bp_meta"
+
+    # The checksum travels with the package; installpkg refuses a package
+    # whose SHA-256 it cannot check.
+    bp_hash=`hash_file "$bp_file"` || die "could not checksum $bp_file"
+    echo "$bp_hash  `path_leaf "$bp_file"`" > "$bp_file.sha256"
+
+    clean_image_cache
+    log "wrote binary package $bp_file (sha256 $bp_hash)"
+}
+
+binpkg_pkgs() {
+    [ $# -ge 1 ] || die "binpkg requires at least one <package-dir>"
+
+    for pkg_arg
+    do
+        ( binpkg_pkg "$pkg_arg" ) < /dev/null || exit 1
+    done
+}
+
+# Print the first line of one of a binary package's .pkg/ metadata files.
+binpkg_field() {
+    bf_line=`pkg_tar -xzOf "$1" "./.pkg/$2" 2>/dev/null | sed 1q` || :
+    echo "$bf_line"
+}
+
+binpkg_check_requires() {
+    bc_meta=$1
+    [ -f "$bc_meta/requires" ] || return 0
+
+    bc_list=`read_requires "$bc_meta" "$PKG_NAME"` || exit 1
+    bc_bad=
+    while read bc_kind bc_opt; do
+        [ "x$bc_kind" = xrequired ] || continue
+        bc_val=`option_value "$bc_opt"`
+        if [ "x$bc_val" != x1 ]; then
+            bc_bad="$bc_bad $bc_opt"
+        fi
+    done <<EOF
+$bc_list
+EOF
+    if [ -n "$bc_bad" ]; then
+        discard_image_cache
+        die "$PKG_NAME needs these pkg.conf options set to 1:$bc_bad"
+    fi
+}
+
+binpkg_check_depends() {
+    bd_meta=$1
+    [ -f "$bd_meta/depends" ] || return 0
+
+    bd_missing=
+    bd_conflicts=
+    while read bd_dep bd_extra || [ -n "$bd_dep" ]; do
+        case $bd_dep in
+            ''|\#*)
+                continue
+            ;;
+        esac
+        bd_pkg=`dep_name "$bd_dep"`
+        if dep_is_negative "$bd_dep"; then
+            if [ -d "$DB_ROOT/installed/$bd_pkg" ]; then
+                bd_conflicts="$bd_conflicts $bd_pkg"
+            fi
+        elif [ ! -d "$DB_ROOT/installed/$bd_pkg" ]; then
+            bd_missing="$bd_missing $bd_pkg"
+        fi
+    done < "$bd_meta/depends"
+
+    if [ -n "$bd_missing" ]; then
+        if [ "x$PKG_NO_DEPS" = x1 ]; then
+            log "warning: installing $PKG_NAME without its dependencies (--no-deps):$bd_missing"
+        else
+            discard_image_cache
+            die "missing dependencies for $PKG_NAME (install them first):$bd_missing"
+        fi
+    fi
+    if [ -n "$bd_conflicts" ]; then
+        discard_image_cache
+        die "conflicting installed packages for $PKG_NAME:$bd_conflicts"
+    fi
+}
+
+installpkg_file() {
+    ip_file=$1
+    [ -f "$ip_file" ] || die "binary package not found: $ip_file"
+    case $ip_file in
+        /*)
+        ;;
+        *)
+            ip_file=`pwd`/$ip_file
+        ;;
+    esac
+
+    # Check the package before reading anything out of it.  The expected hash
+    # is PKG_SHA256, or the one in <file>.sha256 that binpkg wrote.
+    # PKG_NO_VERIFY=1 skips the check.
+    if [ "x$PKG_NO_VERIFY" != x1 ]; then
+        ip_want=$PKG_SHA256
+        if [ -z "$ip_want" ] && [ -f "$ip_file.sha256" ]; then
+            read ip_want ip_want_rest < "$ip_file.sha256"
+        fi
+        [ -n "$ip_want" ] ||
+            die "no checksum for $ip_file: put its SHA-256 in $ip_file.sha256 (binpkg writes one), set PKG_SHA256, or set PKG_NO_VERIFY=1 to install it unchecked"
+        ip_got=`hash_file "$ip_file"` || die "could not checksum $ip_file"
+        [ "x$ip_got" = "x$ip_want" ] ||
+            die "SHA-256 mismatch for $ip_file (expected $ip_want, got $ip_got); not installing it"
+        log "verified $ip_file"
+    else
+        log "warning: installing $ip_file without verifying it (PKG_NO_VERIFY=1)"
+    fi
+
+    ip_format=`binpkg_field "$ip_file" format`
+    [ "x$ip_format" = x1 ] ||
+        die "not a binary package made by this pkg (format '$ip_format'): $ip_file"
+
+    PKG_NAME=`binpkg_field "$ip_file" name`
+    PKG_VERSION=`binpkg_field "$ip_file" version`
+    ip_arch=`binpkg_field "$ip_file" arch`
+    case $PKG_NAME in
+        ''|*/*|.*)
+            die "invalid package name in $ip_file: '$PKG_NAME'"
+        ;;
+    esac
+    [ -n "$PKG_VERSION" ] || die "no version in $ip_file"
+    [ "x$ip_arch" = "x$PKG_ARCH" ] ||
+        die "$PKG_NAME was built for $ip_arch, this machine is $PKG_ARCH"
+
+    PKG_DIR=
+    set_paths
+    log "starting install of binary package $PKG_NAME $PKG_VERSION from $ip_file"
+
+    discard_image_cache
+    ensure_dir "$IMAGE_DIR"
+    pkg_tar -xzpf "$ip_file" -C "$IMAGE_DIR" ||
+        { discard_image_cache; die "could not unpack $ip_file"; }
+
+    ip_meta=$CACHE_ROOT/binpkg-meta/$PKG_NAME
+    rm -rf "$ip_meta"
+    ensure_dir "$CACHE_ROOT/binpkg-meta"
+    [ -d "$IMAGE_DIR/.pkg" ] ||
+        { discard_image_cache; die "$ip_file has no .pkg metadata"; }
+    mv "$IMAGE_DIR/.pkg" "$ip_meta"
+
+    binpkg_check_requires "$ip_meta"
+    binpkg_check_depends "$ip_meta"
+
+    HOOK_DIR=$ip_meta
+    FEATURES_FILE=$ip_meta/features
+    commit_install
+    rm -rf "$ip_meta"
+}
+
+installpkg_files() {
+    [ $# -ge 1 ] || die "installpkg requires at least one <file>"
+
+    for ip_arg
+    do
+        ( installpkg_file "$ip_arg" ) < /dev/null || exit 1
     done
 }
 
@@ -964,9 +2133,26 @@ test_name() {
             PATH=$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin:$PATH \
             "$test_shell" -x "$INST_DIR/test" || die "test failed for $PKG_NAME $PKG_VERSION"
     else
+        # Run the hook traced, keeping the trace in a file: a hook is mostly a
+        # list of bare checks under "set -e", so on failure the last commands
+        # run name the check that failed.  The trace is not shown when the
+        # test passes.  (Hook output on stdout is shown as it comes.)
+        test_trace=${TMPDIR:-/tmp}/pkg-test-trace-$$
+        test_rc=0
         PKG_NAME=$PKG_NAME PKG_VERSION=$PKG_VERSION ROOT_DIR=$ROOT_DIR LOCAL_ROOT=$LOCAL_ROOT \
             PATH=$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin:$PATH \
-            "$test_shell" "$INST_DIR/test" || die "test failed for $PKG_NAME $PKG_VERSION"
+            "$test_shell" -x "$INST_DIR/test" 2> "$test_trace" || test_rc=$?
+        # Messages the hook wrote to stderr (everything that is not trace).
+        grep -v '^+' "$test_trace" >&2 || :
+        test_steps=`grep '^+' "$test_trace" | wc -l | sed 's/ //g'`
+        if [ "$test_rc" -ne 0 ]; then
+            echo "==> the last commands the test ran before it failed (exit $test_rc):" >&2
+            grep '^+' "$test_trace" | tail -12 | sed 's/^/    /' >&2
+            rm -f "$test_trace"
+            die "test failed for $PKG_NAME $PKG_VERSION (after $test_steps commands; the last one above)"
+        fi
+        rm -f "$test_trace"
+        log "$test_steps commands run by the test hook"
     fi
 
     log "test passed for $PKG_NAME $PKG_VERSION"
@@ -996,7 +2182,12 @@ list_pkgs() {
         [ -d "$dir" ] || continue
         name=`path_leaf "$dir"`
         read version extra < "$dir/version" || version=unknown
-        echo "$name $version"
+        stale=`stale_features "$dir"`
+        if [ -n "$stale" ]; then
+            echo "$name $version  [rebuild to apply: $stale]"
+        else
+            echo "$name $version"
+        fi
     done
 }
 
@@ -1034,39 +2225,132 @@ remove_name() {
     rm -rf "$INST_DIR"
 }
 
-ACTION=$1
+# Some old Bourne shells do not restore the positional parameters after a
+# function call, so take what we need from them before calling anything.
+# Options for what to keep (they come before the action, and also work as
+# environment variables set to 1):
+#   --preserve-download      keep the downloaded sources after the build
+#   --preserve-build-tree    keep the build tree after the build (or --preserve-build)
+#   --preserve-install-tree  keep the staged image after the install (or --preserve-install)
+#   --no-deps                installpkg: do not require the package's dependencies to be
+#                            installed (PKG_NO_DEPS=1); conflicts are still refused
+PKG_PRESERVE_DOWNLOAD=${PKG_PRESERVE_DOWNLOAD-0}
+PKG_PRESERVE_BUILD_TREE=${PKG_PRESERVE_BUILD_TREE-0}
+PKG_PRESERVE_INSTALL_TREE=${PKG_PRESERVE_INSTALL_TREE-0}
+PKG_NO_DEPS=${PKG_NO_DEPS-0}
+while [ $# -gt 0 ]; do
+    case $1 in
+        --preserve-download)
+            PKG_PRESERVE_DOWNLOAD=1
+            shift
+        ;;
+        --preserve-build-tree|--preserve-build)
+            PKG_PRESERVE_BUILD_TREE=1
+            shift
+        ;;
+        --preserve-install-tree|--preserve-install)
+            PKG_PRESERVE_INSTALL_TREE=1
+            shift
+        ;;
+        --no-deps)
+            PKG_NO_DEPS=1
+            shift
+        ;;
+        --)
+            shift
+            break
+        ;;
+        --*)
+            die "unknown option: $1"
+        ;;
+        *)
+            break
+        ;;
+    esac
+done
+export PKG_PRESERVE_DOWNLOAD PKG_PRESERVE_BUILD_TREE PKG_PRESERVE_INSTALL_TREE PKG_NO_DEPS
+
+ACTION=${1-}
+ARGC=$#
+FORCE_INSTALL=0
+PKG_FORCE=0
+HOOK_DIR=
+FEATURES_FILE=
+ARG2=$2
+if [ $# -gt 1 ]; then
+    shift
+    PKG_ARGS="$*"
+else
+    PKG_ARGS=
+fi
+
+detect_arch
+load_config
 
 case $ACTION in
+    arch)
+        [ "$ARGC" -eq 1 ] || die "arch takes no arguments"
+        echo "PKG_ARCH=$PKG_ARCH"
+        echo "PKG_TARGET=$PKG_TARGET"
+        echo "PKG_SYSCC_ARCH_FLAGS=$PKG_SYSCC_ARCH_FLAGS"
+        echo "PKG_GCC42_ARCH_FLAGS=$PKG_GCC42_ARCH_FLAGS"
+    ;;
+
+    config)
+        [ "$ARGC" -eq 1 ] || die "config takes no arguments"
+        echo "PKG_CONF_FILE=$PKG_CONF_FILE"
+        echo "HAVE_X11=$HAVE_X11"
+        echo "X11_PREFIX=$X11_PREFIX"
+        echo "WITH_PYTHON=$WITH_PYTHON"
+    ;;
+
     download)
-        [ $# -eq 2 ] || die "download requires <package-dir>"
-        load_pkg "$2"
+        [ "$ARGC" -eq 2 ] || die "download requires <package-dir>"
+        load_pkg "$ARG2"
         download_pkg
     ;;
 
     build)
-        [ $# -eq 2 ] || die "build requires <package-dir>"
-        load_pkg "$2"
+        [ "$ARGC" -eq 2 ] || die "build requires <package-dir>"
+        load_pkg "$ARG2"
+        check_requires_tree "$PKG_DIR"
         run_build
     ;;
 
     install)
-        shift
-        install_pkgs "$@"
+        FORCE_INSTALL=0
+        install_pkgs $PKG_ARGS
+    ;;
+
+    reinstall|forceinstall)
+        FORCE_INSTALL=1
+        install_pkgs $PKG_ARGS
+    ;;
+
+    binpkg)
+        binpkg_pkgs $PKG_ARGS
+    ;;
+
+    installpkg)
+        installpkg_files $PKG_ARGS
     ;;
 
     list)
-        [ $# -eq 1 ] || die "list takes no arguments"
+        [ "$ARGC" -eq 1 ] || die "list takes no arguments"
         list_pkgs
     ;;
 
     remove)
-        [ $# -eq 2 ] || die "remove requires <name>"
-        remove_name "$2"
+        [ "$ARGC" -eq 2 ] || die "remove requires <name>"
+        remove_name "$ARG2"
     ;;
 
     test)
-        shift
-        test_pkgs "$@"
+        test_pkgs $PKG_ARGS
+    ;;
+
+    verify)
+        verify_pkgs
     ;;
 
     ""|-h|--help|help)
@@ -1077,3 +2361,9 @@ case $ACTION in
         die "unknown action: $ACTION"
     ;;
 esac
+
+# Stop here.  The shell reads a script as it runs, so a long run (a package that
+# takes hours to build) that reaches the end of the file after the file was
+# replaced by an update would carry on reading from the old offset into the
+# middle of the new file and try to run pieces of it ("Stock: not found").
+exit 0

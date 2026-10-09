@@ -1,0 +1,15 @@
+# pkg site configuration.  Copy to /usr/local/etc/pkg.conf (or point PKG_CONF at
+# it).  This is a plain sh file; every option is optional.
+
+# Set to 1 if an X11 server such as CubXWindow and its development headers and
+# libraries are installed.  Packages that can use X11 check this.
+HAVE_X11=0
+
+# Directory holding the X11 include/ and lib/ directories.  CubXWindow installs
+# under /usr/X11R6, which is the default.
+X11_PREFIX=/usr/X11R6
+
+# 1 (default) builds optional Python support, which makes git depend on the
+# python311 package (for git-p4).  Set 0 to build git without Python, for example
+# on a machine where python311 does not build yet.
+WITH_PYTHON=1
