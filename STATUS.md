@@ -98,7 +98,7 @@ mpg123 have no SPARC result.
 | nsgenbind | validated | — |
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | 10.6p1 untested (7.9p1 was validated) |
-| openssl | validated | validated 1.1.1w (rebuilt 2026-10-09 with the unsigned memcmp via pkg_cmp_named, which fixed OID lookups by DER bytes: SHA1, AES, SHA-2, secp384r1 and others had failed; the broadened `pkg test` passes: OIDs, digests, EC keys, signatures, chains, AES). Still to check on SPARC: oidtest, and the libraries that link libcrypto (curl, openssh) |
+| openssl | validated | validated 1.1.1w (rebuilt 2026-10-09 with the unsigned memcmp via pkg_cmp_named, which fixed OID lookups by DER bytes: SHA1, AES, SHA-2, secp384r1 and others had failed; the broadened `pkg test` passes: OIDs, digests, EC keys, signatures, chains, AES). The original failure is fixed: a secp384r1 key now round-trips through `openssl ec -pubout`. Still to check on SPARC: the libraries that link libcrypto (curl, openssh) must be rebuilt against it, and `oidtest` recompiled (an old binary carries the old static library) |
 | p7zip | validated | — |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
