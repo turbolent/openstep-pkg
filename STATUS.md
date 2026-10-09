@@ -43,7 +43,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
 | cctools-as | 806 validated | — |
 | class-dump | validated | — |
-| coreutils | validated | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
+| coreutils | validated (rebuilt on a host with libiconv installed, iconv off, 2026-10-09) | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt on the rebootstrapped host, after the bash fix) |
 | diffutils | validated | — |
 | duktape | validated | — |
@@ -102,7 +102,7 @@ tar have been rebuilt; wget, zip and mpg123 have no SPARC result).
 | p7zip | validated | — |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
-| perl | validated | validated 5.8.9 |
+| perl | validated | validated 5.8.9 (rebuilt with the unsigned memcmp, 2026-10-09) |
 | pkgconf | validated on x86 (3.0.7: build, install, test; replaces pkg-config 0.29) | validated 3.0.7 (rebootstrap, 2026-10-08) |
 | python311 | validated | validated 3.11.17 (rebootstrap, 2026-10-08) |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
