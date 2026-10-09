@@ -11,6 +11,13 @@ CHARSET=ASCII
 CPPFLAGS=-I/usr/local/include
 LIBS="`/usr/local/bin/curl-config --static-libs`"
 ac_cv_func_mmap=no
+# mpi/longlong.h only uses the SPARC V8 umul/udiv instructions when
+# __sparc_v8__ is defined; otherwise it calls __udiv_qrnnd, an assembler
+# routine that --disable-asm leaves out ("undefined symbol __udiv_qrnnd").
+# gcc-4.2 here targets V8 (sun4m) but does not define the macro by default.
+if test "$PKG_ARCH" = sparc; then
+    CFLAGS="$CFLAGS -D__sparc_v8__"
+fi
 export CPPFLAGS LIBS ac_cv_func_mmap
 export PATH CC CFLAGS AWK GREP EGREP CHARSET
 if test -d "libgcrypt-$2"; then cd "libgcrypt-$2"; fi
