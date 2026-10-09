@@ -16,10 +16,10 @@ version bumps (mpg123 1.33.7, ca-certificates 2026.09.25, expat 2.9.0, libpng
 9.2.1091 bump (`wait()` in `osdef.h`, int `W*()` macros, no `<sys/utsname.h>`, no
 `<utime.h>`, `FD_CLOEXEC`, `struct sockaddr_storage`, and `tcgetattr`/`tcsetattr`
 from the BSD ioctls).  The tables below show earlier results.  SPARC is being
-rebuilt from scratch in dependency order (2026-10-08): so far the packages marked "rebootstrap, 2026-10-08" below have been
+rebuilt from scratch in dependency order (2026-10-08): so far the packages marked "rebootstrap, 2026-10-08" or "2026-10-09" below have been
 rebuilt, installed and tested there, including bash, curl, gcc42, tar, patch,
-python311, expat and ca-certificates; openssl, vim, openssh and the rest are still
-to come.  The October 2026 security fixes are only partly covered on SPARC.  pkg itself gained a
+python311, expat, ca-certificates, openssl, openssh and curl; vim, wget and the
+remaining 20 or so packages are still to come.  The October 2026 security fixes are only partly covered on SPARC.  pkg itself gained a
 retry through `tarfix` for tarballs whose uid/gid exceed OPENSTEP's 16-bit uid_t.
 
 lha was removed from the tree (October 2026): its test failed on x86 even unpatched on the
@@ -45,7 +45,7 @@ mpg123 have no SPARC result.
 | class-dump | validated | — |
 | coreutils | validated (rebuilt on a host with libiconv installed, iconv off, 2026-10-09) | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt 2026-10-09 against the rebuilt libcrypto: links with the ostep_* routines from libcrypto.a, installs and tests) |
-| diffutils | validated | — |
+| diffutils | validated | validated 2.8.1 (2026-10-09) |
 | duktape | validated | — |
 | emacs | validated | — |
 | expat | validated | validated 2.9.0 (rebootstrap, 2026-10-08) |
@@ -58,31 +58,31 @@ mpg123 have no SPARC result.
 | gawk | validated | validated 3.1.8 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
 | git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
-| gperf | validated | — |
+| gperf | validated | validated 3.3 (2026-10-09) |
 | grep | validated | validated 2.5.4 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gzip | validated | validated 1.3.12 (rebootstrap, 2026-10-08) |
 | help2man | validated | validated 1.27 |
 | jpeg | validated | validated 8d (rebootstrap, 2026-10-08) |
 | less | validated | validated 710 (rebootstrap, 2026-10-08) |
 | liba52 | validated | validated 0.7.4 (rebootstrap, 2026-10-08) |
-| libcss | validated | — |
-| libdom | validated | — |
+| libcss | validated | validated 0.9.2 (2026-10-09) |
+| libdom | validated | validated 0.4.2 (2026-10-09) |
 | libgcrypt | 1.5.6 validated | — |
-| libgpg-error | 1.12 validated | — |
-| libhubbub | validated | — |
+| libgpg-error | 1.12 validated | validated 1.12 (2026-10-09) |
+| libhubbub | validated | validated 0.3.8 (2026-10-09) |
 | libiconv | validated | validated 1.15 (rebootstrap, 2026-10-08) |
-| libmad | validated | — |
+| libmad | validated | validated 0.15.1b (2026-10-09) |
 | libmpeg2 | validated | — |
-| libnsbmp | validated | — |
-| libnsfb | validated | — |
+| libnsbmp | validated | validated 0.1.7 (2026-10-09) |
+| libnsfb | validated | validated 0.2.2 (2026-10-09) |
 | libnsgif | validated | — |
 | libnslog | validated | — |
-| libnsutils | validated | — |
+| libnsutils | validated | validated 0.1.1 (2026-10-09) |
 | libparserutils | validated | validated 0.2.5 (rebootstrap, 2026-10-08) |
-| libpng | validated | validated 1.6.58 (tree is now 1.6.59: needs retest) |
-| libsvgtiny | validated | — |
+| libpng | validated | validated 1.6.59 (2026-10-09) |
+| libsvgtiny | validated | validated 0.1.8 (2026-10-09) |
 | libwapcaplet | validated | validated 0.4.3 (rebootstrap, 2026-10-08) |
-| libxml2 | validated on x86 (2.15.4: build, install, test) | — |
+| libxml2 | validated on x86 (2.15.4: build, install, test) | validated 2.15.4 (2026-10-09) |
 | lua | validated | — |
 | lua51 | 5.1.5 validated | — |
 | lz4 | validated | — |
@@ -106,12 +106,12 @@ mpg123 have no SPARC result.
 | pkgconf | validated on x86 (3.0.7: build, install, test; replaces pkg-config 0.29) | validated 3.0.7 (rebootstrap, 2026-10-08) |
 | python311 | validated | validated 3.11.17 (rebootstrap, 2026-10-08) |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
-| quickjs | validated | — |
-| roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | — |
+| quickjs | validated | validated 2025-09-13-2 (2026-10-09) |
+| roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | validated 1.1 (2026-10-09) |
 | rsync | validated | — |
 | sdl12 | validated | — |
 | sed | validated | validated 4.0.9 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
-| sudo | validated | — |
+| sudo | validated | validated 1.7.10p9 (2026-10-09) |
 | tar | 1.15.1 validated | validated 1.15.1 (rebootstrap, 2026-10-08) |
 | tcsh | validated | validated 6.24.13 (rebootstrap, 2026-10-08; vfork.h fix) |
 | termcap | validated | validated 1.3.1 (rebootstrap, 2026-10-08) |
@@ -125,7 +125,7 @@ mpg123 have no SPARC result.
 | wget-bootstrap | 1.19.5 validated | validated 1.19.5 (needs the localtime and unsigned-compare fixes; rebootstrap, 2026-10-08) |
 | xxhash | validated (manual build, after replacing `ln -sf`; rebuilt on a fresh host) | validated 0.8.4 (`XXH_FORCE_MEMORY_ACCESS=0`: the default packed-union reads bus-error with gcc 4.2; compiling `xxhash.c` is very slow; rebootstrap, 2026-10-08) |
 | xz | validated | validated 5.8.4 |
-| zip | validated | — |
+| zip | validated | validated 3.0 (2026-10-09) |
 | zlib | validated | validated 1.2.13 (rebootstrap, 2026-10-08) |
 | zsh | validated | validated 5.9 |
 | zstd | validated | — |
