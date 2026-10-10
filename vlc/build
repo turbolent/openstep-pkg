@@ -27,7 +27,25 @@ export PATH CC CXX CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS CONFIG_SHELL AWK GREP E
 if test -d "vlc-$VERSION"; then cd "vlc-$VERSION"; fi
 patch -p1 < "vlc-$VERSION-openstep.patch"
 . "$PKG_BUILD_HELPERS"
-run_configure --build=$PKG_TARGET --prefix=/usr/local \
+# The patch's check scripts were written for i386: they hard-code -march=i486,
+# and openstep-fix-macho.sh rewrites the CPU subtype of a little-endian i386
+# Mach-O file (it refuses anything else).  Use the per-arch flags, and skip the
+# subtype fix where it does not apply.
+for script in modules/gui/openstep-check.sh modules/gui/openstep-playback-check.sh; do
+    sed "s/ -march=i486 / ${PKG_GCC42_ARCH_FLAGS-} /" "$script" > "$script.new"
+    mv "$script.new" "$script"
+done
+TUNING_OPT=
+if test "$PKG_ARCH" != i386; then
+    cat > modules/gui/openstep-fix-macho.sh <<'FMEOF'
+#!/bin/sh
+# Only i386 executables need their CPU subtype changed (see the i386 version).
+exit 0
+FMEOF
+    # vlc's configure tunes for a Pentium 2 on i386 hosts only; say so.
+    TUNING_OPT=--with-tuning=no
+fi
+run_configure --build=$PKG_TARGET --prefix=/usr/local $TUNING_OPT \
     --disable-shared --enable-static --disable-nls --disable-dependency-tracking \
     --disable-maintainer-mode \
     --disable-qt4 --disable-skins2 --disable-x11 --disable-xvideo --disable-glx \
