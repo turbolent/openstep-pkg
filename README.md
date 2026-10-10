@@ -86,6 +86,28 @@ Binary packages are checked before anything is read from them: `binpkg` writes
 match it, or that has no checksum.  Give the expected hash with `PKG_SHA256=<hex>` when the
 `.sha256` file does not travel with the package, or skip the check with `PKG_NO_VERIFY=1`.
 
+## Downloading, and downloading ahead
+
+A source that fails to download, or arrives with the wrong SHA-256, is tried again: by
+default three more times, waiting 5, 10 and 15 seconds, and a partly fetched file is resumed
+rather than started over.  `--download-retries N` (or `PKG_DOWNLOAD_RETRIES=N`) changes the
+number of retries, `0` giving up at once, and `PKG_DOWNLOAD_DELAY=SECONDS` the base wait.
+
+`--download-only` fetches the sources and stops, so a build can run later on a machine
+that has no network, or at a time when the network is not wanted:
+
+```sh
+sh ./pkg --download-only install emacs     # emacs's sources, and those of every dependency not yet installed
+sh ./pkg --download-only reinstall perl    # perl's sources, even though it is installed
+sh ./pkg --download-only binpkg vim
+sh ./pkg --download-only build vim         # just vim's sources (the same as "pkg download vim")
+```
+
+Nothing is built or installed, and dependencies need not be installed.  The sources go
+into `<cache>/sources/<package>`, checked against their `checksums`, and a later `install`
+uses them (and removes them after the build unless `--preserve-download` is given).  A
+download that was already completed is not fetched again.
+
 ## Configuration
 
 Site options live outside the package tree in `/usr/local/etc/pkg.conf` (under `PKG_ROOT`

@@ -343,6 +343,15 @@ options (before the action; each also works as an environment variable set to 1)
   --no-deps                installpkg: do not require the package's dependencies
                            to be installed (PKG_NO_DEPS); conflicts are still
                            refused
+  --download-only          with install, reinstall, binpkg or build: fetch the
+                           sources of the package and of the dependencies that
+                           would be built (those not installed) into the cache
+                           and stop, so the build can run later without a
+                           network (PKG_DOWNLOAD_ONLY=1)
+  --download-retries N     retry a failed or corrupt download N more times,
+                           waiting 5, 10, 15... seconds between tries; the
+                           partial file is resumed (PKG_DOWNLOAD_RETRIES, default
+                           3; PKG_DOWNLOAD_DELAY sets the 5 seconds)
   -h, --help               print this text (also after an action, or as
                            "pkg help")
 
@@ -838,17 +847,42 @@ download_one() (
             else
                 log "downloading $src"
             fi
+            # A failed or corrupt transfer is tried again PKG_DOWNLOAD_RETRIES
+            # more times (default 3), PKG_DOWNLOAD_DELAY seconds (default 5)
+            # times the retry number apart; a partial file is resumed.
+            dl_retries=${PKG_DOWNLOAD_RETRIES-3}
+            case $dl_retries in ''|*[!0-9]*) die "PKG_DOWNLOAD_RETRIES must be a number, not \"$dl_retries\"" ;; esac
+            dl_delay=${PKG_DOWNLOAD_DELAY-5}
+            case $dl_delay in ''|*[!0-9]*) die "PKG_DOWNLOAD_DELAY must be a number of seconds, not \"$dl_delay\"" ;; esac
             # Stock sh can report zero in an EXIT trap after an error.
             cleanup_status=1
             trap 'exit "$cleanup_status"' 0
             trap 'exit 1' 1 2 3 15
-            fetch_source "$src" "$partial" ||
-                die "download failed: $src (the partial file $partial is kept; run again to resume, or delete it to start over)"
-            actual=`hash_file "$partial"` || exit 1
-            if [ "$actual" != "$expected" ]; then
-                rm -f "$partial"
-                die "SHA-256 mismatch: $src (partial file discarded; run again to fetch it afresh)"
-            fi
+            dl_retry=0
+            while :; do
+                if fetch_source "$src" "$partial"; then
+                    actual=`hash_file "$partial"` || exit 1
+                    if [ "$actual" = "$expected" ]; then
+                        break
+                    fi
+                    rm -f "$partial"
+                    dl_why="SHA-256 mismatch: $src (partial file discarded)"
+                    dl_final="SHA-256 mismatch: $src (partial file discarded; run again to fetch it afresh)"
+                else
+                    dl_why="download failed: $src"
+                    dl_final="download failed: $src (the partial file $partial is kept; run again to resume, or delete it to start over)"
+                fi
+                if [ "$dl_retry" -ge "$dl_retries" ]; then
+                    if [ "$dl_retries" -gt 0 ]; then
+                        dl_final="$dl_final [gave up after $dl_retries retries]"
+                    fi
+                    die "$dl_final"
+                fi
+                dl_retry=`expr $dl_retry + 1`
+                dl_wait=`expr $dl_retry '*' $dl_delay`
+                log "$dl_why; retrying in $dl_wait seconds (retry $dl_retry of $dl_retries)" >&2
+                sleep $dl_wait
+            done
             mv "$partial" "$out" || die "cannot cache $src_name"
             cleanup_status=0
         ;;
@@ -2212,7 +2246,10 @@ install_pkg() {
     log "starting install for $PKG_NAME"
     check_arch_supported
     install_depends
-    check_depends
+    # --download-only fetches sources, so the dependencies need not be installed.
+    if [ "$PKG_DOWNLOAD_ONLY" != 1 ]; then
+        check_depends
+    fi
 
     if [ "x$install_force" != x1 ] && installed_same_version; then
         log "already installed: $PKG_NAME $PKG_VERSION"
@@ -2221,6 +2258,13 @@ install_pkg() {
             log "note: $PKG_NAME was built with different options: $stale"
             log "      remove and reinstall it to pick up the current configuration"
         fi
+        restore_install_context
+        return 0
+    fi
+
+    if [ "$PKG_DOWNLOAD_ONLY" = 1 ]; then
+        download_pkg
+        log "downloaded the sources of $PKG_NAME $PKG_VERSION (--download-only: not built)"
         restore_install_context
         return 0
     fi
@@ -2359,6 +2403,11 @@ binpkg_pkg() {
 
     log "starting binary package build for $PKG_NAME"
     install_depends
+    if [ "$PKG_DOWNLOAD_ONLY" = 1 ]; then
+        download_pkg
+        log "downloaded the sources of $PKG_NAME $PKG_VERSION (--download-only: not built)"
+        return 0
+    fi
     check_depends
     check_build_shell
     build_or_reuse_image
@@ -2706,10 +2755,17 @@ remove_name() {
 #   --preserve-install-tree  keep the staged image after the install (or --preserve-install)
 #   --no-deps                installpkg: do not require the package's dependencies to be
 #                            installed (PKG_NO_DEPS=1); conflicts are still refused
+#   --download-only          install, reinstall, binpkg, build: only fetch the sources
+#                            (of the package and of the dependencies that would be
+#                            built) into the cache, and stop (PKG_DOWNLOAD_ONLY=1)
+#   --download-retries N     try a failed or corrupt download N more times
+#                            (PKG_DOWNLOAD_RETRIES, default 3)
 PKG_PRESERVE_DOWNLOAD=${PKG_PRESERVE_DOWNLOAD-0}
 PKG_PRESERVE_BUILD_TREE=${PKG_PRESERVE_BUILD_TREE-0}
 PKG_PRESERVE_INSTALL_TREE=${PKG_PRESERVE_INSTALL_TREE-0}
 PKG_NO_DEPS=${PKG_NO_DEPS-0}
+PKG_DOWNLOAD_ONLY=${PKG_DOWNLOAD_ONLY-0}
+PKG_DOWNLOAD_RETRIES=${PKG_DOWNLOAD_RETRIES-3}
 while [ $# -gt 0 ]; do
     case $1 in
         --preserve-download)
@@ -2728,6 +2784,16 @@ while [ $# -gt 0 ]; do
             PKG_NO_DEPS=1
             shift
         ;;
+        --download-only)
+            PKG_DOWNLOAD_ONLY=1
+            shift
+        ;;
+        --download-retries)
+            [ $# -ge 2 ] || die "--download-retries needs a number"
+            PKG_DOWNLOAD_RETRIES=$2
+            case $PKG_DOWNLOAD_RETRIES in ''|*[!0-9]*) die "--download-retries needs a number, not \"$2\"" ;; esac
+            shift 2
+        ;;
         --)
             shift
             break
@@ -2744,7 +2810,7 @@ while [ $# -gt 0 ]; do
         ;;
     esac
 done
-export PKG_PRESERVE_DOWNLOAD PKG_PRESERVE_BUILD_TREE PKG_PRESERVE_INSTALL_TREE PKG_NO_DEPS
+export PKG_PRESERVE_DOWNLOAD PKG_PRESERVE_BUILD_TREE PKG_PRESERVE_INSTALL_TREE PKG_NO_DEPS PKG_DOWNLOAD_ONLY PKG_DOWNLOAD_RETRIES
 
 # "pkg <action> --help" (or -h) prints the usage too, rather than being taken
 # for a package name.
@@ -2774,6 +2840,16 @@ fi
 detect_arch
 load_config
 
+if [ "$PKG_DOWNLOAD_ONLY" = 1 ]; then
+    case $ACTION in
+        install|reinstall|forceinstall|binpkg|build|download|''|help|-h|--help)
+        ;;
+        *)
+            die "--download-only applies to install, reinstall, binpkg, build and download, not $ACTION"
+        ;;
+    esac
+fi
+
 case $ACTION in
     arch)
         [ "$ARGC" -eq 1 ] || die "arch takes no arguments"
@@ -2801,7 +2877,11 @@ case $ACTION in
         [ "$ARGC" -eq 2 ] || die "build requires <package-dir>"
         load_pkg "$ARG2"
         check_requires_tree "$PKG_DIR"
-        run_build
+        if [ "$PKG_DOWNLOAD_ONLY" = 1 ]; then
+            download_pkg
+        else
+            run_build
+        fi
     ;;
 
     install)
