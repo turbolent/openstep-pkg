@@ -75,7 +75,7 @@ mpg123 have no SPARC result.
 | libmpeg2 | validated | — |
 | libnsbmp | validated | validated 0.1.7 (2026-10-09) |
 | libnsfb | validated | validated 0.2.2 (2026-10-09) |
-| libnsgif | validated | — |
+| libnsgif | validated | validated (2026-10-10) |
 | libnslog | validated | validated (2026-10-10) |
 | libnsutils | validated | validated 0.1.1 (2026-10-09) |
 | libparserutils | validated | validated 0.2.5 (rebootstrap, 2026-10-08) |
