@@ -108,7 +108,7 @@ mpg123 have no SPARC result.
 | quake2 | validated (content-free dedicated-server startup test; no game data) | validated (2026-10-10; content-free dedicated-server startup test) |
 | quickjs | validated | validated 2025-09-13-2 (2026-10-09) |
 | roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | validated 1.1 (2026-10-09) |
-| rsync | validated | — |
+| rsync | validated | validated (2026-10-10) |
 | sdl12 | validated | validated (2026-10-10; per-arch cc flags instead of a hardcoded -m486) |
 | sed | validated | validated 4.0.9 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
 | sudo | validated | validated 1.7.10p9 (2026-10-09) |
