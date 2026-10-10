@@ -142,37 +142,41 @@ db=${PKG_DB:-$root/usr/local/var/pkg/db}
 installed_dir=$db/installed
 
 # The stock date takes no +format (it comes with coreutils, which "remake
-# entire-world" removes), so use the format when it works and the plain "Thu Oct
-# 8 10:10:36 MDT 2026" output when it does not.
-date_year=`date '+%Y' 2>/dev/null`
-case $date_year in
-    [0-9][0-9][0-9][0-9]) date_formats=1 ;;
-    *) date_formats=0 ;;
-esac
-
+# entire-world" removes part way through a run), so decide on every call: use
+# the format when it works and say nothing when it does not, falling back to the
+# plain "Thu Oct 8 10:10:36 MDT 2026" output.  (The stock date rejects a format
+# with an error message, which would otherwise appear at every step.)
 stamp() {
-    if [ $date_formats = 1 ]; then
-        date '+%Y-%m-%d %H:%M:%S'
-    else
-        date
-    fi
+    st_fmt=`date '+%Y-%m-%d %H:%M:%S' 2>/dev/null`
+    case $st_fmt in
+        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\ [0-9][0-9]:[0-9][0-9]:[0-9][0-9])
+            echo "$st_fmt"
+        ;;
+        *)
+            date
+        ;;
+    esac
 }
 
 # A file-name-safe date and time, for the log directory.
 stamp_name() {
-    if [ $date_formats = 1 ]; then
-        date '+%Y%m%d-%H%M%S'
-    else
-        set -- `date`
-        sn_mon=$2
-        sn_day=$3
-        sn_time=`echo "$4" | sed 's/://g'`
-        eval sn_year=\${$#}
-        case $sn_day in
-            [0-9]) sn_day=0$sn_day ;;
-        esac
-        echo "$sn_year$sn_mon$sn_day-$sn_time"
-    fi
+    sn_fmt=`date '+%Y%m%d-%H%M%S' 2>/dev/null`
+    case $sn_fmt in
+        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
+            echo "$sn_fmt"
+        ;;
+        *)
+            set -- `date`
+            sn_mon=$2
+            sn_day=$3
+            sn_time=`echo "$4" | sed 's/://g'`
+            eval sn_year=\${$#}
+            case $sn_day in
+                [0-9]) sn_day=0$sn_day ;;
+            esac
+            echo "$sn_year$sn_mon$sn_day-$sn_time"
+        ;;
+    esac
 }
 
 # ---- package sets -----------------------------------------------------------
