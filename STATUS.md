@@ -120,7 +120,7 @@ mpg123 have no SPARC result.
 | unzip | validated | validated 6.0 (rebootstrap, 2026-10-08) |
 | utf8proc | validated | validated (2026-10-10) |
 | vim | validated | validated 9.2.1091 (rebuilt 2026-10-09) |
-| vlc | 0.9.10 validated (runs as root) | — |
+| vlc | 0.9.10 validated (runs as root) | validated (2026-10-10; the i386-only flags and Mach-O subtype fix are skipped, the audio test expects host byte order) |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL) | 1.25.0 validated (2026-10-10) |
 | wget-bootstrap | 1.19.5 validated | validated 1.19.5 (needs the localtime and unsigned-compare fixes; rebootstrap, 2026-10-08) |
 | xxhash | validated (manual build, after replacing `ln -sf`; rebuilt on a fresh host) | validated 0.8.4 (`XXH_FORCE_MEMORY_ACCESS=0`: the default packed-union reads bus-error with gcc 4.2; compiling `xxhash.c` is very slow; rebootstrap, 2026-10-08) |
