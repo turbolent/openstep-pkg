@@ -46,7 +46,7 @@ mpg123 have no SPARC result.
 | coreutils | validated (rebuilt on a host with libiconv installed, iconv off, 2026-10-09) | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt 2026-10-09 against the rebuilt libcrypto: links with the ostep_* routines from libcrypto.a, installs and tests) |
 | diffutils | validated | validated 2.8.1 (2026-10-09) |
-| duktape | validated | — |
+| duktape | validated | validated (2026-10-10; installed archive needs `ranlib`) |
 | emacs | validated | — |
 | expat | validated | validated 2.9.0 (rebootstrap, 2026-10-08) |
 | ffmpeg | validated | — |
