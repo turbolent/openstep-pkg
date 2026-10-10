@@ -13,11 +13,20 @@ TMP=/tmp/pkg-gcc42-$$
 [ -x "$CPP" ]
 [ -x "$GCOV" ]
 
-for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
-    IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
-do
-    [ -f "$ROOT_DIR/usr/local/lib/gcc/i386-next-openstep4/4.2.1/include/driverkit/__next_i386__/$header" ]
-done
+MACHINE=`"$CC" -dumpmachine`
+case "$MACHINE" in
+i386-*) ARCH=i386 ;;
+sparc-*) ARCH=sparc ;;
+*) echo "gcc42: unexpected target $MACHINE"; exit 1 ;;
+esac
+
+if [ "$ARCH" = i386 ]; then
+    for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
+        IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h
+    do
+        [ -f "$ROOT_DIR/usr/local/lib/gcc/$MACHINE/4.2.1/include/driverkit/__next_i386__/$header" ]
+    done
+fi
 
 "$CC" --version | grep '4\.2\.1' >/dev/null 2>&1
 
@@ -198,8 +207,11 @@ int main(void) {
 EOF
 for level in 0 2; do
     "$CC" -O$level -S "$TMP-return.m" -o "$TMP-return.s"
-    if grep 'msgSend.*_stret' "$TMP-return.s" >/dev/null 2>&1 ||
-       grep 'msgSend.*_fpret' "$TMP-return.s" >/dev/null 2>&1; then
+    # The i386 runtime has no stret/fpret entry points (aggregates return via
+    # %ebx); other architectures' runtimes are checked by the link below.
+    if [ "$ARCH" = i386 ] &&
+       { grep 'msgSend.*_stret' "$TMP-return.s" >/dev/null 2>&1 ||
+         grep 'msgSend.*_fpret' "$TMP-return.s" >/dev/null 2>&1; }; then
         echo "gcc42 emitted a Darwin-only Objective-C return messenger"
         exit 1
     fi
