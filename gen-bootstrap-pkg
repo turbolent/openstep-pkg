@@ -480,8 +480,20 @@ chmod 755 "$pkgdir/$pkgname.post_install"
 
 # The archive: paths relative to DefaultLocation, as in OpenWrite.pkg.
 say "compressing the payload"
-( cd "$payload$parent" && tar cf - "$leaf" ) | $COMPRESS > "$pkgdir/$pkgname.tar.Z" ||
+( cd "$payload$parent" && tar cf - "$leaf" ) | $COMPRESS > "$pkgdir/$pkgname.tar.Z" || {
+    # Say what is known: the usual cause is a full disk, and the tools' own
+    # messages scroll past before this one.
+    got=`wc -c < "$pkgdir/$pkgname.tar.Z" 2>/dev/null | sed 's/ //g'`
+    payload_k=`cd "$payload$parent" && du -sk "$leaf" | sed 's/[^0-9].*//'`
+    echo "gen-bootstrap-pkg: the compressed archive stopped at ${got:-0} bytes; the payload is ${payload_k}K" >&2
+    echo "gen-bootstrap-pkg: free space where $pkgdir is (the archive needs roughly half the payload):" >&2
+    df "$pkgdir" >&2 || :
+    echo "gen-bootstrap-pkg: everything is written under the output directory ($out).  If the disk is full," >&2
+    echo "gen-bootstrap-pkg: free space or use a bigger disk; the finished binary packages are kept and can be reused" >&2
+    echo "gen-bootstrap-pkg: without compiling anything:  sh gen-bootstrap-pkg --out BIGGERDIR --binpkg-dir $out/binpkgs" >&2
+    echo "gen-bootstrap-pkg: to see the tools' own message: ( cd $payload$parent && tar cf - $leaf ) | $COMPRESS > /dev/null" >&2
     die "could not write $pkgname.tar.Z"
+}
 
 # The bill of materials, of the tree as it will be installed.
 say "making the bill of materials"
