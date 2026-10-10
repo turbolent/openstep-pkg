@@ -102,7 +102,7 @@ mpg123 have no SPARC result.
 | p7zip | validated | — |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
-| perl | validated | validated 5.8.9 (rebuilt with the unsigned memcmp, 2026-10-09) |
+| perl | validated 5.8.9 (rebuilt on messer 2026-10-10, tests pass; the first make has bus-errored in ext/Encode on every clean build there, `perl/build` now retries it once, cause unknown) | validated 5.8.9 (rebuilt with the unsigned memcmp, 2026-10-09) |
 | pkgconf | validated on x86 (3.0.7: build, install, test; replaces pkg-config 0.29) | validated 3.0.7 (rebootstrap, 2026-10-08) |
 | python311 | validated | validated 3.11.17 (rebootstrap, 2026-10-08) |
 | quake2 | validated (content-free dedicated-server startup test; no game data) | — |
