@@ -16,8 +16,9 @@ cat > fixture.c <<'EOF'
 #include <string.h>
 int main(int argc, char **argv)
 {
-    FILE *f, *reference;
-    int n, x, y, c;
+    FILE *f, *reference, *expected;
+    int n, x, y, c, big;
+    unsigned short probe = 1;
     long bytes = 0;
     if (argc > 2 && !strcmp(argv[1], "run")) {
         /* Bound each player check even if a native wait regresses. */
@@ -45,14 +46,27 @@ int main(int argc, char **argv)
             for (x = 0; x < 32; ++x) fputc(64+x+y, f);
     }
     assert(!ferror(f)); assert(fclose(f) == 0);
+    /* input.pcm is little-endian (it is read with -f s16le), but VLC's file
+       audio output writes "s16" in the host's byte order, so the expected
+       output is the same samples in the host's order. */
+    big = *(unsigned char *)&probe == 0;
     f = fopen("input.pcm", "wb"); assert(f);
+    expected = fopen("expected.pcm", "wb"); assert(expected);
     for (n = 0; n < 4096; ++n) {
         unsigned left = (unsigned)(n*31%20000-10000) & 65535;
         unsigned right = (unsigned)(10000-n*29%20000) & 65535;
         fputc(left & 255, f); fputc(left >> 8, f);
         fputc(right & 255, f); fputc(right >> 8, f);
+        if (big) {
+            fputc(left >> 8, expected); fputc(left & 255, expected);
+            fputc(right >> 8, expected); fputc(right & 255, expected);
+        } else {
+            fputc(left & 255, expected); fputc(left >> 8, expected);
+            fputc(right & 255, expected); fputc(right >> 8, expected);
+        }
     }
     assert(!ferror(f)); assert(fclose(f) == 0);
+    assert(!ferror(expected)); assert(fclose(expected) == 0);
     return 0;
 }
 EOF
@@ -85,7 +99,7 @@ player --no-audio --sout "#transcode{vcodec=I420}:std{access=file,mux=raw,dst=$T
 convert -y -f s16le -ar 44100 -ac 2 -i input.pcm -acodec pcm_s16le audio.wav
 player --no-video --aout file --audiofile-format=s16 --audiofile-channels=2 \
     --no-audiofile-wav --audiofile-file="$TMP/output.pcm" audio.wav vlc://quit
-cmp input.pcm output.pcm
+cmp expected.pcm output.pcm
 player --no-audio --no-osd --no-video-title-show --vout image --image-out-ratio=1 \
     --image-out-prefix="$TMP/frame" video.avi vlc://quit
 test -s frame000000.png
