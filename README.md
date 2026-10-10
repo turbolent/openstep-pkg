@@ -387,11 +387,13 @@ sh ./gen-bootstrap-pkg --ref v1.0 --tree-dir /usr/local/openstep-pkg
 1. It archives the ref with `git archive`, so the tree is pristine (uncommitted changes are not
    in it; it says so) and includes `pkg`, `pkg-missing`, `pkg-world`, `gen-bootstrap-pkg` and
    every package directory.
-2. It builds binary packages (`pkg binpkg`) of `ca-certificates`, `curl`, `gcc42`, `cctools-as` (i386
-   only, from its `arch` file) and `git`, from that archived tree, installing whatever they need on
-   the build machine as `pkg binpkg` does.  `curl` is the downloader `pkg` prefers, and it (a static
-   binary) needs the CA bundle from `ca-certificates` to verify HTTPS, which `--no-deps` would not
-   otherwise bring along.  `--packages "a b"` changes the list, `--binpkg-dir DIR`
+2. It builds binary packages (`pkg binpkg`) of `ca-certificates`, `openssl`, `curl`, `gcc42`,
+   `cctools-as` (i386 only, from its `arch` file) and `git`, from that archived tree, installing
+   whatever they need on the build machine as `pkg binpkg` does.  `curl` is the downloader `pkg`
+   prefers; it (a static binary) needs the CA bundle from `ca-certificates` to verify HTTPS, which
+   `--no-deps` would not otherwise bring along.  `openssl` supplies the `openssl` tool `pkg` uses
+   to check SHA-256 sums on a machine with no `sha256sum`, and is a long compile that much of the
+   tree depends on, so it ships prebuilt (the slowest machines, SPARC and later m68k, gain most).  `--packages "a b"` changes the list, `--binpkg-dir DIR`
    reuses binary packages already built, `--no-binpkgs` leaves them out.
 3. It adds `bootstrap/install-bootstrap`, which installs those with `pkg --no-deps installpkg`
    (their dependencies are mostly needed to build them, not to run them), and makes the `.pkg`

@@ -7,9 +7,10 @@
 # nothing uncommitted or untracked gets in):
 #
 #   1. binary packages (pkg binpkg) of the packages a bare machine needs before
-#      it can build anything: ca-certificates and curl (a downloader that can
-#      verify HTTPS), gcc42, cctools-as (i386 only, per its arch file) and git,
-#      built from the archived tree itself;
+#      it can build anything: ca-certificates, openssl (a long compile that
+#      much depends on, and the SHA-256 tool pkg needs), curl (a downloader that
+#      can verify HTTPS), gcc42, cctools-as (i386 only, per its arch file) and
+#      git, built from the archived tree itself;
 #   2. a payload: the whole tree (pkg, pkg-missing, pkg-world, the package
 #      directories) at TREE_DIR, with the binary packages under
 #      TREE_DIR/bootstrap/binpkgs and TREE_DIR/bootstrap/install-bootstrap, the
@@ -29,7 +30,8 @@
 #   --version V      version for the file names (default: git describe of REF)
 #   --out DIR        where the results go (default ./bootstrap-out)
 #   --packages "A B" packages to make binary packages of, in install order
-#                    (default: ca-certificates curl gcc42 cctools-as git)
+#                    (default: ca-certificates openssl curl gcc42
+#                    cctools-as git)
 #   --binpkg-dir DIR use the binary packages already in DIR instead of
 #                    building them
 #   --no-binpkgs     leave the binary packages out (a tree-only payload; for
@@ -88,7 +90,7 @@ ref=HEAD
 tree_dir=${GEN_BOOTSTRAP_TREE_DIR-/usr/local/openstep-pkg}
 version=
 out=bootstrap-out
-packages="ca-certificates curl gcc42 cctools-as git"
+packages="ca-certificates openssl curl gcc42 cctools-as git"
 binpkg_dir=
 make_binpkgs=1
 payload_only=0
