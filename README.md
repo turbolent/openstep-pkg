@@ -589,6 +589,8 @@ gnumake install DESTDIR="$DESTDIR"
 
 - `sh ./pkg test <name>` runs the installed copy from `/usr/local/var/pkg/db/installed/<name>/test`
 - the package must already be installed
+- because the installed copy is what runs, a corrected `test` in the tree does not take effect until the package is
+  reinstalled; to try it first, copy it over `/usr/local/var/pkg/db/installed/<name>/test`
 - `PKG_NAME`, `PKG_VERSION`, `ROOT_DIR`, and `LOCAL_ROOT` are exported for the script
 - `PATH` is prefixed with `$LOCAL_ROOT/bin:$LOCAL_ROOT/sbin`
 
