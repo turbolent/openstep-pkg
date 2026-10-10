@@ -708,6 +708,15 @@ $CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
 LIBS="-L`pwd` -lopenstepntp"
 ac_cv_func_arc4random_buf=yes
 export LIBS ac_cv_func_arc4random_buf
+# On SPARC <netinfo/ni.h> does not declare ni_id and friends under the flags
+# ntp is built with, so the NetInfo configuration lookup in ntpd/ntp_config.c
+# fails to compile ("static declaration of free_netinfo_config follows
+# non-static", "unknown storage size").  ntpd reads its configuration file
+# anyway; leave NetInfo out there.
+if test "$PKG_ARCH" = sparc; then
+    ac_cv_header_netinfo_ni_h=no
+    export ac_cv_header_netinfo_ni_h
+fi
 
 run_configure --prefix=/usr/local --sysconfdir=/usr/local/etc \
     --build=$PKG_TARGET --host=$PKG_TARGET \
