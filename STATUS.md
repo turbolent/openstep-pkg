@@ -89,7 +89,7 @@ mpg123 have no SPARC result.
 | m4 | validated | validated 1.4.6 (rebootstrap, 2026-10-08) |
 | make | validated (built with the system cc) | validated 3.81 (built with the system cc; rebootstrap, 2026-10-08) |
 | mktemp | validated | validated 1.7 (rebootstrap, 2026-10-08) |
-| mpg123 | validated (1.33.7, with private stdint.h/inttypes.h shims; rebuilt on a fresh host) | — |
+| mpg123 | validated (1.33.7, with private stdint.h/inttypes.h shims; rebuilt on a fresh host) | validated (2026-10-10) |
 | nano | validated | validated 2.9.8 |
 | ncurses | validated | validated 6.5 (rebootstrap, 2026-10-08) |
 | nethack | validated (tty and X11) | validated 3.6.7 (`pkg test` passes, game starts; a stray "pkg: Stock: not found" after the install was a script replaced mid-run, fixed in pkg; rebootstrap, 2026-10-08) |
