@@ -48,3 +48,6 @@ cp duk "$DESTDIR/usr/local/bin/duk"
 cp src/duktape.h "$DESTDIR/usr/local/include/duktape.h"
 cp src/duk_config.h "$DESTDIR/usr/local/include/duk_config.h"
 cp libduktape.a "$DESTDIR/usr/local/lib/libduktape.a"
+# Copying the archive makes it newer than its table of contents; ld then
+# rejects it ("out of date; rerun ranlib").
+"$RANLIB" "$DESTDIR/usr/local/lib/libduktape.a"
