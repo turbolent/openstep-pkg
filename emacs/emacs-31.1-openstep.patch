@@ -3769,3 +3769,27 @@ index 7415ba7..029228f 100644
    ctx->header.hash_list = ctx->offset;
    dump_hash_table_list (ctx);
  
+diff --git a/src/pdumper.c b/src/pdumper.c
+index 029228f..ff28034 100644
+--- a/src/pdumper.c
++++ b/src/pdumper.c
+@@ -4849,10 +4849,17 @@ dump_mmap_contiguous_heap (struct dump_memory_map *maps, int nr_maps,
+   __lsan_ignore_object (cb);
+ 
+   cb->refcount = 1;
+-  cb->mem = malloc (total_size);
++  /* malloc need not return memory suitably aligned for Lisp objects (on
++     OPENSTEP/SPARC Emacs's allocator hands out blocks that are only 4-byte
++     aligned, and the dump's 64-bit Lisp_Objects then fault).  Over-allocate
++     and align the base of the dump ourselves; CB->MEM stays the pointer to
++     free.  */
++  enum { HEAP_DUMP_ALIGNMENT = 64 };
++  cb->mem = malloc (total_size + HEAP_DUMP_ALIGNMENT);
+   if (!cb->mem)
+     goto out;
+-  char *mem = cb->mem;
++  char *mem = (char *) (((uintptr_t) cb->mem + HEAP_DUMP_ALIGNMENT - 1)
++			& ~(uintptr_t) (HEAP_DUMP_ALIGNMENT - 1));
+   for (int i = 0; i < nr_maps; ++i)
+     {
+       struct dump_memory_map *map = &maps[i];
