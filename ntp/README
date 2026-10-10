@@ -34,3 +34,16 @@ or, when the clock cannot be set:
 
 It returns 0 when the clock was set and ntpd is running, and 1 otherwise.  Run twice, it
 reports that ntpd is already running.  pkg does not edit /etc/rc or /etc/rc.local.
+
+Testing
+-------
+
+"pkg test ntp" checks that the programs run and report 4.2.8, that ntpdate has a way
+to set the clock linked in (without touching the clock), and that ntpdate can query real
+NTP servers (ntpdate -q against 0-2.pool.ntp.org and time.nist.gov; it only asks for the
+time and never changes the clock).
+
+The last check needs internet access and working DNS.  On a closed network it is EXPECTED
+TO FAIL; set PKG_TEST_NTP_OFFLINE=1 to skip that one check and still run the others:
+
+    PKG_TEST_NTP_OFFLINE=1 pkg test ntp

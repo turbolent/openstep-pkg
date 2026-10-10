@@ -15,5 +15,51 @@ done
 "$PREFIX/bin/ntpq" --version 2>&1 | grep '4\.2\.8' > /dev/null
 "$PREFIX/bin/ntpdc" --version 2>&1 | grep '4\.2\.8' > /dev/null
 
+# ntpdate must be able to set the clock.  Which method it uses is decided by
+# configure; if none was found, ntp_set_tod() fails with errno 0 and ntpdate
+# reports "step-systime: error 0".  Check that one is linked in (this does not
+# touch the clock).  A stripped binary has no symbols to look at; skip then.
+nt_syms=`nm "$PREFIX/bin/ntpdate" 2>/dev/null`
+if [ -n "$nt_syms" ]; then
+    case $nt_syms in
+        *settimeofday*|*clock_settime*|*_stime*)
+        ;;
+        *)
+            echo "ntp: ntpdate links no way to set the clock (settimeofday/clock_settime/stime)" >&2
+            exit 1
+        ;;
+    esac
+fi
+
+# Ask real NTP servers for the time.  ntpdate -q only queries: it never changes
+# the clock, needs no privileges, and -u uses an unprivileged port so it also
+# works while an ntpd is running.  One answering server is enough.
+#
+# This test needs a route to the internet and working DNS.  On a closed
+# network it is EXPECTED TO FAIL; set PKG_TEST_NTP_OFFLINE=1 to skip just this
+# part (the checks above and below still run).
+if [ "${PKG_TEST_NTP_OFFLINE-0}" = 1 ]; then
+    echo "ntp: PKG_TEST_NTP_OFFLINE=1: not querying any public NTP server" >&2
+else
+    nt_got=
+    for nt_server in 0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org time.nist.gov; do
+        nt_out=`"$PREFIX/bin/ntpdate" -q -u -t 5 $nt_server 2>&1` || :
+        case $nt_out in
+            *stratum*offset*)
+                nt_got=$nt_server
+                break
+            ;;
+        esac
+    done
+    if [ -z "$nt_got" ]; then
+        echo "ntp: ntpdate got no answer from 0-2.pool.ntp.org or time.nist.gov." >&2
+        echo "ntp: this test needs internet access and DNS; on a closed network it is" >&2
+        echo "ntp: expected to fail (PKG_TEST_NTP_OFFLINE=1 skips it)." >&2
+        echo "ntp: last output: $nt_out" >&2
+        exit 1
+    fi
+    echo "ntp: ntpdate -q got an answer from $nt_got"
+fi
+
 # ntpd must not have replaced anything outside /usr/local.
 [ ! -e "$PREFIX/etc/ntp.conf" ] || echo "ntp: note: $PREFIX/etc/ntp.conf exists (administrator's)" >&2
