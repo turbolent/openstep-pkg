@@ -23,6 +23,16 @@ patch -p1 < "perl-$VERSION-openstep.patch"
     -Uusedl -Duseshrplib=false -Dd_mmap=undef \
     -Dldflags='-Wl,-prebind' \
     -Dccflags='-fno-common -DUSE_NEXT_CTYPE -DUSE_PERL_SBRK -DNX_CURRENT_COMPILER_RELEASE=400 -DNS_TARGET_MAJOR=4'
-/bin/gnumake
+# On x86 the first run of ext/Encode's enc2xs under this make has died with a
+# bus error (make status 138) although the very same command passes when the
+# make is repeated in the kept tree.  Record the environment so the failure can
+# be reproduced by hand, and give the make one more try.
+if /bin/gnumake; then :; else
+    echo "perl: make failed; the environment and limits it ran with:"
+    ulimit -a 2>&1
+    /usr/bin/env 2>&1
+    echo "perl: running make once more"
+    /bin/gnumake
+fi
 /bin/gnumake install DESTDIR="$DESTDIR"
 /bin/ranlib "$DESTDIR/usr/local/lib/perl5/$VERSION/OPENSTEP-Mach/CORE/libperl.a"
