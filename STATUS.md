@@ -67,7 +67,7 @@ mpg123 have no SPARC result.
 | liba52 | validated | validated 0.7.4 (rebootstrap, 2026-10-08) |
 | libcss | validated | validated 0.9.2 (2026-10-09) |
 | libdom | validated | validated 0.4.2 (2026-10-09) |
-| libgcrypt | 1.5.6 validated | — |
+| libgcrypt | 1.5.6 validated | validated 1.5.6 (2026-10-10; needs `-D__sparc_v8__` for the V8 udiv/umul in mpi) |
 | libgpg-error | 1.12 validated | validated 1.12 (2026-10-09) |
 | libhubbub | validated | validated 0.3.8 (2026-10-09) |
 | libiconv | validated | validated 1.15 (rebootstrap, 2026-10-08) |
@@ -76,16 +76,16 @@ mpg123 have no SPARC result.
 | libnsbmp | validated | validated 0.1.7 (2026-10-09) |
 | libnsfb | validated | validated 0.2.2 (2026-10-09) |
 | libnsgif | validated | — |
-| libnslog | validated | — |
+| libnslog | validated | validated (2026-10-10) |
 | libnsutils | validated | validated 0.1.1 (2026-10-09) |
 | libparserutils | validated | validated 0.2.5 (rebootstrap, 2026-10-08) |
 | libpng | validated | validated 1.6.59 (2026-10-09) |
 | libsvgtiny | validated | validated 0.1.8 (2026-10-09) |
 | libwapcaplet | validated | validated 0.4.3 (rebootstrap, 2026-10-08) |
 | libxml2 | validated on x86 (2.15.4: build, install, test) | validated 2.15.4 (2026-10-09) |
-| lua | validated | — |
-| lua51 | 5.1.5 validated | — |
-| lz4 | validated | — |
+| lua | validated | validated (2026-10-10) |
+| lua51 | 5.1.5 validated | validated 5.1.5 (2026-10-10) |
+| lz4 | validated | validated (2026-10-10) |
 | m4 | validated | validated 1.4.6 (rebootstrap, 2026-10-08) |
 | make | validated (built with the system cc) | validated 3.81 (built with the system cc; rebootstrap, 2026-10-08) |
 | mktemp | validated | validated 1.7 (rebootstrap, 2026-10-08) |
@@ -99,17 +99,17 @@ mpg123 have no SPARC result.
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | validated 10.6p1 (2026-10-09; builds and passes its tests, against the rebuilt libcrypto; needed `PICFLAG=` since the SPARC assembler cannot relocate the position-independent code that openbsd-compat is otherwise compiled as) |
 | openssl | validated | validated 1.1.1w (rebuilt 2026-10-09 with the unsigned memcmp via pkg_cmp_named, which fixed OID lookups by DER bytes: SHA1, AES, SHA-2, secp384r1 and others had failed; the broadened `pkg test` passes: OIDs, digests, EC keys, signatures, chains, AES). The original failure is fixed: a secp384r1 key now round-trips through `openssl ec -pubout`. curl and openssh rebuilt against it link and pass their tests. Still to check on SPARC: `oidtest` recompiled (an old binary carries the old static library) |
-| p7zip | validated | — |
+| p7zip | validated | validated (2026-10-10) |
 | patch | validated | validated 2.6.1 (rebootstrap, 2026-10-08) |
 | pdksh | validated | validated 5.2.14 (rebootstrap, 2026-10-08) |
 | perl | validated 5.8.9 (rebuilt on messer 2026-10-10, tests pass; the first make has bus-errored in ext/Encode on every clean build there, `perl/build` now retries it once, cause unknown) | validated 5.8.9 (rebuilt with the unsigned memcmp, 2026-10-09) |
 | pkgconf | validated on x86 (3.0.7: build, install, test; replaces pkg-config 0.29) | validated 3.0.7 (rebootstrap, 2026-10-08) |
 | python311 | validated | validated 3.11.17 (rebootstrap, 2026-10-08) |
-| quake2 | validated (content-free dedicated-server startup test; no game data) | — |
+| quake2 | validated (content-free dedicated-server startup test; no game data) | validated (2026-10-10; content-free dedicated-server startup test) |
 | quickjs | validated | validated 2025-09-13-2 (2026-10-09) |
 | roboclient | validated (1.1 with `rc.dhcp` installs and tests clean on x86) | validated 1.1 (2026-10-09) |
 | rsync | validated | — |
-| sdl12 | validated | — |
+| sdl12 | validated | validated (2026-10-10; per-arch cc flags instead of a hardcoded -m486) |
 | sed | validated | validated 4.0.9 (with pkg_cmp_shim; rebootstrap, 2026-10-08) |
 | sudo | validated | validated 1.7.10p9 (2026-10-09) |
 | tar | 1.15.1 validated | validated 1.15.1 (rebootstrap, 2026-10-08) |
@@ -118,7 +118,7 @@ mpg123 have no SPARC result.
 | texinfo | validated | validated 4.8 (rebootstrap, 2026-10-08) |
 | top | validated | validated 3.6.1 (2026-10-09; needed work: the SPARC kernel refuses the `utask` read through /dev/kmem that holds the command name, so reads are non-fatal and names come from one `ps -axc` snapshot per refresh; the process list matches the x86 one; the earlier SPARC result was only an install) |
 | unzip | validated | validated 6.0 (rebootstrap, 2026-10-08) |
-| utf8proc | validated | — |
+| utf8proc | validated | validated (2026-10-10) |
 | vim | validated | validated 9.2.1091 (rebuilt 2026-10-09) |
 | vlc | 0.9.10 validated (runs as root) | — |
 | wget | 1.25.0 validated on x86 (HTTPS via OpenSSL; SPARC untested) | 1.25.0 untested |
@@ -143,7 +143,6 @@ mpg123 have no SPARC result.
 - **termcap** never installs `/etc/termcap`.
 - **bash** is 5.3, built with `-DGETCWD_BROKEN` and a compat patch for
   `waitpid`, `tcgetattr` and friends.
-- **perl** (5.8.9) on SPARC is waiting on a first full build.
 - **ntp** is 4.2.8p18 (ntpsec needs pthreads, which OPENSTEP lacks); `ntpd`
   installs into `sbin` and a default `ntpd.conf` is copied into place only if
   none exists.
