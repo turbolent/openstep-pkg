@@ -29,8 +29,8 @@ patch -p1 < "perl-$VERSION-openstep.patch"
 # be reproduced by hand, and give the make one more try.
 if /bin/gnumake; then :; else
     echo "perl: make failed; the environment and limits it ran with:"
-    ulimit -a 2>&1
-    /usr/bin/env 2>&1
+    ulimit -a 2>&1 || :
+    export 2>&1 || :
     echo "perl: running make once more"
     /bin/gnumake
 fi
