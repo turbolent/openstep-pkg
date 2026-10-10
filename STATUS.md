@@ -41,7 +41,7 @@ mpg123 have no SPARC result.
 | bison | validated | validated 2.4.3 (rebootstrap, 2026-10-08) |
 | bzip2 | validated | validated 1.0.8 (rebootstrap, 2026-10-08) |
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
-| cctools-as | 806 validated | — |
+| cctools-as | 806 validated (reinstalled on messer 2026-10-10) | — |
 | class-dump | validated | validated (2026-10-10; builds with `-arch $PKG_ARCH`) |
 | coreutils | validated (rebuilt on a host with libiconv installed, iconv off, 2026-10-09) | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt 2026-10-09 against the rebuilt libcrypto: links with the ostep_* routines from libcrypto.a, installs and tests) |
@@ -49,15 +49,15 @@ mpg123 have no SPARC result.
 | duktape | validated | validated (2026-10-10; installed archive needs `ranlib`) |
 | emacs | validated | validated (2026-10-10; needed the pdumper alignment fixes for the 64-bit wide-int Lisp_Object, and a SPARC `netinet/in.h` big-endian branch) |
 | expat | validated | validated 2.9.0 (rebootstrap, 2026-10-08) |
-| ffmpeg | validated | validated (2026-10-10) |
-| findutils | validated | validated 4.2.33 |
+| ffmpeg | validated (reinstalled on messer 2026-10-10, after curl stopped using zstd) | validated (2026-10-10) |
+| findutils | validated | validated 4.2.33 (2026-10-10; unsigned memcmp/strcmp linked in with `pkg_cmp_obj`) |
 | flex | validated | validated 2.5.39 (rebootstrap, 2026-10-08) |
 | freetype | validated | validated 2.14.3 (2026-10-09) |
 | freeze | validated | validated 2.5 (rebootstrap, 2026-10-08) |
 | fribidi | 0.19.7 validated | validated 0.19.7 (2026-10-09) |
 | gawk | validated | validated 3.1.8 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gcc42 | validated | validated 4.2.1-apple-5666.3 (port; bootstraps, compare passes, `pkg test` passes; clean rebuild on a rebootstrapped host, 2026-10-08) |
-| git | validated | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
+| git | validated (reinstalled on messer 2026-10-10, after curl stopped using zstd) | validated 2.55.0 (needs the unsigned memcmp/strcmp fix and -O0) |
 | gperf | validated | validated 3.3 (2026-10-09) |
 | grep | validated | validated 2.5.4 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | gzip | validated | validated 1.3.12 (rebootstrap, 2026-10-08) |
@@ -67,11 +67,11 @@ mpg123 have no SPARC result.
 | liba52 | validated | validated 0.7.4 (rebootstrap, 2026-10-08) |
 | libcss | validated | validated 0.9.2 (2026-10-09) |
 | libdom | validated | validated 0.4.2 (2026-10-09) |
-| libgcrypt | 1.5.6 validated | validated 1.5.6 (2026-10-10; needs `-D__sparc_v8__` for the V8 udiv/umul in mpi) |
+| libgcrypt | 1.5.6 validated (reinstalled on messer 2026-10-10) | validated 1.5.6 (2026-10-10; needs `-D__sparc_v8__` for the V8 udiv/umul in mpi) |
 | libgpg-error | 1.12 validated | validated 1.12 (2026-10-09) |
 | libhubbub | validated | validated 0.3.8 (2026-10-09) |
 | libiconv | validated | validated 1.15 (rebootstrap, 2026-10-08) |
-| libmad | validated | validated 0.15.1b (2026-10-09) |
+| libmad | validated (reinstalled on messer 2026-10-10; `VERSION` is exported to the build) | validated 0.15.1b (2026-10-09) |
 | libmpeg2 | validated | validated (2026-10-10) |
 | libnsbmp | validated | validated 0.1.7 (2026-10-09) |
 | libnsfb | validated | validated 0.2.2 (2026-10-09) |
@@ -82,7 +82,7 @@ mpg123 have no SPARC result.
 | libpng | validated | validated 1.6.59 (2026-10-09) |
 | libsvgtiny | validated | validated 0.1.8 (2026-10-09) |
 | libwapcaplet | validated | validated 0.4.3 (rebootstrap, 2026-10-08) |
-| libxml2 | validated on x86 (2.15.4: build, install, test) | validated 2.15.4 (2026-10-09) |
+| libxml2 | validated on x86 (2.15.4: build, install, test; reinstalled on messer 2026-10-10, LZMA test case dropped with 2.15) | validated 2.15.4 (2026-10-09) |
 | lua | validated | validated (2026-10-10) |
 | lua51 | 5.1.5 validated | validated 5.1.5 (2026-10-10) |
 | lz4 | validated | validated (2026-10-10) |
