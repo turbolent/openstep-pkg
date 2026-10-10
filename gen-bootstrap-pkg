@@ -7,8 +7,9 @@
 # nothing uncommitted or untracked gets in):
 #
 #   1. binary packages (pkg binpkg) of the packages a bare machine needs before
-#      it can build anything: wget-bootstrap, gcc42, cctools-as (i386 only, per
-#      its arch file) and git, built from the archived tree itself;
+#      it can build anything: ca-certificates and curl (a downloader that can
+#      verify HTTPS), gcc42, cctools-as (i386 only, per its arch file) and git,
+#      built from the archived tree itself;
 #   2. a payload: the whole tree (pkg, pkg-missing, pkg-world, the package
 #      directories) at TREE_DIR, with the binary packages under
 #      TREE_DIR/bootstrap/binpkgs and TREE_DIR/bootstrap/install-bootstrap, the
@@ -18,7 +19,7 @@
 #
 # It runs on an OPENSTEP build machine of the architecture being packaged
 # (binary packages are per architecture), with git and gzip installed.  It
-# builds and installs what the four packages need on this machine, as
+# builds and installs what these packages need on this machine, as
 # "pkg binpkg" does.
 #
 # options:
@@ -28,7 +29,7 @@
 #   --version V      version for the file names (default: git describe of REF)
 #   --out DIR        where the results go (default ./bootstrap-out)
 #   --packages "A B" packages to make binary packages of, in install order
-#                    (default: wget-bootstrap gcc42 cctools-as git)
+#                    (default: ca-certificates curl gcc42 cctools-as git)
 #   --binpkg-dir DIR use the binary packages already in DIR instead of
 #                    building them
 #   --no-binpkgs     leave the binary packages out (a tree-only payload; for
@@ -67,7 +68,11 @@
 # formats), apart from git and the tools the packages themselves need.
 
 usage() {
-    sed -n '2,72p' "$0" | sed 's/^# \{0,1\}//'
+    # (up to the first line that is not a comment)
+    sed -n '2,${
+/^#/!q
+p
+}' "$0" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -83,7 +88,7 @@ ref=HEAD
 tree_dir=${GEN_BOOTSTRAP_TREE_DIR-/usr/local/openstep-pkg}
 version=
 out=bootstrap-out
-packages="wget-bootstrap gcc42 cctools-as git"
+packages="ca-certificates curl gcc42 cctools-as git"
 binpkg_dir=
 make_binpkgs=1
 payload_only=0
