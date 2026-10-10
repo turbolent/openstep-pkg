@@ -25,7 +25,10 @@ CHARSET=ASCII
 export CHARSET
 export PATH CC CXX CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS CONFIG_SHELL AWK GREP EGREP
 if test -d "vlc-$VERSION"; then cd "vlc-$VERSION"; fi
-patch -p1 < "vlc-$VERSION-openstep.patch"
+# PKG_RESUME=1 reuses a kept tree, which is patched already.
+if test ! -f modules/gui/openstep-check.sh; then
+    patch -p1 < "vlc-$VERSION-openstep.patch"
+fi
 . "$PKG_BUILD_HELPERS"
 # The patch's check scripts were written for i386: they hard-code -march=i486,
 # and openstep-fix-macho.sh rewrites the CPU subtype of a little-endian i386
