@@ -72,7 +72,7 @@ mpg123 have no SPARC result.
 | libhubbub | validated | validated 0.3.8 (2026-10-09) |
 | libiconv | validated | validated 1.15 (rebootstrap, 2026-10-08) |
 | libmad | validated | validated 0.15.1b (2026-10-09) |
-| libmpeg2 | validated | — |
+| libmpeg2 | validated | validated (2026-10-10) |
 | libnsbmp | validated | validated 0.1.7 (2026-10-09) |
 | libnsfb | validated | validated 0.2.2 (2026-10-09) |
 | libnsgif | validated | validated (2026-10-10) |
