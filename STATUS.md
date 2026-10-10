@@ -42,7 +42,7 @@ mpg123 have no SPARC result.
 | bzip2 | validated | validated 1.0.8 (rebootstrap, 2026-10-08) |
 | ca-certificates | validated | validated 2026.09.25 (rebootstrap, 2026-10-08) |
 | cctools-as | 806 validated | — |
-| class-dump | validated | — |
+| class-dump | validated | validated (2026-10-10; builds with `-arch $PKG_ARCH`) |
 | coreutils | validated (rebuilt on a host with libiconv installed, iconv off, 2026-10-09) | validated 5.0 (rebuilt with the unsigned memcmp via pkg_cmp_obj, 2026-10-08) |
 | curl | validated | validated 8.17.0 (rebuilt 2026-10-09 against the rebuilt libcrypto: links with the ostep_* routines from libcrypto.a, installs and tests) |
 | diffutils | validated | validated 2.8.1 (2026-10-09) |
