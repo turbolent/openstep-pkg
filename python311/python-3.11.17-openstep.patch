@@ -1993,3 +1993,54 @@ new file mode 100644
  #    define XML_ATTR_DEPRECATED(message)                                       \
        __attribute__((__deprecated__(message)))
  #  elif defined(_MSC_VER)
+diff --git a/Python/pymath.c b/Python/pymath.c
+index c874c82..98b3e7b 100644
+--- a/Python/pymath.c
++++ b/Python/pymath.c
+@@ -34,3 +34,46 @@ round(double x)
+     return copysign(integral, x);
+ }
+ #endif
++
++#if defined(NeXT) && (defined(__sparc__) || defined(__sparc) || defined(sparc))
++/* The SPARC libm's ldexp() returns 0 whenever the result is subnormal, so
++   float.fromhex('0x0.0000000000001p-1022'), math.ldexp(1.0, -1074) and
++   everything built on them lose the subnormal range (the hardware is fine).
++   Scale by powers of two built from their bit patterns, in steps that leave
++   the final multiplication as the only rounding in the subnormal range. */
++static double
++openstep_pow2(int n)
++{
++    union { double d; unsigned long long i; } u;
++    u.i = (unsigned long long) (0x3ff + n) << 52;
++    return u.d;
++}
++
++double
++ldexp(double x, int n)
++{
++    double y = x;
++
++    if (n > 1023) {
++        y *= openstep_pow2(1023);
++        n -= 1023;
++        if (n > 1023) {
++            y *= openstep_pow2(1023);
++            n -= 1023;
++            if (n > 1023)
++                n = 1023;
++        }
++    }
++    else if (n < -1022) {
++        y *= openstep_pow2(-1022 + 53);
++        n += 1022 - 53;
++        if (n < -1022) {
++            y *= openstep_pow2(-1022 + 53);
++            n += 1022 - 53;
++            if (n < -1022)
++                n = -1022;
++        }
++    }
++    return y * openstep_pow2(n);
++}
++#endif
