@@ -723,6 +723,10 @@ do
     /bin/sed 's|^#define HAVE_MEMORY_H 1|/* #undef HAVE_MEMORY_H */|' "$cfg" > "$cfg.new"
     /bin/mv "$cfg.new" "$cfg"
 done
+# libopts includes <memory.h> unconditionally; <string.h> follows it.
+/bin/sed 's|^#include <memory.h>|/* #include <memory.h> */|' \
+    sntp/libopts/compat/compat.h > sntp/libopts/compat/compat.h.new
+/bin/mv sntp/libopts/compat/compat.h.new sntp/libopts/compat/compat.h
 # Leave the libevent tearoff unbuilt (see above).
 /bin/sed 's|cd $(top_builddir)/sntp/libevent && $(MAKE) $(AM_MAKEFLAGS)|: libevent is not needed|' \
     libntp/Makefile > libntp/Makefile.new
