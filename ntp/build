@@ -719,7 +719,14 @@ $CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
 /bin/ranlib libopenstepntp.a
 LIBS="-L`pwd` -lopenstepntp"
 ac_cv_func_arc4random_buf=yes
-export LIBS ac_cv_func_arc4random_buf
+# configure's link tests declare each function themselves, which clashes with
+# the prototypes the forced header drags in (the same thing happened with
+# setrlimit).  A failed settimeofday check leaves ntp with no way to set the
+# clock at all: ntpdate then reports "step-systime: error 0" (ntp_set_tod
+# fails with errno still 0) and ntpd cannot step.  OPENSTEP has both, so say so.
+ac_cv_func_settimeofday=yes
+ac_cv_func_adjtime=yes
+export LIBS ac_cv_func_arc4random_buf ac_cv_func_settimeofday ac_cv_func_adjtime
 # On SPARC <netinfo/ni.h> does not declare ni_id and friends under the flags
 # ntp is built with, so the NetInfo configuration lookup in ntpd/ntp_config.c
 # fails to compile ("static declaration of free_netinfo_config follows
