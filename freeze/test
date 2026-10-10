@@ -1,0 +1,46 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+PATH="$PREFIX/bin:/usr/ucb:/bin:/usr/bin"
+export PATH
+WORK=/tmp/pkg-freeze.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"' 0 1 2 3 15
+cd "$WORK"
+
+[ -x "$PREFIX/bin/freeze" ]
+[ -x "$PREFIX/bin/melt" ]
+[ -x "$PREFIX/bin/unfreeze" ]
+[ -x "$PREFIX/bin/fcat" ]
+[ -x "$PREFIX/bin/statist" ]
+
+# Compressible text, a few KB, so the Lempel-Ziv and Huffman stages both work.
+i=0
+: > input
+while [ $i -lt 300 ]; do
+    printf 'OPENSTEP freeze round trip, line %d: the quick brown fox\n' "$i" >> input
+    i=`expr $i + 1`
+done
+cp input original
+freeze input
+[ -f input.F ]
+[ ! -f input ]
+test "`wc -c < input.F`" -lt "`wc -c < original`"
+melt input.F
+[ -f input ]
+cmp input original
+
+# unfreeze is melt; fcat writes to stdout and keeps the archive.
+freeze -c input > again.F
+test "`fcat again.F | wc -c`" = "`wc -c < original`"
+fcat again.F > viafcat
+cmp viafcat original
+cp again.F copy.F
+unfreeze copy.F
+cmp copy original
+
+# Binary data round-trips too.
+cp /bin/ls binary
+freeze -c binary > binary.F
+fcat binary.F > binary.out
+cmp binary binary.out

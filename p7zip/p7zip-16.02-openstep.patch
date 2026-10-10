@@ -1,0 +1,376 @@
+diff -ruN a/CPP/7zip/UI/Console/ConsoleClose.cpp b/CPP/7zip/UI/Console/ConsoleClose.cpp
+--- a/CPP/7zip/UI/Console/ConsoleClose.cpp	2026-10-06 04:22:58.307316846 +0000
++++ b/CPP/7zip/UI/Console/ConsoleClose.cpp	2026-10-06 04:22:58.349281158 +0000
+@@ -33,10 +33,10 @@
+ CCtrlHandlerSetter::CCtrlHandlerSetter()
+ {
+    memo_sig_int = signal(SIGINT,HandlerRoutine); // CTRL-C
+-   if (memo_sig_int == SIG_ERR)
++   if (memo_sig_int == (void (*)(int))SIG_ERR)
+     throw "SetConsoleCtrlHandler fails (SIGINT)";
+    memo_sig_term = signal(SIGTERM,HandlerRoutine); // for kill -15 (before "kill -9")
+-   if (memo_sig_term == SIG_ERR)
++   if (memo_sig_term == (void (*)(int))SIG_ERR)
+     throw "SetConsoleCtrlHandler fails (SIGTERM)";
+ }
+ 
+diff -ruN a/CPP/Common/MyString.cpp b/CPP/Common/MyString.cpp
+--- a/CPP/Common/MyString.cpp	2026-10-06 04:22:58.312014064 +0000
++++ b/CPP/Common/MyString.cpp	2026-10-06 04:22:58.354712175 +0000
+@@ -1713,7 +1713,7 @@
+ 	return twoway_wcsstr(h, n);
+ }
+ 
+-#if defined(__DJGPP__)
++#if defined(__DJGPP__) || defined(ENV_OPENSTEP)
+ wchar_t *wcscpy(wchar_t * d, const wchar_t * s)
+ {
+ 	wchar_t *a = d;
+diff -ruN a/CPP/Common/MyString.h b/CPP/Common/MyString.h
+--- a/CPP/Common/MyString.h	2026-10-06 04:22:58.312399015 +0000
++++ b/CPP/Common/MyString.h	2026-10-06 04:22:58.353571398 +0000
+@@ -12,7 +12,7 @@
+ #ifdef ENV_HAVE_WCTYPE_H
+ #include <wctype.h>
+ #else
+-#define towupper(c) (c)  // FIXME
++#define towupper(c) (((c) >= L'a' && (c) <= L'z') ? (wchar_t)((c) - L'a' + L'A') : (c))  // ASCII only
+ int wcscmp(const wchar_t *s1, const wchar_t *s2);
+ wchar_t * wmemcpy(wchar_t *dest, const wchar_t *src, size_t num);
+ wchar_t * wcsstr(const wchar_t *wcs1, const wchar_t *wcs2);
+diff -ruN a/CPP/myWindows/StdAfx.h b/CPP/myWindows/StdAfx.h
+--- a/CPP/myWindows/StdAfx.h	2026-10-06 04:22:58.310849924 +0000
++++ b/CPP/myWindows/StdAfx.h	2026-10-06 04:22:58.353151421 +0000
+@@ -29,8 +29,185 @@
+ #include <stddef.h>
+ #include <ctype.h>
+ #include <unistd.h>
++#ifdef ENV_OPENSTEP
++/* OPENSTEP's <unistd.h> declares almost nothing; read(), write(), close(),
++   open(), lseek() and friends are declared by <libc.h>. */
++#ifdef __cplusplus
++extern "C" {
++#endif
++#include <libc.h>
++/* <libc.h> does not declare getppid() either. */
++extern int getppid(void);
++#ifdef __cplusplus
++}
++#endif
++#endif
+ #include <errno.h>
+ #include <math.h>
++#ifdef ENV_OPENSTEP
++/* OPENSTEP's libc has no snprintf().  p7zip only formats short messages and
++   paths with it, so format into a large local buffer and copy out what fits. */
++#include <stdarg.h>
++#include <stdio.h>
++#include <string.h>
++static inline int openstep_snprintf(char *buf, size_t size, const char *fmt, ...)
++{
++  char tmp[8192];
++  va_list ap;
++  int n;
++  va_start(ap, fmt);
++  n = vsprintf(tmp, fmt, ap);
++  va_end(ap);
++  if (n < 0)
++    return n;
++  if (size > 0)
++  {
++    size_t m = ((size_t)n < size - 1) ? (size_t)n : size - 1;
++    memcpy(buf, tmp, m);
++    buf[m] = 0;
++  }
++  return n;
++}
++#define snprintf openstep_snprintf
++
++/* OPENSTEP's utime() is `int utime(char *, time_t *)` where the second argument
++   is a two-element array {actime, modtime}; there is no struct utimbuf
++   parameter and no const.  Wrap the POSIX form p7zip uses. */
++#ifdef __cplusplus
++extern "C" int utime(char *, time_t *);
++#else
++extern int utime(char *, time_t *);
++#endif
++static inline int openstep_utime(const char *path, const struct utimbuf *b)
++{
++  time_t t[2];
++  t[0] = b->actime;
++  t[1] = b->modtime;
++  return utime((char *)path, t);
++}
++#define utime openstep_utime
++
++/* File type and permission macros that OPENSTEP's <sys/stat.h> hides without
++   _POSIX_SOURCE (the standard BSD values). */
++#ifndef S_ISDIR
++# define S_ISDIR(m)	(((m) & 0170000) == 0040000)
++#endif
++#ifndef S_ISREG
++# define S_ISREG(m)	(((m) & 0170000) == 0100000)
++#endif
++#ifndef S_ISLNK
++# define S_ISLNK(m)	(((m) & 0170000) == 0120000)
++#endif
++#ifndef S_ISCHR
++# define S_ISCHR(m)	(((m) & 0170000) == 0020000)
++#endif
++#ifndef S_ISBLK
++# define S_ISBLK(m)	(((m) & 0170000) == 0060000)
++#endif
++#ifndef S_ISFIFO
++# define S_ISFIFO(m)	(((m) & 0170000) == 0010000)
++#endif
++#ifndef S_ISSOCK
++# define S_ISSOCK(m)	(((m) & 0170000) == 0140000)
++#endif
++#ifndef S_IRUSR
++# define S_IRUSR	0000400
++# define S_IWUSR	0000200
++# define S_IXUSR	0000100
++#endif
++#ifndef S_IRWXU
++# define S_IRWXU	0000700
++#endif
++#ifndef S_IRGRP
++# define S_IRGRP	0000040
++# define S_IWGRP	0000020
++# define S_IXGRP	0000010
++# define S_IRWXG	0000070
++#endif
++#ifndef S_IROTH
++# define S_IROTH	0000004
++# define S_IWOTH	0000002
++# define S_IXOTH	0000001
++# define S_IRWXO	0000007
++#endif
++
++/* No getcwd() in libc; the BSD getwd() does the job. */
++extern "C" char *getwd(char *);
++static inline char *openstep_getcwd(char *buf, size_t size)
++{
++  char path[2048];
++  size_t len;
++  if (buf != 0 && size == 0)
++  {
++    errno = EINVAL;
++    return 0;
++  }
++  if (getwd(path) == 0)
++  {
++    errno = EACCES;
++    return 0;
++  }
++  len = strlen(path) + 1;
++  if (buf == 0)
++  {
++    if (size < len)
++      size = len;
++    buf = (char *)malloc(size);
++    if (buf == 0)
++      return 0;
++  }
++  else if (size < len)
++  {
++    errno = ERANGE;
++    return 0;
++  }
++  memcpy(buf, path, len);
++  return buf;
++}
++#define getcwd openstep_getcwd
++
++/* No putenv() or setenv() either. */
++extern "C" { extern char **environ; }
++static inline int openstep_putenv(char *str)
++{
++  char *eq = strchr(str, '=');
++  size_t nlen, n = 0;
++  char **e, **newenv;
++  if (eq == 0)
++    return -1;
++  nlen = (size_t)(eq - str);
++  for (e = environ; e != 0 && *e != 0; e++, n++)
++    if (strncmp(*e, str, nlen) == 0 && (*e)[nlen] == '=')
++    {
++      *e = str;
++      return 0;
++    }
++  newenv = (char **)malloc((n + 2) * sizeof(char *));
++  if (newenv == 0)
++    return -1;
++  if (n != 0)
++    memcpy(newenv, environ, n * sizeof(char *));
++  newenv[n] = str;
++  newenv[n + 1] = 0;
++  environ = newenv;
++  return 0;
++}
++#define putenv openstep_putenv
++static inline int openstep_setenv(const char *name, const char *value, int overwrite)
++{
++  char *str;
++  if (!overwrite && getenv(name) != 0)
++    return 0;
++  str = (char *)malloc(strlen(name) + strlen(value) + 2);
++  if (str == 0)
++    return -1;
++  strcpy(str, name);
++  strcat(str, "=");
++  strcat(str, value);
++  return openstep_putenv(str);
++}
++#define setenv openstep_setenv
++#endif
+ 
+ #ifdef __NETWARE__
+ #include <sys/types.h>
+diff -ruN a/CPP/myWindows/config.h b/CPP/myWindows/config.h
+--- a/CPP/myWindows/config.h	2026-10-06 04:22:58.311126846 +0000
++++ b/CPP/myWindows/config.h	2026-10-06 04:22:58.352925232 +0000
+@@ -5,7 +5,10 @@
+   #define FILESYSTEM_IS_CASE_SENSITIVE 1
+ #endif
+ 
+-  #if !defined(ENV_BEOS)
++  /* ENV_OPENSTEP: no wide-character library (no <wchar.h>, <wctype.h>,
++     towupper or mbrtowc) and no timegm; p7zip supplies its own wcs*()/wmem*()
++     helpers when ENV_HAVE_WCHAR__H is not defined. */
++  #if !defined(ENV_BEOS) && !defined(ENV_OPENSTEP)
+ 
+     /* <wchar.h> */
+     /* ENV_HAVE_WCHAR__H and not ENV_HAVE_WCHAR_H to avoid warning with wxWidgets */
+@@ -42,7 +45,7 @@
+ 
+     #define ENV_HAVE_GETPASS
+ 
+-    #if !defined(sun)
++    #if !defined(sun) && !defined(ENV_OPENSTEP)
+       #define ENV_HAVE_TIMEGM
+     #endif
+ 
+diff -ruN a/makefile.openstep b/makefile.openstep
+--- a/makefile.openstep	1970-01-01 00:00:00.000000000 +0000
++++ b/makefile.openstep	2026-10-06 04:22:58.356276210 +0000
+@@ -0,0 +1,23 @@
++#
++# makefile.machine for OPENSTEP (i386, sparc) with gcc-4.2, single-threaded.
++#
++# OPENSTEP_INC is the openstep/ directory of the source tree (pthread, wchar
++# and dirent stand-ins); PKG_GCC42_ARCH_FLAGS is the pkg architecture flag.
++
++OPTFLAGS=-O2 $(PKG_GCC42_ARCH_FLAGS)
++
++ALLFLAGS=${OPTFLAGS} -pipe \
++	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
++	-DNDEBUG -D_REENTRANT -DENV_UNIX -DENV_OPENSTEP -D_7ZIP_ST -DNeXT \
++	-DCLOCKS_PER_SEC=CLK_TCK \
++	-I$(OPENSTEP_INC) \
++	$(LOCAL_FLAGS)
++
++CXX=/usr/local/bin/g++-4.2
++CC=/usr/local/bin/gcc-4.2
++
++LOCAL_LIBS=
++LOCAL_LIBS_DLL=$(LOCAL_LIBS)
++
++OBJ_CRC32=$(OBJ_CRC32_C)
++OBJ_AES=
+diff -ruN a/openstep/dirent.h b/openstep/dirent.h
+--- a/openstep/dirent.h	1970-01-01 00:00:00.000000000 +0000
++++ b/openstep/dirent.h	2026-10-06 04:22:58.366846514 +0000
+@@ -0,0 +1,13 @@
++/* OPENSTEP's libc returns the BSD "struct direct" from readdir() (d_name at a
++   different offset from SVID "struct dirent"), so use <sys/dir.h> and rename
++   the type.  */
++#ifndef P7ZIP_OPENSTEP_DIRENT_H
++#define P7ZIP_OPENSTEP_DIRENT_H
++#undef _POSIX_SOURCE
++#ifndef _NEXT_SOURCE
++# define _NEXT_SOURCE 1
++#endif
++#include <sys/types.h>
++#include <sys/dir.h>
++#define dirent direct
++#endif
+diff -ruN a/openstep/pthread.h b/openstep/pthread.h
+--- a/openstep/pthread.h	1970-01-01 00:00:00.000000000 +0000
++++ b/openstep/pthread.h	2026-10-06 04:22:58.366861754 +0000
+@@ -0,0 +1,54 @@
++/* Single-thread stand-in for <pthread.h> on OPENSTEP, which has none.
++   p7zip is built with -D_7ZIP_ST, so no second thread ever exists: mutexes are
++   bookkeeping only, thread creation fails, and a condition wait (which could
++   never be satisfied) aborts instead of hanging.  */
++#ifndef P7ZIP_OPENSTEP_PTHREAD_H
++#define P7ZIP_OPENSTEP_PTHREAD_H
++
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++typedef struct { int locked; } pthread_mutex_t;
++typedef struct { int type; } pthread_mutexattr_t;
++typedef struct { int unused; } pthread_cond_t;
++typedef struct { int unused; } pthread_attr_t;
++typedef int pthread_t;
++
++#define PTHREAD_MUTEX_INITIALIZER { 0 }
++#define PTHREAD_MUTEX_NORMAL 0
++#define PTHREAD_MUTEX_ERRORCHECK 1
++#define PTHREAD_MUTEX_ERRORCHECK_NP PTHREAD_MUTEX_ERRORCHECK
++#define PTHREAD_CREATE_JOINABLE 0
++#define PTHREAD_CREATE_DETACHED 1
++
++static __inline__ int pthread_mutexattr_init(pthread_mutexattr_t *a) { a->type = 0; return 0; }
++static __inline__ int pthread_mutexattr_destroy(pthread_mutexattr_t *a) { (void)a; return 0; }
++static __inline__ int pthread_mutexattr_settype(pthread_mutexattr_t *a, int t) { a->type = t; return 0; }
++static __inline__ int pthread_mutex_init(pthread_mutex_t *m, const pthread_mutexattr_t *a) { (void)a; m->locked = 0; return 0; }
++static __inline__ int pthread_mutex_destroy(pthread_mutex_t *m) { (void)m; return 0; }
++static __inline__ int pthread_mutex_lock(pthread_mutex_t *m) { m->locked = 1; return 0; }
++static __inline__ int pthread_mutex_unlock(pthread_mutex_t *m) { m->locked = 0; return 0; }
++
++static __inline__ int pthread_cond_init(pthread_cond_t *c, const void *a) { (void)c; (void)a; return 0; }
++static __inline__ int pthread_cond_destroy(pthread_cond_t *c) { (void)c; return 0; }
++static __inline__ int pthread_cond_broadcast(pthread_cond_t *c) { (void)c; return 0; }
++static __inline__ int pthread_cond_signal(pthread_cond_t *c) { (void)c; return 0; }
++static __inline__ int pthread_cond_wait(pthread_cond_t *c, pthread_mutex_t *m)
++{
++  (void)c; (void)m;
++  fprintf(stderr, "p7zip: waited on a condition in a single-threaded build\n");
++  abort();
++  return 0;
++}
++
++static __inline__ pthread_t pthread_self(void) { return 1; }
++static __inline__ int pthread_attr_init(pthread_attr_t *a) { (void)a; return 0; }
++static __inline__ int pthread_attr_destroy(pthread_attr_t *a) { (void)a; return 0; }
++static __inline__ int pthread_attr_setdetachstate(pthread_attr_t *a, int s) { (void)a; (void)s; return 0; }
++static __inline__ int pthread_create(pthread_t *t, const pthread_attr_t *a, void *(*f)(void *), void *arg)
++{ (void)t; (void)a; (void)f; (void)arg; return EAGAIN; }
++static __inline__ int pthread_join(pthread_t t, void **r) { (void)t; (void)r; return ESRCH; }
++static __inline__ int pthread_detach(pthread_t t) { (void)t; return ESRCH; }
++
++#endif
+diff -ruN a/openstep/wchar.h b/openstep/wchar.h
+--- a/openstep/wchar.h	1970-01-01 00:00:00.000000000 +0000
++++ b/openstep/wchar.h	2026-10-06 04:22:58.366873628 +0000
+@@ -0,0 +1,8 @@
++/* OPENSTEP has no <wchar.h>.  p7zip (ENV_OPENSTEP) supplies its own wcslen(),
++   wcscmp(), wmemcpy() and friends, so this only has to exist; wchar_t itself
++   comes from <stddef.h>/<stdlib.h>.  */
++#ifndef P7ZIP_OPENSTEP_WCHAR_H
++#define P7ZIP_OPENSTEP_WCHAR_H
++#include <stddef.h>
++#include <stdlib.h>
++#endif
+diff -ruN a/openstep/wctype.h b/openstep/wctype.h
+--- a/openstep/wctype.h	1970-01-01 00:00:00.000000000 +0000
++++ b/openstep/wctype.h	2026-10-06 04:22:58.366886478 +0000
+@@ -0,0 +1,5 @@
++/* OPENSTEP has no <wctype.h>; p7zip (ENV_OPENSTEP) does not include it. */
++#ifndef P7ZIP_OPENSTEP_WCTYPE_H
++#define P7ZIP_OPENSTEP_WCTYPE_H
++#include <stddef.h>
++#endif

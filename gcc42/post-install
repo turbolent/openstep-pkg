@@ -6,6 +6,9 @@ TARGET=i386-next-openstep4
 DRIVERKIT_FIXED="$ROOT_DIR/usr/local/lib/gcc/$TARGET/4.2.1/include/driverkit/__next_i386__"
 DRIVERKIT_HOLD="$ROOT_DIR/usr/local/lib/gcc42-header-hold"
 
+# Only i386 packages stage driverkit headers.
+test -d "$DRIVERKIT_HOLD" || exit 0
+
 test -d "$DRIVERKIT_FIXED" || /usr/local/bin/mkdir -p "$DRIVERKIT_FIXED"
 for header in IOEISADeviceDescription.h IOPCMCIADirectDevice.h \
     IOPCIDeviceDescription.h IOPCMCIADeviceDescription.h

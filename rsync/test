@@ -52,8 +52,16 @@ done
 
 # Exercise actual TCP sockets on loopback, with both daemon directions.
 port=$((20000 + $$ % 20000))
+# A daemon started as root drops to "nobody" for each module by default, and
+# nobody cannot write into this root-owned scratch directory.  Keep the
+# daemon's own user (the test user) for the modules.
+# (OPENSTEP's id has no -u or -g.)
+me_uid=`id | sed 's/^uid=\([0-9]*\).*/\1/'`
+me_gid=`id | sed 's/.* gid=\([0-9]*\).*/\1/'`
 cat > "$work/rsyncd.conf" <<EOF
 use chroot = no
+uid = $me_uid
+gid = $me_gid
 pid file = $work/daemon.pid
 log file = $work/daemon.log
 lock file = $work/daemon.lock

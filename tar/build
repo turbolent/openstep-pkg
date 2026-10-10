@@ -15,6 +15,7 @@ AWK=/usr/local/bin/gawk
 ac_cv_header_dirent_dirent_h=no
 export PATH CC CFLAGS CPPFLAGS GREP EGREP AWK ac_cv_header_dirent_dirent_h
 /usr/local/bin/patch -p1 < "tar-$VERSION-openstep.patch"
+/usr/local/bin/patch -p1 < "tar-$VERSION-cve.patch"
 run_configure --prefix=/usr/local --program-prefix=gnu \
     --disable-nls --disable-dependency-tracking
 /bin/gnumake

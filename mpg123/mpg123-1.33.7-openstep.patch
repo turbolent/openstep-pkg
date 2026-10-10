@@ -1,0 +1,389 @@
+--- a/src/compat/compat.c
++++ b/src/compat/compat.c
+@@ -515,6 +515,10 @@
+ #if (!defined(WIN32) || defined (__CYGWIN__)) && !defined(__PSP__) && defined(HAVE_SIGNAL_H)
+ void (*INT123_catchsignal(int signum, void(*handler)(int)))(int)
+ {
++#ifdef NeXT
++	/* BSD signal() on OPENSTEP installs persistent handlers. */
++	return signal(signum, handler);
++#else
+ 	struct sigaction new_sa;
+ 	struct sigaction old_sa;
+ 
+@@ -529,6 +533,7 @@
+ 	if(sigaction(signum, &new_sa, &old_sa) == -1)
+ 		return ((void (*)(int)) -1); // Not rather NULL?
+ 	return (old_sa.sa_handler);
++#endif
+ }
+ #endif
+ #endif
+--- a/src/compat/compat.h
++++ b/src/compat/compat.h
+@@ -101,6 +101,39 @@
+ /* INT123_compat_open makes little sense without */
+ #include <fcntl.h>
+ 
++#ifdef NeXT
++/* OPENSTEP keeps BSD function declarations in libc.h. */
++#include <libc.h>
++/* The decoder supplies its own truth macros. */
++#undef TRUE
++#undef FALSE
++/* GCC 4 supplies the C99 predicates missing from OPENSTEP libm. */
++#if defined(__GNUC__) && __GNUC__ >= 4
++#ifndef isnan
++#define isnan(x) __builtin_isnan(x)
++#endif
++#ifndef isless
++#define isless(x,y) __builtin_isless(x,y)
++#endif
++#ifndef isgreater
++#define isgreater(x,y) __builtin_isgreater(x,y)
++#endif
++#ifndef islessequal
++#define islessequal(x,y) __builtin_islessequal(x,y)
++#endif
++#endif
++#ifndef O_NONBLOCK
++#define O_NONBLOCK O_NDELAY
++#endif
++/* The libc printf has no 64 bit conversions. The player only prints frame
++   numbers, offsets and PIDs through intmax_t, so print those as long. */
++#undef PRIiMAX
++#define PRIiMAX "li"
++#define intmax_t long
++int INT123_openstep_snprintf(char *dst, size_t size, const char *fmt, ...);
++#define snprintf INT123_openstep_snprintf
++#endif
++
+ /* To parse big numbers... */
+ #ifdef HAVE_ATOLL
+ #define atobigint atoll
+--- a/src/compat/compat_dl.c
++++ b/src/compat/compat_dl.c
+@@ -49,6 +49,11 @@
+ 
+ #include "../common/debug.h"
+ 
++#if defined(NeXT) && !defined(USE_MODULES)
++/* OPENSTEP ranlib rejects an archive with no symbols. */
++const int INT123_openstep_no_modules = 1;
++#endif
++
+ 
+ #ifdef USE_MODULES
+ #include "wpathconv.h"
+--- a/src/compat/compat_str.c
++++ b/src/compat/compat_str.c
+@@ -13,6 +13,36 @@
+ #define _POSIX_C_SOURCE 200809L
+ #include "compat.h"
+ 
++#ifdef NeXT
++#include <streams/streams.h>
++
++/* A growable native memory stream avoids an unbounded vsprintf buffer. */
++int INT123_openstep_snprintf(char *dst, size_t size, const char *fmt, ...)
++{
++	NXStream *stream;
++	va_list ap;
++	char *buffer;
++	int length, capacity;
++	size_t copied;
++
++	if(size) dst[0] = 0;
++	stream = NXOpenMemory(NULL, 0, NX_WRITEONLY);
++	if(!stream) return -1;
++	va_start(ap, fmt);
++	NXVPrintf(stream, fmt, ap);
++	va_end(ap);
++	NXGetMemoryBuffer(stream, &buffer, &length, &capacity);
++	if(size)
++	{
++		copied = (size_t)length < size ? (size_t)length : size-1;
++		memcpy(dst, buffer, copied);
++		dst[copied] = 0;
++	}
++	NXCloseMemory(stream, NX_FREEBUFFER);
++	return length;
++}
++#endif
++
+ /* Win32 is only supported with unicode now. These headers also cover
+    module stuff. The WANT_WIN32_UNICODE macro is synonymous with
+    "want windows-specific API, and only the unicode variants of which". */
+--- a/src/include/mpg123.h
++++ b/src/include/mpg123.h
+@@ -93,12 +93,17 @@
+ #endif
+ 
+ #include <stddef.h>
++#if defined(NeXT) || defined(__NeXT__)
++/* OPENSTEP has no stdint.h, but sys/types.h provides int64_t. */
++#include <sys/types.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #ifndef MPG123_PORTABLE_API
+ #include <sys/types.h>
+ /** A little hack to help MSVC not having ssize_t. */
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
+ typedef ptrdiff_t mpg123_ssize_t;
+ #else
+ typedef ssize_t mpg123_ssize_t;
+--- a/src/include/syn123.h
++++ b/src/include/syn123.h
+@@ -66,7 +66,12 @@
+ #endif
+ 
+ #include <stddef.h>
++#if defined(NeXT) || defined(__NeXT__)
++/* OPENSTEP has no stdint.h, but sys/types.h provides int64_t. */
++#include <sys/types.h>
++#else
+ #include <stdint.h>
++#endif
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -1113,7 +1118,7 @@
+ #if !defined(SYN123_PORTABLE_API) && !defined(SYN123_NO_LARGEFUNC)
+ 
+ /** A little hack to help MSVC not having ssize_t, duplicated in internal header. */
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
+ #include <stddef.h>
+ typedef ptrdiff_t syn123_ssize_t;
+ #else
+--- a/src/libout123/modules/sdl.c
++++ b/src/libout123/modules/sdl.c
+@@ -13,7 +13,23 @@
+ #include "../out123_int.h"
+ #include <math.h>
+ 
++#ifdef NeXT
++/* SDL's OPENSTEP config typedefs these C99 types, which the private stdint.h
++   already provides. Let SDL's typedefs define harmless private names. */
++#define uint8_t sdl_openstep_uint8_t
++#define uint16_t sdl_openstep_uint16_t
++#define uint32_t sdl_openstep_uint32_t
++#define uintptr_t sdl_openstep_uintptr_t
++#endif
+ #include <SDL.h>
++#ifdef NeXT
++#undef uint8_t
++#undef uint16_t
++#undef uint32_t
++#undef uintptr_t
++#include <mach/mach.h>
++#include <mach/thread_switch.h>
++#endif
+ 
+ #ifdef WIN32
+ #include <windows.h>
+@@ -48,6 +64,10 @@
+ {
+ #ifdef WIN32
+ 		Sleep(milliseconds);
++#elif defined(NeXT)
++		/* usleep uses process-wide SIGALRM and races between audio threads. */
++		thread_switch(THREAD_NULL, SWITCH_OPTION_WAIT,
++			milliseconds > 0 ? milliseconds : 1);
+ #else
+ 		usleep(milliseconds*1000);
+ #endif
+@@ -136,6 +156,11 @@
+ 
+ static int get_formats_sdl(out123_handle *ao)
+ {
++#ifdef NeXT
++	/* The native SDL SoundKit backend accepts only these output rates. */
++	if(ao->rate > 0 && ao->rate != 22050 && ao->rate != 44100)
++		return 0;
++#endif
+ 	/* Got no better idea than to just take 16 bit and run with it */
+ 	return MPG123_ENC_SIGNED_16;
+ #if 0
+@@ -209,6 +234,9 @@
+ 
+ 	debug1("close_sdl with %d", sfifo_used(fifo));
+ 	sh->finished = 1;
++	/* Short clips may never reach the normal prefill threshold. */
++	if(sfifo_used(fifo) > 0)
++		SDL_PauseAudio(0);
+ 	/* Wait at least until SDL emptied the FIFO. */
+ 	while((stuff = sfifo_used(fifo))>0)
+ 	{
+@@ -229,8 +257,11 @@
+ {
+ 	struct handle *sh = (struct handle*)ao->userptr;
+ 
++	/* Let an underfilled callback return before taking SDL's audio lock. */
++	sh->finished = 1;
+ 	SDL_PauseAudio(1);
+ 	sfifo_flush(&sh->fifo);
++	sh->finished = 0;
+ }
+ 
+ /* You can only rely on that being called after successful init_sdl()!
+--- a/src/libsyn123/syn123_int.h
++++ b/src/libsyn123/syn123_int.h
+@@ -23,7 +23,7 @@
+ #define SYN123_NO_LARGEFUNC
+ #include "syn123.h"
+ // A little hack to help MSVC not having ssize_t, duplicated in external header with largefuncs.
+-#ifdef _MSC_VER
++#if defined(_MSC_VER) || defined(NeXT) || defined(__NeXT__)
+ typedef ptrdiff_t syn123_ssize_t;
+ #else
+ typedef ssize_t syn123_ssize_t;
+--- a/src/net123.h
++++ b/src/net123.h
+@@ -54,6 +54,10 @@
+ 
+ extern const char *net123_backends[];
+ 
++#ifdef NeXT
++size_t net123_read_fd(int fd, void *buf, size_t bytes);
++#endif
++
+ // Open stream from URL, preparing output such that net123_read()
+ // later on gets the response header lines followed by one empty line
+ // and then the raw data.
+--- a/src/net123_exec.c
++++ b/src/net123_exec.c
+@@ -16,6 +16,9 @@
+ // kill
+ #define _XOPEN_SOURCE 600
+ #define _POSIX_C_SOURCE 200112L
++#ifdef NeXT
++#define _POSIX_SOURCE
++#endif
+ 
+ #include "config.h"
+ #include "version.h"
+@@ -33,6 +36,15 @@
+ #include <sys/wait.h>
+ #include <unistd.h>
+ 
++#ifdef NeXT
++/* The headers advertise waitpid, but libsys only exports BSD wait4. */
++static pid_t openstep_waitpid(pid_t pid, int *status, int options)
++{
++	return wait4(pid, (union wait *)status, options, NULL);
++}
++#define waitpid openstep_waitpid
++#endif
++
+ // Those are set via environment variables:
+ // http_proxy
+ // https_proxy
+@@ -248,7 +260,11 @@
+ {
+ 	if(!nh || (bufsize && !buf))
+ 		return 0;
++#ifdef NeXT
++	return net123_read_fd(((exec_handle*)nh->parts)->fd, buf, bufsize);
++#else
+ 	return INT123_unintr_read(((exec_handle*)nh->parts)->fd, buf, bufsize);
++#endif
+ }
+ 
+ static void net123_close(net123_handle *nh)
+--- a/src/resolver.c
++++ b/src/resolver.c
+@@ -41,6 +41,10 @@
+ #include <unistd.h>
+ #include "common/debug.h"
+ 
++#if defined(NeXT) && !defined(__socklen_t_defined)
++typedef int socklen_t;
++#endif
++
+ int split_url(mpg123_string *url, mpg123_string *auth, mpg123_string *host, mpg123_string *port, mpg123_string *path)
+ {
+ 	size_t pos  = 0; /* current position in input URL */
+@@ -161,14 +165,14 @@
+ #if !defined (WANT_WIN32_SOCKETS)
+ static void nonblock(int sock)
+ {
+-	int flags = fcntl(sock, F_GETFL);
++	int flags = fcntl(sock, F_GETFL, 0);
+ 	flags |= O_NONBLOCK;
+ 	fcntl(sock, F_SETFL, flags);
+ }
+ 
+ static void block(int sock)
+ {
+-	int flags = fcntl(sock, F_GETFL);
++	int flags = fcntl(sock, F_GETFL, 0);
+ 	flags &= ~O_NONBLOCK;
+ 	fcntl(sock, F_SETFL, flags);
+ }
+--- a/src/streamdump.c
++++ b/src/streamdump.c
+@@ -54,6 +54,40 @@
+ 
+ // Net123 variant for our internal code that has safer legacy support for HTTP shoutcast.
+ 
++#ifdef NeXT
++/* The library cannot time out opaque reader handles. Wait on the actual
++   socket/pipe here, before every read, including HTTP response headers. */
++size_t net123_read_fd(int fd, void *buf, size_t bytes)
++{
++	size_t got = 0;
++	if(param.timeout <= 0) return INT123_unintr_read(fd, buf, bytes);
++	if(fd < 0 || fd >= FD_SETSIZE) return 0;
++	while(got < bytes)
++	{
++		fd_set fds;
++		struct timeval tv;
++		int ready;
++		mpg123_ssize_t part;
++		FD_ZERO(&fds);
++		FD_SET(fd, &fds);
++		tv.tv_sec = param.timeout;
++		tv.tv_usec = 0;
++		ready = select(fd+1, &fds, NULL, NULL, &tv);
++		if(ready < 0 && errno == EINTR) continue;
++		if(ready <= 0)
++		{
++			if(!ready) error("network read timed out");
++			break;
++		}
++		part = read(fd, (char *)buf+got, bytes-got);
++		if(part > 0) got += part;
++		else if(part < 0 && (errno == EINTR || errno == EAGAIN)) continue;
++		else break;
++	}
++	return got;
++}
++#endif
++
+ static size_t net123_read_internal( struct net123_handle_struct *nh,
+ void *buf, size_t bufsize )
+ {
+@@ -62,6 +96,8 @@
+ 	int *fdp = nh->parts;
+ #ifdef WANT_WIN32_SOCKETS
+ 	return win32_net_read(*fdp, buf, bufsize);
++#elif defined(NeXT)
++	return net123_read_fd(*fdp, buf, bufsize);
+ #else
+ 	return INT123_unintr_read(*fdp, buf, bufsize);
+ #endif
+--- a/src/tests/plain_id3.sh
++++ b/src/tests/plain_id3.sh
+@@ -9,7 +9,7 @@
+ 
+ src/tests/plain_id3 "$sweep" > src/tests/plain_id3.out.txt
+ 
+-if ! diff -q "$ref" "$out"; then
++if ! diff "$ref" "$out"; then
+   exit 1
+ fi
+ echo PASS

@@ -1,0 +1,34 @@
+#!/bin/sh
+
+BIN="$ROOT_DIR/usr/local/bin/sudo"
+ETC="$ROOT_DIR/usr/local/etc"
+RUNDIR="$ROOT_DIR/usr/local/var/run/sudo"
+
+# sudo only works setuid root.
+if [ -f "$BIN" ]; then
+    chown root "$BIN" 2>/dev/null ||
+        echo "sudo: rerun this post-install hook as root to make $BIN setuid root" >&2
+    chgrp wheel "$BIN" 2>/dev/null || :
+    chmod 4755 "$BIN" 2>/dev/null || :
+fi
+
+# The timestamp directory; sudo 1.7 keeps it root-only.
+[ -d "$RUNDIR" ] || /usr/local/bin/mkdir -p "$RUNDIR" 2>/dev/null || :
+chown root "$RUNDIR" 2>/dev/null || :
+chmod 0700 "$RUNDIR" 2>/dev/null || :
+
+# I/O logs (log_input/log_output, replayed with sudoreplay) are root-only.
+IOLOGDIR="$ROOT_DIR/usr/local/var/log/sudo-io"
+[ -d "$IOLOGDIR" ] || /usr/local/bin/mkdir -p "$IOLOGDIR" 2>/dev/null || :
+chown root "$IOLOGDIR" 2>/dev/null || :
+chmod 0700 "$IOLOGDIR" 2>/dev/null || :
+
+# Install the default policy only when there is none: never replace an
+# administrator's sudoers.  sudo refuses a sudoers that is not root-owned 0440.
+if [ ! -f "$ETC/sudoers" ] && [ -f "$ETC/sudoers.dist" ]; then
+    /bin/cp "$ETC/sudoers.dist" "$ETC/sudoers"
+    chown root "$ETC/sudoers" 2>/dev/null || :
+    chgrp wheel "$ETC/sudoers" 2>/dev/null || :
+    chmod 0440 "$ETC/sudoers" 2>/dev/null || :
+fi
+exit 0

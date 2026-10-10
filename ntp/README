@@ -1,0 +1,36 @@
+ntp 4.2.8p18 for OPENSTEP
+
+Installed:
+  /usr/local/sbin/ntpd, /usr/local/bin/ntpq, ntpdc, ntpdate, ntptrace, ntp-keygen
+  /usr/local/etc/ntpd.conf        the configuration (copied from ntpd.conf.dist the
+                                  first time; never overwritten)
+  /usr/local/etc/rc.ntp           boot-time script, described below
+  /usr/local/etc/rc.ntp.conf      its settings (copied from rc.ntp.conf.dist)
+
+Setting the clock and starting ntpd at boot
+-------------------------------------------
+
+rc.ntp runs ntpdate to step the clock once, so that ntpd starts close to the right
+time, and then starts ntpd.  The network must be up first, so call it from
+/etc/rc.local (or from /etc/rc after the network is configured; with roboclient,
+after rc.dhcp):
+
+    /usr/local/etc/rc.ntp
+
+ntpdate asks the first "server" or "pool" line in /usr/local/etc/ntpd.conf (set
+RC_NTP_SERVERS in rc.ntp.conf to use another server); ntpd uses all of them.  If no
+server answers, it prints an error and starts ntpd anyway, with -g so that ntpd can make
+the first large correction itself once a server becomes reachable.  It prints:
+
+    NTP: setting the clock from 0.pool.ntp.org (first server in ntpd.conf)...
+    NTP: step time server 192.0.2.1 offset 12.345678 sec
+    NTP: starting ntpd...
+    NTP: ntpd started (pid 215)
+
+or, when the clock cannot be set:
+
+    NTP: ERROR - could not reach an NTP server; the clock was not set
+    NTP: starting ntpd anyway; it will set the clock once a server answers
+
+It returns 0 when the clock was set and ntpd is running, and 1 otherwise.  Run twice, it
+reports that ntpd is already running.  pkg does not edit /etc/rc or /etc/rc.local.

@@ -7,7 +7,7 @@ VERSION=$2
 PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/bin/cc
-CFLAGS="-O2 -DNeXT -DFT_CONFIG_OPTION_NO_ASSEMBLER"
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O2 -DNeXT -DFT_CONFIG_OPTION_NO_ASSEMBLER"
 CPPFLAGS="-I/usr/local/include"
 LDFLAGS="-L/usr/local/lib"
 MAKE=gnumake
@@ -57,6 +57,7 @@ if [ -d "freetype-$VERSION" ]; then
 fi
 
 patch -p1 < "$PATCHFILE"
+patch -p1 < "freetype-$VERSION-cve.patch"
 
 /usr/local/bin/ksh ./configure \
     --prefix="$PREFIX" \

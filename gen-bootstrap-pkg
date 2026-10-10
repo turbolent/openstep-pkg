@@ -1,0 +1,528 @@
+#!/bin/sh
+# gen-bootstrap-pkg - maintainer tool: build the bootstrap distribution.
+#
+# usage: sh ./gen-bootstrap-pkg [options]
+#
+# Builds, from a pristine copy of this repository (git archive of a ref, so
+# nothing uncommitted or untracked gets in):
+#
+#   1. binary packages (pkg binpkg) of the packages a bare machine needs before
+#      it can build anything: wget-bootstrap, gcc42, cctools-as (i386 only, per
+#      its arch file) and git, built from the archived tree itself;
+#   2. a payload: the whole tree (pkg, pkg-missing, pkg-world, the package
+#      directories) at TREE_DIR, with the binary packages under
+#      TREE_DIR/bootstrap/binpkgs and TREE_DIR/bootstrap/install-bootstrap, the
+#      script that installs them (pkg --no-deps installpkg) on the target;
+#   3. the NeXT .pkg holding that payload;
+#   4. a .tar.gz of the .pkg, the file to hand out, with its SHA-256.
+#
+# It runs on an OPENSTEP build machine of the architecture being packaged
+# (binary packages are per architecture), with git and gzip installed.  It
+# builds and installs what the four packages need on this machine, as
+# "pkg binpkg" does.
+#
+# options:
+#   --ref REF        what to archive (default HEAD)
+#   --tree-dir DIR   where the tree is installed on the target (default
+#                    /usr/local/openstep-pkg; or GEN_BOOTSTRAP_TREE_DIR)
+#   --version V      version for the file names (default: git describe of REF)
+#   --out DIR        where the results go (default ./bootstrap-out)
+#   --packages "A B" packages to make binary packages of, in install order
+#                    (default: wget-bootstrap gcc42 cctools-as git)
+#   --binpkg-dir DIR use the binary packages already in DIR instead of
+#                    building them
+#   --no-binpkgs     leave the binary packages out (a tree-only payload; for
+#                    testing the packaging itself)
+#   --payload-only   stop after the payload archive; do not make the .pkg
+#   --resume         continue a build that failed part way (PKG_RESUME=1: the
+#                    kept build tree is reused, not started afresh)
+#   --cleanup        delete what earlier runs kept (see below), then stop
+#   -h               this text
+#
+# Nothing a run compiles is thrown away by the run.  Every binary package is
+# built with pkg's --preserve-build-tree and --preserve-install-tree, so the
+# build trees and staged images stay on disk (they are listed in
+# <out>/preserved.list), and finished binary packages are kept in
+# <out>/binpkgs, stamped with the commit they were built from.  A rerun after an
+# error (a failure in mkbom, say, hours after the compiles) reuses them and
+# compiles nothing again.  The disk space comes back only when you run
+#     sh ./gen-bootstrap-pkg --cleanup [--out DIR]
+# which removes the kept build trees, staged images, binary packages and work
+# directories, and leaves the finished .pkg and .tar.gz alone.
+#
+# Results in the output directory:
+#   openstep-pkg-bootstrap-<version>-<arch>.payload.tar.gz   the payload, to unpack
+#                    at / (then run TREE_DIR/bootstrap/install-bootstrap)
+#   openstep-pkg-bootstrap-<version>-<arch>.pkg              the NeXT package
+#   openstep-pkg-bootstrap-<version>-<arch>.pkg.tar.gz       the distribution
+#   <each of those>.sha256
+#
+# The .pkg is built the way OpenWrite.pkg is laid out: <name>.pkg/ holding
+# <name>.info, <name>.tar.Z (compress), <name>.bom (mkbom), <name>.sizes and
+# <name>.post_install.  It needs mkbom, compress and tar on the build machine,
+# found on the PATH or in /usr/etc and /usr/ucb; MKBOM and COMPRESS in the
+# environment override them (COMPRESS is a whole command, such as "compress -c").
+#
+# It uses only what the stock system has (no dirname, mkdir -p, printf, date
+# formats), apart from git and the tools the packages themselves need.
+
+usage() {
+    sed -n '2,72p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+die() {
+    echo "gen-bootstrap-pkg: $*" >&2
+    exit 1
+}
+
+say() {
+    echo "==> $*"
+}
+
+ref=HEAD
+tree_dir=${GEN_BOOTSTRAP_TREE_DIR-/usr/local/openstep-pkg}
+version=
+out=bootstrap-out
+packages="wget-bootstrap gcc42 cctools-as git"
+binpkg_dir=
+make_binpkgs=1
+payload_only=0
+resume=0
+cleanup=0
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        --ref)
+            [ $# -ge 2 ] || die "--ref needs a value"
+            ref=$2
+            shift 2
+        ;;
+        --tree-dir)
+            [ $# -ge 2 ] || die "--tree-dir needs a directory"
+            tree_dir=$2
+            shift 2
+        ;;
+        --version)
+            [ $# -ge 2 ] || die "--version needs a value"
+            version=$2
+            shift 2
+        ;;
+        --out)
+            [ $# -ge 2 ] || die "--out needs a directory"
+            out=$2
+            shift 2
+        ;;
+        --packages)
+            [ $# -ge 2 ] || die "--packages needs a list"
+            packages=$2
+            shift 2
+        ;;
+        --binpkg-dir)
+            [ $# -ge 2 ] || die "--binpkg-dir needs a directory"
+            binpkg_dir=$2
+            shift 2
+        ;;
+        --no-binpkgs)
+            make_binpkgs=0
+            shift
+        ;;
+        --payload-only)
+            payload_only=1
+            shift
+        ;;
+        --resume)
+            resume=1
+            shift
+        ;;
+        --cleanup)
+            cleanup=1
+            shift
+        ;;
+        -h|--help)
+            usage
+            exit 0
+        ;;
+        *)
+            echo "gen-bootstrap-pkg: unknown argument: $1" >&2
+            usage >&2
+            exit 2
+        ;;
+    esac
+done
+
+case $tree_dir in
+    /*) : ;;
+    *) die "--tree-dir must be an absolute path, not $tree_dir" ;;
+esac
+case $tree_dir in
+    */) die "--tree-dir must not end in a slash: $tree_dir" ;;
+esac
+case $tree_dir in
+    *' '*) die "--tree-dir must not contain spaces: $tree_dir" ;;
+esac
+
+case $0 in
+    */*) here=`echo "$0" | sed 's#/[^/]*$##'` ;;
+    *) here=. ;;
+esac
+repo=`cd "$here" && pwd`
+[ -f "$repo/pkg" ] || die "no pkg next to this script ($repo)"
+
+# mkdir -p is coreutils': make the directories one component at a time.
+mkdirs() {
+    md_path=
+    case $1 in
+        /*) md_path= ;;
+        *) md_path=`pwd` ;;
+    esac
+    md_save_ifs=$IFS
+    IFS=/
+    set -- $1
+    IFS=$md_save_ifs
+    for md_c
+    do
+        if [ -n "$md_c" ]; then
+            md_path=$md_path/$md_c
+            if [ ! -d "$md_path" ]; then
+                mkdir "$md_path" || return 1
+            fi
+        fi
+    done
+    return 0
+}
+
+# --cleanup: delete what earlier runs kept, and nothing else.  The kept build
+# trees and staged images are named in preserved.list; only paths that look
+# like pkg's own cache entries are removed.
+if [ $cleanup = 1 ]; then
+    [ -d "$out" ] || die "no output directory $out; nothing to clean up (use --out)"
+    out=`cd "$out" && pwd`
+    removed=0
+    if [ -f "$out/preserved.list" ]; then
+        while read kept; do
+            case $kept in
+                */cache/build/*|*/cache/pkg/*.installed)
+                    if [ -d "$kept" ]; then
+                        say "removing $kept"
+                        rm -rf "$kept" || echo "gen-bootstrap-pkg: could not remove $kept" >&2
+                        removed=`expr $removed + 1`
+                    fi
+                    # A failed build also leaves its lock beside the build tree.
+                    case $kept in
+                        */cache/build/*) rm -rf "$kept.lock" ;;
+                    esac
+                ;;
+                '') : ;;
+                *) echo "gen-bootstrap-pkg: not removing $kept (not a pkg cache entry)" >&2 ;;
+            esac
+        done < "$out/preserved.list"
+        rm -f "$out/preserved.list"
+    fi
+    if [ -d "$out/binpkgs" ]; then
+        say "removing $out/binpkgs"
+        rm -rf "$out/binpkgs"
+    fi
+    for w in $out/work-*; do
+        if [ -d "$w" ]; then
+            say "removing $w"
+            rm -rf "$w"
+        fi
+    done
+    rm -f $out/binpkg-*.log
+    say "cleaned up ($removed kept build trees and staged images removed); the finished .pkg and .tar.gz files are untouched"
+    exit 0
+fi
+
+# SHA-256 of a file, as a hex string, from whatever tool this machine has.
+sha256_of() {
+    if [ -x /usr/local/bin/sha256sum ] || sha256sum /dev/null > /dev/null 2>&1; then
+        sha256sum "$1" | sed 's/ .*//'
+    elif openssl version > /dev/null 2>&1; then
+        openssl dgst -sha256 "$1" | sed 's/^.*= *//'
+    else
+        echo "-"
+    fi
+}
+
+write_sha256() {
+    ws_hash=`sha256_of "$1"`
+    ws_name=`echo "$1" | sed 's#.*/##'`
+    echo "$ws_hash  $ws_name" > "$1.sha256"
+    say "sha256 $ws_hash  $ws_name"
+}
+
+# Find a system tool by name: on the PATH, else where OPENSTEP keeps it
+# (mkbom is /usr/etc/mkbom and compress is /usr/ucb/compress, neither of which
+# is always on the PATH).  Prints the full path; fails if there is none.
+find_system_tool() {
+    fs_name=$1
+    for fs_dir in `echo "$PATH" | tr ':' ' '` /usr/etc /usr/ucb /usr/bin /bin /usr/local/bin; do
+        if [ -x "$fs_dir/$fs_name" ] && [ -f "$fs_dir/$fs_name" ]; then
+            echo "$fs_dir/$fs_name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# MKBOM and COMPRESS in the environment override the commands (COMPRESS is a
+# whole command that compresses stdin to stdout, such as "compress -c").
+if [ $payload_only = 0 ]; then
+if [ -z "${MKBOM-}" ]; then
+    MKBOM=`find_system_tool mkbom` || die "cannot find mkbom (usually /usr/etc/mkbom); set MKBOM=/path/to/mkbom"
+fi
+if [ -z "${COMPRESS-}" ]; then
+    compress_tool=`find_system_tool compress` || die "cannot find compress (usually /usr/ucb/compress); set COMPRESS=\"/path/to/compress -c\""
+    COMPRESS="$compress_tool -c"
+fi
+[ -x "$MKBOM" ] || die "mkbom is not executable: $MKBOM"
+fi
+
+git --version > /dev/null 2>&1 || die "git is needed (pkg install git)"
+cd "$repo" || die "cannot cd to $repo"
+git rev-parse --verify "$ref^{commit}" > /dev/null 2>&1 || die "not a commit: $ref"
+commit=`git rev-parse "$ref^{commit}"`
+if [ -z "$version" ]; then
+    version=`git describe --tags --always "$ref" 2>/dev/null` || version=`echo "$commit" | sed 's/^\(.......\).*/\1/'`
+fi
+case $version in
+    *[!A-Za-z0-9._+-]*) die "--version may only use letters, digits and . _ + -: $version" ;;
+esac
+if [ -n "`git status --porcelain 2>/dev/null`" ]; then
+    echo "gen-bootstrap-pkg: note: uncommitted changes in $repo are NOT in the archive (it is $ref, $commit)" >&2
+fi
+
+arch=`/bin/sh "$repo/pkg" arch | sed -n 's/^PKG_ARCH=//p'`
+[ -n "$arch" ] || die "could not work out the architecture from pkg"
+name=openstep-pkg-bootstrap-$version-$arch
+
+mkdirs "$out" || die "cannot create $out"
+out=`cd "$out" && pwd`
+case $out in
+    *' '*) die "the output directory must not contain spaces: $out" ;;
+esac
+work=$out/work-$name
+payload=$work/payload
+dest=$payload$tree_dir
+if [ -d "$work" ]; then
+    say "removing the previous work directory $work"
+    rm -rf "$work" || die "cannot remove $work"
+fi
+mkdirs "$dest" || die "cannot create $dest"
+
+say "bootstrap $name from $ref ($commit)"
+say "the tree goes to $tree_dir on the target"
+
+# 1. The pristine tree.
+say "archiving $ref"
+git archive --format=tar "$ref" | ( cd "$dest" && tar xf - ) || die "git archive failed"
+[ -f "$dest/pkg" ] && [ -f "$dest/pkg-world" ] && [ -f "$dest/pkg-missing" ] ||
+    die "the archive of $ref lacks pkg, pkg-world or pkg-missing"
+{
+    echo "version $version"
+    echo "commit $commit"
+    echo "ref $ref"
+    echo "arch $arch"
+    echo "tree-dir $tree_dir"
+} > "$dest/BOOTSTRAP-VERSION"
+
+# 2. The binary packages, built from the archived tree so that they match it.
+mkdirs "$dest/bootstrap/binpkgs" || die "cannot create the binpkgs directory"
+built=
+if [ $make_binpkgs = 1 ]; then
+    if [ -n "$binpkg_dir" ]; then
+        bdir=`cd "$binpkg_dir" && pwd` || die "no such directory: $binpkg_dir"
+    else
+        bdir=$out/binpkgs
+        mkdirs "$bdir" || die "cannot create $bdir"
+    fi
+    for p in $packages; do
+        [ -d "$dest/$p" ] || die "no package $p in the tree"
+        if [ -f "$dest/$p/arch" ]; then
+            supported=`cat "$dest/$p/arch" | tr '\n' ' '`
+            case " $supported " in
+                *" $arch "*) : ;;
+                *)
+                    say "skipping $p: only for: $supported(this is $arch)"
+                    continue
+                ;;
+            esac
+        fi
+        if [ -z "$binpkg_dir" ]; then
+            # A binary package built from this commit by an earlier run is reused.
+            have=
+            for f in $bdir/$p-*.binpkg.tar.gz; do
+                [ -f "$f" ] && have=$f
+            done
+            stamp=
+            [ -f "$bdir/$p.commit" ] && read stamp < "$bdir/$p.commit"
+            if [ -n "$have" ] && [ "x$stamp" = "x$commit" ] && [ -f "$have.sha256" ]; then
+                say "reusing the binary package of $p built from this commit: `echo "$have" | sed 's#.*/##'`"
+            else
+                rm -f $bdir/$p-*.binpkg.tar.gz $bdir/$p-*.binpkg.tar.gz.sha256 "$bdir/$p.commit"
+                say "building the binary package of $p (build tree and staged image are kept)"
+                logf=$out/binpkg-$p.log
+                statusf=$out/.status-$$
+                resume_env=
+                [ $resume = 1 ] && resume_env=PKG_RESUME=1
+                ( env PKG_BINPKG_DIR=$bdir $resume_env /bin/sh "$dest/pkg" \
+                      --preserve-build-tree --preserve-install-tree binpkg "$dest/$p"
+                  echo $? > "$statusf" ) 2>&1 | tee "$logf"
+                rc=1
+                read rc < "$statusf"
+                rm -f "$statusf"
+                # Remember what pkg kept, whether or not the build worked.
+                sed -n -e 's/^==> keeping the build tree \(.*\) (the next build.*$/\1/p' \
+                       -e 's/^==> keeping the staged image as \(.*\)$/\1/p' "$logf" >> "$out/preserved.list"
+                if [ -f "$out/preserved.list" ]; then
+                    sort -u "$out/preserved.list" > "$out/preserved.list.new" && mv "$out/preserved.list.new" "$out/preserved.list"
+                fi
+                if [ "$rc" != 0 ]; then
+                    die "pkg binpkg $p failed (exit $rc). Its build tree is kept: fix the cause and rerun (--resume continues the build); --cleanup frees the space. Log: $logf"
+                fi
+                echo "$commit" > "$bdir/$p.commit"
+            fi
+        fi
+        got=
+        for f in $bdir/$p-*.binpkg.tar.gz; do
+            [ -f "$f" ] && got=$f
+        done
+        [ -n "$got" ] || die "no binary package of $p in $bdir"
+        [ -f "$got.sha256" ] || die "no $got.sha256: installpkg refuses a package without a checksum"
+        cp "$got" "$got.sha256" "$dest/bootstrap/binpkgs/" || die "cannot copy $got"
+        built="$built $p"
+        say "included `echo "$got" | sed 's#.*/##'`"
+    done
+else
+    say "leaving the binary packages out (--no-binpkgs)"
+fi
+
+# 3. The script the installer runs on the target.  TREE_DIR is baked in.
+cat > "$dest/bootstrap/install-bootstrap" <<EOF
+#!/bin/sh
+# Installs the bootstrap binary packages that came with this tree.  The
+# Installer runs it after the files are in place; it can be run again by hand.
+# They are installed without their dependencies (--no-deps): most of a build
+# tool's dependencies are needed to build it, not to run it.  Everything else
+# is then built from source with the normal rules: sh pkg-missing
+TREE=$tree_dir
+PACKAGES="$built"
+EOF
+cat >> "$dest/bootstrap/install-bootstrap" <<'EOF'
+
+status=0
+for p in $PACKAGES; do
+    found=
+    for f in $TREE/bootstrap/binpkgs/$p-*.binpkg.tar.gz; do
+        [ -f "$f" ] && found=$f
+    done
+    if [ -z "$found" ]; then
+        echo "install-bootstrap: no binary package of $p in $TREE/bootstrap/binpkgs" >&2
+        status=1
+        continue
+    fi
+    echo "install-bootstrap: installing $p"
+    /bin/sh "$TREE/pkg" --no-deps installpkg "$found" || status=1
+done
+
+if [ $status = 0 ]; then
+    echo "install-bootstrap: done.  Build the rest from source with:"
+    echo "    cd $TREE && sh pkg-missing"
+fi
+exit $status
+EOF
+chmod 755 "$dest/bootstrap/install-bootstrap"
+
+# 4. The payload archive (always made; the .pkg is built from the same files).
+payload_archive=$out/$name.payload.tar.gz
+say "writing $payload_archive"
+rm -f "$payload_archive"
+( cd "$payload" && tar cf - . ) | gzip -c > "$payload_archive" || die "could not write the payload archive"
+write_sha256 "$payload_archive"
+
+if [ $payload_only = 1 ]; then
+    say "stopping after the payload (--payload-only): $payload_archive"
+    exit 0
+fi
+
+# 5. The NeXT .pkg.  Relocatable NO and DefaultLocation = the tree's parent
+# directory, with only the tree's own directory in the archive: the Installer
+# then never touches the ownership or modes of /usr or /usr/local.
+pkgname=$name
+pkgdir=$out/$pkgname.pkg
+parent=`echo "$tree_dir" | sed 's#/[^/]*$##'`
+leaf=`echo "$tree_dir" | sed 's#.*/##'`
+[ -n "$parent" ] || parent=/
+[ -n "$leaf" ] || die "--tree-dir must name a directory below /"
+
+
+if [ -d "$pkgdir" ]; then
+    rm -rf "$pkgdir" || die "cannot remove the old $pkgdir"
+fi
+mkdirs "$pkgdir" || die "cannot create $pkgdir"
+
+say "building $pkgname.pkg (installs into $tree_dir)"
+
+# The scripts the Installer runs (they run as root, after the files are in).
+cat > "$pkgdir/$pkgname.post_install" <<EOF
+#!/bin/sh
+# Run by the Installer after the tree is in place.
+exec /bin/sh $tree_dir/bootstrap/install-bootstrap
+EOF
+chmod 755 "$pkgdir/$pkgname.post_install"
+
+# The archive: paths relative to DefaultLocation, as in OpenWrite.pkg.
+say "compressing the payload"
+( cd "$payload$parent" && tar cf - "$leaf" ) | $COMPRESS > "$pkgdir/$pkgname.tar.Z" ||
+    die "could not write $pkgname.tar.Z"
+
+# The bill of materials, of the tree as it will be installed.
+say "making the bill of materials"
+$MKBOM "$payload$parent/$leaf" "$pkgdir/$pkgname.bom" || die "mkbom failed"
+
+# Sizes in K.  NumFiles counts files and directories.
+nfiles=`cd "$payload$parent" && find "$leaf" -print | wc -l | sed 's/ //g'`
+instk=`cd "$payload$parent" && du -sk "$leaf" | sed 's/[^0-9].*//'`
+cbytes=`wc -c < "$pkgdir/$pkgname.tar.Z" | sed 's/ //g'`
+ck=`expr \( $cbytes + 1023 \) / 1024`
+{
+    echo "NumFiles $nfiles"
+    echo "InstalledSize $instk"
+    echo "CompressedSize $ck"
+} > "$pkgdir/$pkgname.sizes"
+
+{
+    echo "# Generated by gen-bootstrap-pkg from $ref ($commit)."
+    echo ""
+    echo "# Required fields"
+    echo ""
+    echo "Title openstep-pkg bootstrap"
+    echo "Version $version"
+    echo "Description The pkg package builder and the compilers to start it: pkg, pkg-missing, pkg-world, the package definitions, and binary packages of$built."
+    echo "DefaultLocation $parent"
+    echo "DiskName openstep-pkg#%d"
+    echo ""
+    echo "# Optional fields"
+    echo ""
+    echo "Relocatable NO"
+    echo "Application NO"
+    echo "UseUserMask NO"
+    echo "LongFileNames YES"
+    echo ""
+    echo "# End of .info file"
+} > "$pkgdir/$pkgname.info"
+
+# Files in a .pkg are read-only, as in OpenWrite.pkg.
+chmod 444 "$pkgdir/$pkgname.tar.Z" "$pkgdir/$pkgname.bom" "$pkgdir/$pkgname.sizes" "$pkgdir/$pkgname.info"
+
+# 6. The distribution archive.
+dist=$out/$pkgname.pkg.tar.gz
+say "writing $dist"
+rm -f "$dist"
+( cd "$out" && tar cf - "$pkgname.pkg" ) | gzip -c > "$dist" || die "could not write $dist"
+write_sha256 "$dist"
+say "done"
+echo "  payload:      $payload_archive"
+echo "  package:      $pkgdir"
+echo "  distribution: $dist"
+exit 0

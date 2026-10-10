@@ -4,7 +4,7 @@ DESTDIR=$1
 VERSION=$2
 . "$PKG_BUILD_HELPERS"
 PATH=/usr/ucb:/bin:/usr/bin
-CC='/bin/cc -traditional-cpp'
+CC="/bin/cc -traditional-cpp $PKG_SYSCC_ARCH_FLAGS"
 CFLAGS='-O0'
 CPPFLAGS='-I/usr/local/include'
 LDFLAGS='-L/usr/local/lib'
@@ -22,14 +22,32 @@ export ac_cv_have_decl_getdtablesize
 CONFIG_SHELL=/usr/local/bin/ksh
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED PKG_CONFIG CONFIG_SHELL
 /usr/local/bin/patch -p1 < "wget-$VERSION-openstep.patch"
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+# This gnulib's localtime-buffer.c wraps localtime() and gmtime() in
+# rpl_localtime() and rpl_gmtime(), but <time.h> has already renamed those two
+# to the wrappers, so each calls itself until the stack runs out (a segfault in
+# rpl_localtime on the first timestamp).  Newer gnulib undefines the macros.
+$SED 's/^#include "localtime-buffer.h"$/&\
+#undef localtime\
+#undef gmtime/' lib/localtime-buffer.c > lib/localtime-buffer.c.new
+/bin/mv lib/localtime-buffer.c.new lib/localtime-buffer.c
+# xsleep() (used between download retries) goes through gnulib's nanosleep(),
+# which sleeps in select() and leaves its "remaining" argument unset; on
+# OPENSTEP a retry then hangs after "Retrying.".  Use sleep() and usleep().
+$SED 's/^#ifdef HAVE_NANOSLEEP$/#if defined HAVE_NANOSLEEP \&\& !defined NeXT \&\& !defined __NeXT__/' \
+    src/utils.c > src/utils.c.new
+/bin/mv src/utils.c.new src/utils.c
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix=/usr/local --with-ssl=openssl \
   --with-libssl-prefix=/usr/local --without-libpsl --without-zlib \
   --without-metalink --without-cares --without-libuuid --disable-iri \
   --disable-pcre --disable-nls --disable-ipv6 --disable-ntlm --disable-opie \
   --disable-xattr --disable-dependency-tracking
 # Both the generated configure files and their inputs carry the port fixes.
-/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true
+# SPARC libc's memcmp()/strcmp() compare bytes as signed.  This gnulib will not
+# take a forced -include (pkg_cmp_shim), so link in unsigned definitions (see
+# pkg_cmp_obj); they are added at make time only.
+CMPOBJ=`pkg_cmp_obj "\`pwd\`/openstep-cmp"`
+/bin/gnumake ACLOCAL=true AUTOCONF=true AUTOHEADER=true AUTOMAKE=true LDFLAGS="$LDFLAGS $CMPOBJ"
 for dir in "$DESTDIR/usr" "$DESTDIR/usr/local" "$DESTDIR/usr/local/bin"; do
     test -d "$dir" || /bin/mkdir "$dir"
 done

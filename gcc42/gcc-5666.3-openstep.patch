@@ -81,8 +81,22 @@ index 8fe7ea1..84643d0 100644
  
  # These programs are not linked with the MD reader.
  build/gengenrtl$(build_exeext) : $(BUILD_ERRORS)
+diff --git a/gcc/c-common.c b/gcc/c-common.c
+--- a/gcc/c-common.c
++++ b/gcc/c-common.c
+@@ -7120,7 +7120,9 @@
+ /* Default value of the constraint table.  */
+ /* ??? This should be in defaults.h or a CW asm specific header.  */
+ #ifndef TARGET_IASM_OP_CONSTRAINT
+-#define TARGET_IASM_OP_CONSTRAINT {}
++/* An empty initializer crashes old host compilers (OPENSTEP's cc 2.7.2.1), so
++   give the table one entry that no real opcode can match.  */
++#define TARGET_IASM_OP_CONSTRAINT { "", ~0U, "" }
+ #endif
+ 
+ /* Comparison function for bsearch to find an opcode/argument number
 diff --git a/gcc/config.gcc b/gcc/config.gcc
-index df57fe2..a8cf0ea 100644
+index df57fe2..b9fb712 100644
 --- a/gcc/config.gcc
 +++ b/gcc/config.gcc
 @@ -1051,6 +1051,14 @@ i[34567]86-*-darwin*)
@@ -100,6 +114,24 @@ index df57fe2..a8cf0ea 100644
  x86_64-*-darwin*)
  	# APPLE LOCAL mainline
  	# Deleted with_arch
+@@ -2194,6 +2202,17 @@ sparc64-*-openbsd*)
+ 	gas=yes gnu_ld=yes
+ 	with_cpu=ultrasparc
+ 	;;
++sparc-next-*)
++	tm_p_file="${tm_p_file} nextstep-protos.h"
++	tm_file="${tm_file} nextstep.h sparc/next.h"
++	extra_options="${extra_options} sparc/long-double-switch.opt"
++	tmake_file=sparc/t-next
++	# OPENSTEP/SPARC runs only on sun4m machines, which are SPARC V8.
++	with_cpu=v8
++	extra_objs=nextstep.o
++	extra_parts="crtbegin.o crtend.o"
++	use_collect2=no
++	;;
+ sparc-*-elf*)
+ 	tm_file="${tm_file} dbxelf.h elfos.h svr4.h sparc/sysv4.h sparc/sp-elf.h"
+ 	tmake_file="sparc/t-elf sparc/t-crtfm"
 diff --git a/gcc/config/i386/ARCH_INCLUDE.h b/gcc/config/i386/ARCH_INCLUDE.h
 new file mode 100644
 index 0000000..c556c16
@@ -401,10 +433,10 @@ index 0000000..0aa3846
 +#define DEFAULT_PCC_STRUCT_RETURN 0
 diff --git a/gcc/config/i386/next.h b/gcc/config/i386/next.h
 new file mode 100644
-index 0000000..e1d321e
+index 0000000..266db11
 --- /dev/null
 +++ b/gcc/config/i386/next.h
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,186 @@
 +/* Target definitions for GNU compiler for Intel x86 CPU running NeXTSTEP
 +   Copyright (C) 1993, 1995, 1996, 1999 Free Software Foundation, Inc.
 +
@@ -582,6 +614,9 @@ index 0000000..e1d321e
 +
 +/* END Calling Convention CHANGES */
 +
++/* Emit the i386 PIC thunks at the end of the file.  */
++#define NEXTSTEP_CPU_FILE_END() ix86_file_end ()
++
 +/* NeXT still uses old binutils that don't insert nops by default
 +   when the .align directive demands to insert extra space in the text
 +   segment.  */
@@ -750,10 +785,10 @@ index 0000000..9b00e67
 +extern void nextstep_file_end PARAMS ((void));
 diff --git a/gcc/config/nextstep.c b/gcc/config/nextstep.c
 new file mode 100644
-index 0000000..26678e2
+index 0000000..d216024
 --- /dev/null
 +++ b/gcc/config/nextstep.c
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,333 @@
 +/* Functions for generic NeXT as target machine for GNU C compiler.
 +   Copyright (C) 1989, 1990, 1991, 1992, 1993, 1996, 1997, 1998,
 +   2000 Free Software Foundation, Inc.
@@ -1055,7 +1090,9 @@ index 0000000..26678e2
 +void
 +nextstep_file_end (void)
 +{
-+  ix86_file_end ();
++#ifdef NEXTSTEP_CPU_FILE_END
++  NEXTSTEP_CPU_FILE_END ();
++#endif
 +  if (strcmp (lang_hooks.name, "GNU C++") == 0)
 +    {
 +      switch_to_section (nextstep_sections[NEXTSTEP_CONSTRUCTOR]);
@@ -1087,7 +1124,7 @@ index 0000000..26678e2
 +}
 diff --git a/gcc/config/nextstep.h b/gcc/config/nextstep.h
 new file mode 100644
-index 0000000..f12e0b4
+index 0000000..270de6a
 --- /dev/null
 +++ b/gcc/config/nextstep.h
 @@ -0,0 +1,597 @@
@@ -1117,7 +1154,7 @@ index 0000000..f12e0b4
 +   In a cross compiler with NeXT as target, don't expect
 +   the host to use Next's directory scheme.  */
 +
-+#ifndef CROSS_COMPILE
++#if !defined (CROSS_COMPILE) && !defined (CROSS_DIRECTORY_STRUCTURE)
 +#undef	INCLUDE_DEFAULTS
 +#define INCLUDE_DEFAULTS				\
 +  {							\
@@ -1160,7 +1197,7 @@ index 0000000..f12e0b4
 +    { "/usr/include/bsd", 0, 0, 0 },			\
 +    { 0, 0, 0, 0 }					\
 +  }
-+#endif /* CROSS_COMPILE */
++#endif /* !CROSS_COMPILE */
 +
 +#undef	EXTRA_FORMAT_FUNCTIONS
 +#define EXTRA_FORMAT_FUNCTIONS \
@@ -1688,6 +1725,241 @@ index 0000000..f12e0b4
 +#endif
 +
 +#define ASM_COMMENT_START ";#"
+diff --git a/gcc/config/sparc/ARCH_INCLUDE.h b/gcc/config/sparc/ARCH_INCLUDE.h
+new file mode 100644
+index 0000000..87de807
+--- /dev/null
++++ b/gcc/config/sparc/ARCH_INCLUDE.h
+@@ -0,0 +1,9 @@
++#ifndef _ARCH_INCLUDE_H_
++#define _ARCH_INCLUDE_H_
++
++/* GCC's preprocessor does not accept OPENSTEP's adjacent-string form in
++   include directives.  Use an angle-bracket name and a token that cannot
++   be expanded like the predefined sparc macro.  */
++#define ARCH_INCLUDE(prefix, suffix) <prefix __next_sparc__/suffix>
++
++#endif
+diff --git a/gcc/config/sparc/next.h b/gcc/config/sparc/next.h
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/gcc/config/sparc/next.h
+@@ -0,0 +1,138 @@
++/* Target definitions for GNU compiler for SPARC running OPENSTEP 4.
++   Copyright (C) 1993, 1995, 1996, 1999 Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2, or (at your option)
++any later version.
++
++GCC is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with GCC; see the file COPYING.  If not, write to
++the Free Software Foundation, 51 Franklin Street, Fifth Floor,
++Boston, MA 02110-1301, USA.  */
++
++/* This file layers the Mach-O/NeXT conventions in nextstep.h over the
++   generic SPARC (V8, 32-bit, big-endian) back end.  */
++
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()                 \
++  do                                             \
++    {                                            \
++      builtin_define ("NeXT");                  \
++      builtin_define_std ("unix");              \
++      builtin_define ("__MACH__");              \
++      builtin_define ("__BIG_ENDIAN__");        \
++      builtin_define_with_value ("__ARCHITECTURE__", "sparc", 1); \
++      builtin_assert ("system=unix");            \
++      builtin_assert ("system=mach");            \
++    }                                            \
++  while (0)
++
++#undef TEXT_SECTION_ASM_OP
++#define TEXT_SECTION_ASM_OP "\t.text"
++
++#undef DATA_SECTION_ASM_OP
++#define DATA_SECTION_ASM_OP "\t.data"
++
++/* The native compiler spells it .globl.  */
++#undef GLOBAL_ASM_OP
++#define GLOBAL_ASM_OP "\t.globl "
++
++#undef LINKER_NAME
++#define LINKER_NAME "ld"
++
++/* OPENSTEP's assembler does not accept the hot/cold section names.  */
++#undef HOT_TEXT_SECTION_NAME
++#define HOT_TEXT_SECTION_NAME TEXT_SECTION_ASM_OP
++
++#undef UNLIKELY_EXECUTED_TEXT_SECTION_NAME
++#define UNLIKELY_EXECUTED_TEXT_SECTION_NAME TEXT_SECTION_ASM_OP
++
++#ifndef ASM_DECLARE_FUNCTION_NAME
++#define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL) ASM_OUTPUT_LABEL (FILE, NAME)
++#endif
++
++/* We do not want a dot in internal labels.  */
++
++#undef LPREFIX
++#define LPREFIX "L"
++
++#undef	ASM_GENERATE_INTERNAL_LABEL
++#define ASM_GENERATE_INTERNAL_LABEL(BUF,PREFIX,NUMBER)	\
++    sprintf ((BUF), "*%s%ld", (PREFIX), (long)(NUMBER))
++
++#undef ASM_OUTPUT_INTERNAL_LABEL
++#define ASM_OUTPUT_INTERNAL_LABEL(FILE,NAME)		\
++  do {						\
++    assemble_name_raw ((FILE), (NAME));			\
++    fputs (":\n", (FILE));				\
++  } while (0)
++
++#undef	ASM_APP_ON
++#define ASM_APP_ON "#APP\n"
++
++#undef	ASM_APP_OFF
++#define ASM_APP_OFF "#NO_APP\n"
++
++#undef	ASM_COMMENT_START
++#define ASM_COMMENT_START "!"
++
++/* NeXT's assembler spells these as in i386/bsd.h rather than Sun's way.  */
++#undef ASM_OUTPUT_COMMON
++#define ASM_OUTPUT_COMMON(FILE, NAME, SIZE, ROUNDED)  \
++( fputs ("\t.comm ", (FILE)),			\
++  assemble_name ((FILE), (NAME)),		\
++  fprintf ((FILE), ",%u\n", (int)(ROUNDED)))
++
++/* sparc.h routes initialised-to-zero globals through .lcomm, which NeXT's
++   assembler treats as file-local even after .globl, so they would never be
++   exported.  Like i386, put them in .data with .space instead.  */
++#undef ASM_OUTPUT_ALIGNED_BSS
++
++#undef ASM_OUTPUT_SKIP
++#define ASM_OUTPUT_SKIP(FILE,SIZE)  \
++  fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
++
++/* sparc.h's version prints a byte count where NeXT's .align takes a log2, and
++   padding on a fall-through path would execute as traps; skip it.  */
++#undef ASM_OUTPUT_ALIGN_WITH_NOP
++#define ASM_OUTPUT_ALIGN_WITH_NOP(FILE,LOG)
++
++/* OPENSTEP's assembler spells 16- and 32-bit data .short and .long (not Sun's
++   .half and .word) and has no .uahalf/.uaword/.uaxword.  */
++#define SPARC_NO_SUN_DATA_OPS 1
++#undef TARGET_ASM_ALIGNED_HI_OP
++#define TARGET_ASM_ALIGNED_HI_OP "\t.short\t"
++#undef TARGET_ASM_ALIGNED_SI_OP
++#define TARGET_ASM_ALIGNED_SI_OP "\t.long\t"
++
++/* Case-vector elements: sparc.h hardcodes .word.  */
++#undef ASM_OUTPUT_ADDR_VEC_ELT
++#define ASM_OUTPUT_ADDR_VEC_ELT(FILE, VALUE)  \
++do {									\
++  char label[30];							\
++  ASM_GENERATE_INTERNAL_LABEL (label, "L", VALUE);			\
++  fprintf (FILE, "\t.long\t");					\
++  assemble_name (FILE, label);						\
++  fputc ('\n', FILE);							\
++} while (0)
++
++#undef ASM_OUTPUT_ADDR_DIFF_ELT
++#define ASM_OUTPUT_ADDR_DIFF_ELT(FILE, BODY, VALUE, REL)		\
++do {									\
++  char label[30];							\
++  ASM_GENERATE_INTERNAL_LABEL (label, "L", (VALUE));			\
++  fprintf (FILE, "\t.long\t");					\
++  assemble_name (FILE, label);						\
++  ASM_GENERATE_INTERNAL_LABEL (label, "L", (REL));			\
++  fputc ('-', FILE);							\
++  assemble_name (FILE, label);						\
++  fputc ('\n', FILE);							\
++} while (0)
+diff --git a/gcc/config/sparc/sparc.c b/gcc/config/sparc/sparc.c
+--- a/gcc/config/sparc/sparc.c
++++ b/gcc/config/sparc/sparc.c
+@@ -424,6 +424,11 @@
+ 
+ /* Initialize the GCC target structure.  */
+ 
++/* Targets whose assembler does not use Sun's data directive names (such as
++   OPENSTEP, which has .short/.long and no .ua*) define SPARC_NO_SUN_DATA_OPS
++   and provide TARGET_ASM_ALIGNED_{HI,SI}_OP themselves; the unaligned ops
++   then default to the aligned ones.  */
++#ifndef SPARC_NO_SUN_DATA_OPS
+ /* The sparc default is to use .half rather than .short for aligned
+    HI objects.  Use .word instead of .long on non-ELF systems.  */
+ #undef TARGET_ASM_ALIGNED_HI_OP
+@@ -439,6 +444,7 @@
+ #define TARGET_ASM_UNALIGNED_SI_OP "\t.uaword\t"
+ #undef TARGET_ASM_UNALIGNED_DI_OP
+ #define TARGET_ASM_UNALIGNED_DI_OP "\t.uaxword\t"
++#endif /* !SPARC_NO_SUN_DATA_OPS */
+ 
+ /* The target hook has to handle DI-mode values.  */
+ #undef TARGET_ASM_INTEGER
+diff --git a/gcc/config/sparc/t-next b/gcc/config/sparc/t-next
+new file mode 100644
+index 0000000..cc94abe
+--- /dev/null
++++ b/gcc/config/sparc/t-next
+@@ -0,0 +1,47 @@
++# Specify other dirs of system header files to be fixed.
++OTHER_FIXINCLUDES_DIRS= /LocalDeveloper/Headers
++
++# <limits.h> is sometimes in /usr/include/ansi/limits.h.
++LIMITS_H_TEST = [ -f $(SYSTEM_HEADER_DIR)/limits.h -o -f $(SYSTEM_HEADER_DIR)/ansi/limits.h ]
++
++nextstep.o: $(srcdir)/config/nextstep.c $(CONFIG_H) $(TM_H) $(TM_P_H) flags.h tree.h
++	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $(srcdir)/config/nextstep.c
++
++# OPENSTEP uses setjmp/longjmp exceptions and has no DWARF unwinder.
++LIB2ADDEH = $(srcdir)/unwind-sjlj.c $(srcdir)/unwind-c.c
++LIB2ADDEHSTATIC = $(LIB2ADDEH)
++LIB2ADDEHSHARED = $(LIB2ADDEH)
++LIB2ADDEHDEP = $(UNWIND_H) unwind-pe.h unwind.inc
++
++# fixincludes recreates gcc/include while all-gcc is running.  Populate the
++# OPENSTEP computed-include aliases and framework-style include directories
++# after that step, but before xgcc starts compiling libgcc.
++libgcc.a stmp-multilib: stmp-nextstep-headers
++
++stmp-nextstep-headers: stmp-int-hdrs
++	test -d include/architecture || mkdir include/architecture
++	/bin/rm -f include/architecture/ARCH_INCLUDE.h
++	/bin/cp $(srcdir)/config/sparc/ARCH_INCLUDE.h include/architecture/
++	# OPENSTEP's cdefs.h mistakes every GCC x.y with y < 5 for GCC 1.x.
++	test -d include/sys || mkdir include/sys
++	sed 's/__GNUC__ < 2 || __GNUC_MINOR__ < 5/__GNUC__ < 2 || (__GNUC__ == 2 \&\& __GNUC_MINOR__ < 5)/' \
++	  /NextDeveloper/Headers/bsd/sys/cdefs.h > include/sys/cdefs.h
++	for header_sparc_dir in /NextDeveloper/Headers/*/sparc; do \
++	  if [ -d "$$header_sparc_dir" ]; then \
++	    header_family=`echo "$$header_sparc_dir" | sed 's#^/NextDeveloper/Headers/##; s#/sparc$$##'`; \
++	    test -d "include/$$header_family" || mkdir "include/$$header_family"; \
++	    /bin/rm -rf "include/$$header_family/__next_sparc__"; \
++	    /bin/cp -r "$$header_sparc_dir" "include/$$header_family/__next_sparc__"; \
++	  fi; \
++	done
++	for framework_dir in /NextLibrary/Frameworks/*.framework; do \
++	  if [ -d "$$framework_dir/Headers" ]; then \
++	    framework_name=`echo "$$framework_dir" | sed 's#^.*/##; s#\.framework$$##'`; \
++	    if [ -d "include/$$framework_name" ]; then chmod u+w "include/$$framework_name"; fi; \
++	    /bin/rm -rf "include/$$framework_name"; \
++	    mkdir "include/$$framework_name"; \
++	    set -- "$$framework_dir"/Headers/*.h; \
++	    if [ -f "$$1" ]; then /bin/cp "$$@" "include/$$framework_name/"; fi; \
++	  fi; \
++	done
++	echo timestamp > $@
 diff --git a/gcc/crtstuff-next.c b/gcc/crtstuff-next.c
 new file mode 100644
 index 0000000..86db0c8
@@ -7358,9 +7630,9 @@ index c5ff5ff..794fb22 100644
  #endif
  /* APPLE LOCAL end radar 4491211 */
 +      /* Classic NeXT uses ordinary messengers for all result types.  Its
-+         aggregate result pointer is in %ebx, not a hidden stack argument;
-+         the Darwin stret/fpret entry points do not exist on OPENSTEP.  */
-+#ifndef NEXTSTEP_STRUCT_VALUE_REGNUM
++         aggregate result pointer is in %ebx (i386) or a stack slot (SPARC),
++         never a hidden first argument; stret/fpret entry points do not exist.  */
++#if !defined (NEXTSTEP_STRUCT_VALUE_REGNUM) && !defined (STRUCT_VALUE_OFFSET)
        /* If we are returning a struct in memory, and the address
  	 of that memory location is passed as a hidden first
  	 argument, then change which messenger entry point this
@@ -7521,7 +7793,7 @@ index 0000000..5cfe7b9
 +
 +#endif /* GCC_OPENSTEP_BUILD_STDINT_H */
 diff --git a/libcpp/configure b/libcpp/configure
-index 2b944b3..c764d70 100644
+index 2b944b3..c764d70 100755
 --- a/libcpp/configure
 +++ b/libcpp/configure
 @@ -2946,9 +2946,7 @@ fi
@@ -7560,7 +7832,7 @@ index e553444..0ce7d11 100644
        total_len = (cpp_spell_token (pfile, token, (uchar *) &buffer[total_len],
  				    true)
 diff --git a/libiberty/configure b/libiberty/configure
-index 3491102..4abc0d0 100644
+index 3491102..4abc0d0 100755
 --- a/libiberty/configure
 +++ b/libiberty/configure
 @@ -2986,6 +2986,13 @@ echo "${ECHO_T}$ac_cv_prog_cc_w_cxx_compat" >&6

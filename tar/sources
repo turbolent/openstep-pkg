@@ -1,3 +1,4 @@
 # Offline bootstrap: https://mirrors.kernel.org/gnu/tar/tar-1.15.1.tar.gz
 tar-1.15.1.tar.gz
 tar-1.15.1-openstep.patch tar-1.15.1
+tar-1.15.1-cve.patch tar-1.15.1

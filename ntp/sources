@@ -1,0 +1,4 @@
+https://downloads.nwtime.org/ntp/4.2.8/ntp-4.2.8p18.tar.gz
+rc.ntp ntp-4.2.8p18/pkg-files
+rc.ntp.conf.dist ntp-4.2.8p18/pkg-files
+README ntp-4.2.8p18/pkg-files

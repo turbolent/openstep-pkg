@@ -1,0 +1,6 @@
+gcc42
+grep
+gawk
+sed
+patch
+!pkg-config

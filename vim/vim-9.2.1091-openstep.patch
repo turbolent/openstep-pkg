@@ -1,0 +1,434 @@
+diff -ruN a/src/ex_cmds.c b/src/ex_cmds.c
+--- a/src/ex_cmds.c
++++ b/src/ex_cmds.c
+@@ -300,7 +300,7 @@
+ string_compare(const void *s1, const void *s2)
+ {
+     if (sort_lc)
+-	return strcoll((char *)s1, (char *)s2);
++	return STRCOLL(s1, s2);
+     return sort_ic ? STRICMP(s1, s2) : STRCMP(s1, s2);
+ }
+ 
+diff -ruN a/src/libvterm/include/vterm.h b/src/libvterm/include/vterm.h
+--- a/src/libvterm/include/vterm.h
++++ b/src/libvterm/include/vterm.h
+@@ -13,13 +13,19 @@
+ #include "vterm_keycodes.h"
+ 
+ // VIM: use TRUE and FALSE instead of true and false
+-#define TRUE 1
+-#define FALSE 0
++#ifndef TRUE
++# define TRUE 1
++#endif
++#ifndef FALSE
++# define FALSE 0
++#endif
+ 
+ // VIM: from stdint.h
+ typedef unsigned char		uint8_t;
+ typedef unsigned short		uint16_t;
++#ifndef uint32_t  // configure may define this when stdint.h is unavailable.
+ typedef unsigned int		uint32_t;
++#endif
+ 
+ // VIM: define max screen cols and rows
+ #define VTERM_MAX_COLS 1000
+diff -ruN a/src/list.c b/src/list.c
+--- a/src/list.c
++++ b/src/list.c
+@@ -2195,7 +2195,7 @@
+     if (!sortinfo->item_compare_numeric)
+     {
+ 	if (sortinfo->item_compare_lc)
+-	    res = strcoll((char *)p1, (char *)p2);
++	    res = STRCOLL(p1, p2);
+ 	else
+ 	    res = sortinfo->item_compare_ic ? STRICMP(p1, p2): STRCMP(p1, p2);
+     }
+diff -ruN a/src/os_openstep.h b/src/os_openstep.h
+--- a/src/os_openstep.h
++++ b/src/os_openstep.h
+@@ -0,0 +1,57 @@
++/* Narrow OPENSTEP fallbacks for the C99 interfaces used by Vim. */
++#ifndef VIM_OS_OPENSTEP_H
++#define VIM_OS_OPENSTEP_H
++
++#include <stddef.h>
++#include <math.h>
++#include <fcntl.h>
++#include <sys/wait.h>
++
++/* <sys/wait.h> here defines the W*() macros for the BSD "union wait" (members
++   w_T and w_S), but Vim keeps wait status in a plain int.  Use the standard int
++   forms (the BSD status layout), as os_unixx.h does when the header has none. */
++#undef WIFEXITED
++#undef WEXITSTATUS
++#undef WIFSIGNALED
++#undef WTERMSIG
++#undef WIFSTOPPED
++#undef WSTOPSIG
++#undef WCOREDUMP
++#define WIFEXITED(s)	(((s) & 0177) == 0)
++#define WEXITSTATUS(s)	(((s) >> 8) & 0377)
++#define WIFSIGNALED(s)	(((s) & 0377) != 0177 && ((s) & 0177) != 0)
++#define WTERMSIG(s)	((s) & 0177)
++#define WIFSTOPPED(s)	(((s) & 0377) == 0177)
++#define WSTOPSIG(s)	(((s) >> 8) & 0377)
++#define WCOREDUMP(s)	((s) & 0200)
++#define waitpid(pid, status, options) \
++    wait4((pid), (union wait *)(status), (options), (struct rusage *)0)
++
++typedef int ssize_t;
++typedef int socklen_t;
++
++/* No struct sockaddr_storage here.  channel.c only needs a buffer that is big
++   enough for any address and aligned for sockaddr_in, and reads ss_family. */
++struct sockaddr_storage {
++    unsigned short	ss_family;
++    char		ss_pad1[2];
++    long		ss_align;
++    char		ss_pad2[120];
++};
++#ifndef O_NONBLOCK
++# define O_NONBLOCK FNDELAY
++#endif
++#ifndef FD_CLOEXEC	// close-on-exec flag for F_SETFD; hidden without _POSIX_SOURCE
++# define FD_CLOEXEC 1
++#endif
++#ifndef HAVE_STDINT_H
++typedef unsigned long uintptr_t;
++#endif
++#ifndef SIZE_MAX
++# define SIZE_MAX ((size_t)-1)
++#endif
++#if !defined(INFINITY) && defined(__GNUC__) && __GNUC__ >= 4
++# define INFINITY (__builtin_inff())
++#endif
++
++#endif
+diff -ruN a/src/os_unix.c b/src/os_unix.c
+--- a/src/os_unix.c
++++ b/src/os_unix.c
+@@ -202,6 +202,10 @@
+ # define SIGSET_DECL(set)	sigset_t set;
+ # define BLOCK_SIGNALS(set)	block_signals(set)
+ # define UNBLOCK_SIGNALS(set)	unblock_signals(set)
++#elif defined(NeXT)
++# define SIGSET_DECL(set)	int set;
++# define BLOCK_SIGNALS(set)	(*(set) = sigblock(~0))
++# define UNBLOCK_SIGNALS(set)	((void)sigsetmask(*(set)))
+ #else
+ # define SIGSET_DECL(set)
+ # define BLOCK_SIGNALS(set)	do { /**/ } while (0)
+@@ -389,6 +393,29 @@
+     if (sigaction(sig, &sa, &old) == -1)
+ 	return SIG_ERR;
+     return blocked ? SIG_HOLD: old.sa_handler;
++#elif defined(NeXT)
++    // NeXT signal() takes libc locks and can deadlock in a signal handler.
++    struct sigvec sv, old;
++    int mask = sigblock(0);
++    int blocked = mask & sigmask(sig);
++
++    if (sigvec(sig, NULL, &old) < 0)
++	return SIG_ERR;
++    if (func == SIG_ERR)
++	return blocked ? SIG_HOLD : old.sv_handler;
++    if (func == SIG_HOLD)
++	(void)sigblock(sigmask(sig));
++    else
++    {
++	sv.sv_handler = func;
++	sv.sv_mask = 0;
++	sv.sv_flags = 0;
++	if (sigvec(sig, &sv, NULL) < 0)
++	    return SIG_ERR;
++	if (blocked)
++	    (void)sigsetmask(mask & ~sigmask(sig));
++    }
++    return blocked ? SIG_HOLD : old.sv_handler;
+ #elif defined(HAVE_SIGSET)
+     // Using sigset() is preferred above signal().
+     return sigset(sig, func);
+@@ -6101,8 +6128,22 @@
+ 	    && (!(use_file_for_in || use_null_for_in)
+ 		|| !(use_file_for_out || use_null_for_out)
+ 		|| !(use_out_for_err || use_file_for_err || use_null_for_err)))
++# ifdef NeXT
++    {
++	char *tty_name;
++	// A last close of the BSD slave can wait for output to drain. Only
++	// open it in the child, so the parent can always read the master.
++	pty_master_fd = mch_openpty(&tty_name);
++	if (pty_master_fd >= 0)
++	{
++	    job->jv_tty_out = vim_strsave((char_u *)tty_name);
++	    job->jv_tty_in = vim_strsave((char_u *)tty_name);
++	}
++    }
++# else
+ 	open_pty(&pty_master_fd, &pty_slave_fd,
+ 					    &job->jv_tty_out, &job->jv_tty_in);
++# endif
+ 
+     // TODO: without the channel feature connect the child to /dev/null?
+     // Open pipes for stdin, stdout, stderr.
+@@ -6201,6 +6242,25 @@
+ 	// children can be kill()ed.  Don't do this when using pipes,
+ 	// because stdin is not a tty, we would lose /dev/tty.
+ 	(void)setsid();
++# elif defined(NeXT)
++	// Acquire the slave as the child's controlling tty using the BSD API.
++	// Interactive shells read /dev/tty, not just their standard input.
++	if (pty_master_fd >= 0)
++	{
++	    int tty_fd = open("/dev/tty", O_RDWR);
++	    if (tty_fd >= 0)
++	    {
++		(void)ioctl(tty_fd, TIOCNOTTY, NULL);
++		close(tty_fd);
++	    }
++	}
++	(void)setpgrp(0, getpid());
++	if (pty_master_fd >= 0)
++	{
++	    pty_slave_fd = open((char *)job->jv_tty_in, O_RDWR);
++	    if (pty_slave_fd < 0)
++		_exit(EXEC_FAILED);
++	}
+ # endif
+ 
+ # ifdef FEAT_TERMINAL
+@@ -6347,7 +6407,7 @@
+     job->jv_status = JOB_STARTED;
+     job->jv_channel = channel;  // ch_refcount was set above
+ 
+-    if (pty_master_fd >= 0)
++    if (pty_slave_fd >= 0)
+ 	close(pty_slave_fd); // not used in the parent
+     // close child stdin, stdout and stderr
+     if (fd_in[0] >= 0)
+@@ -9036,6 +9096,72 @@
+     timer_created = FALSE;
+ }
+ 
++# elif defined(NeXT)
++
++// OPENSTEP provides the BSD signal interface, not POSIX sigaction/sigset_t.
++static struct sigvec prev_sigvec;
++static volatile sig_atomic_t timeout_flag = FALSE;
++static int timer_active = FALSE;
++
++    static void
++set_flag SIGDEFARG(sigarg)
++{
++    timeout_flag = TRUE;
++}
++
++    void
++stop_timeout(void)
++{
++    struct itimerval disarm = {{0, 0}, {0, 0}};
++    struct sigvec ignore_alarm;
++    int saved_mask;
++
++    if (timer_active)
++    {
++	saved_mask = sigblock(sigmask(SIGALRM));
++	if (setitimer(ITIMER_REAL, &disarm, NULL) < 0)
++	    semsg(_(e_could_not_clear_timeout_str), strerror(errno));
++	// Discard a pending alarm before restoring the previous disposition.
++	ignore_alarm.sv_handler = SIG_IGN;
++	ignore_alarm.sv_mask = 0;
++	ignore_alarm.sv_flags = 0;
++	(void)sigvec(SIGALRM, &ignore_alarm, NULL);
++	if (sigvec(SIGALRM, &prev_sigvec, NULL) < 0)
++	    semsg(_(e_could_not_reset_handler_for_timeout_str), strerror(errno));
++	timer_active = FALSE;
++	(void)sigsetmask(saved_mask);
++    }
++    timeout_flag = FALSE;
++}
++
++    volatile sig_atomic_t *
++start_timeout(long msec)
++{
++    struct itimerval interval = {{0, 0},
++	{msec / 1000, (msec % 1000) * 1000}};
++    struct sigvec handle_alarm;
++    int saved_mask;
++
++    stop_timeout();
++    saved_mask = sigblock(sigmask(SIGALRM));
++    handle_alarm.sv_handler = set_flag;
++    handle_alarm.sv_mask = 0;
++    handle_alarm.sv_flags = 0;
++    if (sigvec(SIGALRM, &handle_alarm, &prev_sigvec) < 0)
++	semsg(_(e_could_not_set_handler_for_timeout_str), strerror(errno));
++    else
++    {
++	timer_active = TRUE;
++	if (setitimer(ITIMER_REAL, &interval, NULL) < 0)
++	{
++	    semsg(_(e_could_not_set_timeout_str), strerror(errno));
++	    stop_timeout();
++	}
++    }
++    (void)sigsetmask(saved_mask);
++    return &timeout_flag;
++}
++
+ # else // PROF_NSEC
+ 
+ /*
+diff -ruN a/src/osdef.sh b/src/osdef.sh
+--- a/src/osdef.sh
++++ b/src/osdef.sh
+@@ -20,8 +20,9 @@
+ 
+ # Make sure collation works as expected
+ # swedish range [a-z] does not match 'w'
+-export LC_COLLATE=C
+-export LC_ALL=
++LC_COLLATE=C
++LC_ALL=
++export LC_COLLATE LC_ALL
+ 
+ rm -f core* *.core
+ 
+diff -ruN a/src/osdef1.h.in b/src/osdef1.h.in
+--- a/src/osdef1.h.in
++++ b/src/osdef1.h.in
+@@ -65,7 +65,7 @@
+ #  endif
+ # endif
+ #endif
+-#if !defined(__BIONIC__) && !defined(__HAIKU__)  // Android's libc #defines bzero to memset.
++#if !defined(__BIONIC__) && !defined(__HAIKU__) && !defined(bzero)
+ // used inside of FD_ZERO macro
+ extern void	bzero(void *, size_t);
+ #endif
+@@ -98,9 +98,11 @@
+ # ifndef __TANDEM
+ extern int	execvp(const char *, const char **);
+ # endif
++#ifndef NeXT	// <sys/wait.h> declares these differently (union wait)
+ extern int	wait(int *); /* will this break things ...? */
+ extern int	waitpid(pid_t, int *, int);
+ #endif
++#endif
+ 
+ extern int	toupper(int);
+ extern int	tolower(int);
+diff -ruN a/src/pty.c b/src/pty.c
+--- a/src/pty.c
++++ b/src/pty.c
+@@ -45,6 +45,9 @@
+ #if defined(FEAT_GUI) || defined(FEAT_JOB_CHANNEL)
+ 
+ #include <signal.h>
++#ifdef NeXT
++# include <sgtty.h>
++#endif
+ 
+ #ifdef HAVE_SYS_IOCTL_H
+ # include <sys/ioctl.h>
+@@ -163,8 +166,27 @@
+     int
+ setup_slavepty(int fd)
+ {
++#ifdef NeXT
++    struct sgttyb mode;
++    struct tchars chars = {3, 28, 17, 19, 4, -1};
++    struct ltchars local_chars = {26, 25, 18, 15, 23, 22};
++#endif
+     if (fd < 0)
+ 	return 0;
++#ifdef NeXT
++    // A newly opened BSD PTY starts without echo or CR/NL conversion.
++    // Establish cooked defaults before the shell applies its own settings.
++    if (ioctl(fd, TIOCGETP, &mode) < 0)
++	return -1;
++    mode.sg_ispeed = mode.sg_ospeed = B9600;
++    mode.sg_erase = 127;
++    mode.sg_kill = 21;
++    mode.sg_flags = ECHO | CRMOD;
++    if (ioctl(fd, TIOCSETN, &mode) < 0
++	    || ioctl(fd, TIOCSETC, &chars) < 0
++	    || ioctl(fd, TIOCSLTC, &local_chars) < 0)
++	return -1;
++#endif
+ #if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) \
+ 	&& !defined(linux) && !defined(__osf__) && !defined(M_UNIX)
+ # if defined(HAVE_SYS_PTEM_H) || defined(hpux)
+diff -ruN a/src/strings.c b/src/strings.c
+--- a/src/strings.c
++++ b/src/strings.c
+@@ -4307,6 +4307,34 @@
+ 			    memcpy(tmp + str_arg_l, b + sizeof(b) - b_l, b_l);
+ 			    str_arg_l += b_l;
+ 			}
++
++# ifdef NeXT
++			else if (length_modifier == 'L')
++			{
++			    // OPENSTEP's sprintf does not support long long.
++			    char digits[3 * sizeof(uvarnumber_T)];
++			    const char *alphabet = fmt_spec == 'X'
++				? "0123456789ABCDEF" : "0123456789abcdef";
++			    unsigned base = fmt_spec == 'o' ? 8
++				: (fmt_spec == 'x' || fmt_spec == 'X') ? 16 : 10;
++			    size_t count = 0;
++			    uvarnumber_T value = fmt_spec == 'd'
++				? (uvarnumber_T)llong_arg : ullong_arg;
++
++			    if (fmt_spec == 'd' && llong_arg < 0)
++			    {
++				tmp[str_arg_l++] = '-';
++				value = 0 - value; // also handles the most negative value
++			    }
++			    do
++			    {
++				digits[sizeof(digits) - ++count] = alphabet[value % base];
++				value /= base;
++			    } while (value != 0);
++			    memcpy(tmp + str_arg_l, digits + sizeof(digits) - count, count);
++			    str_arg_l += count;
++			}
++# endif
+ 			else if (fmt_spec == 'd')
+ 			{
+ 			    // signed
+diff -ruN a/src/term.c b/src/term.c
+--- a/src/term.c
++++ b/src/term.c
+@@ -4121,7 +4121,13 @@
+ 	    // Give the terminal a chance to respond.
+ 	    mch_delay(100L, 0);
+ # endif
+-# ifdef TCIFLUSH
++# if defined(NeXT) && defined(TIOCFLUSH)
++	    if (exiting)
++	    {
++		int flags = FREAD;
++		(void)ioctl(fileno(stdin), TIOCFLUSH, &flags);
++	    }
++# elif defined(TCIFLUSH)
+ 	    // Discard data received but not read.
+ 	    if (exiting)
+ 		tcflush(fileno(stdin), TCIFLUSH);
+diff -ruN a/src/vim.h b/src/vim.h
+--- a/src/vim.h
++++ b/src/vim.h
+@@ -515,6 +515,9 @@
+ #ifdef HAVE_STDINT_H
+ # include <stdint.h>
+ #endif
++#ifdef NeXT
++# include "os_openstep.h"
++#endif
+ #ifdef HAVE_INTTYPES_H
+ # include <inttypes.h>
+ #endif

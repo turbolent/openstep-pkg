@@ -1,0 +1,9 @@
+#!/bin/sh
+ETC="$ROOT_DIR/usr/local/etc"
+
+# Install the rc.sshd settings only when there are none: never replace an
+# administrator's rc.sshd.conf.
+if [ ! -f "$ETC/rc.sshd.conf" ] && [ -f "$ETC/rc.sshd.conf.dist" ]; then
+    /bin/cp "$ETC/rc.sshd.conf.dist" "$ETC/rc.sshd.conf"
+fi
+exit 0

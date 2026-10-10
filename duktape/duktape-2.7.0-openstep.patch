@@ -1,5 +1,5 @@
 diff --git a/src/duk_config.h b/src/duk_config.h
-index a4e997e..e12c46e 100644
+index a4e997e..66d9728 100644
 --- a/src/duk_config.h
 +++ b/src/duk_config.h
 @@ -336,12 +336,20 @@
@@ -72,7 +72,17 @@ index a4e997e..e12c46e 100644
  /* date.h is omitted, and included per platform */
  
  /* Shared includes: stdint.h is C99 */
-@@ -1147,7 +1190,9 @@
+@@ -971,6 +1014,9 @@
+ /* --- SPARC 32-bit --- */
+ #define DUK_USE_ARCH_STRING "sparc32"
+ /* SPARC byte order varies so rely on autodetection. */
++#if !defined(DUK_USE_BYTEORDER) && (defined(NeXT) || defined(__NeXT__) || defined(__NeXT))
++#define DUK_USE_BYTEORDER 3
++#endif
+ #define DUK_USE_PACKED_TVAL
+ #define DUK_F_PACKED_TVAL_PROVIDED
+ #elif defined(DUK_F_SPARC64)
+@@ -1147,7 +1193,9 @@
  #endif
  #elif defined(DUK_F_GCC)
  /* --- GCC --- */
@@ -83,3 +93,11 @@ index a4e997e..e12c46e 100644
  /* C99 / C++11 and above: rely on va_copy() which is required. */
  #define DUK_VA_COPY(dest,src) va_copy(dest,src)
  #else
+@@ -1617,6 +1665,7 @@
+  */
+ #if defined(DUK_F_X86) || defined(DUK_F_X32) || \
+     defined(DUK_F_M68K) || defined(DUK_F_PPC32) || \
++    defined(DUK_F_SPARC32) || \
+     defined(DUK_F_BCC) || \
+     (defined(__WORDSIZE) && (__WORDSIZE == 32)) || \
+     ((defined(DUK_F_OLD_SOLARIS) || defined(DUK_F_AIX) || \

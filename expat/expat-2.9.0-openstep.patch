@@ -1,0 +1,145 @@
+diff --git a/lib/expat.h b/lib/expat.h
+--- a/lib/expat.h
++++ b/lib/expat.h
+@@ -48,7 +48,11 @@
+ #ifndef Expat_INCLUDED
+ #  define Expat_INCLUDED 1
+ 
+-#  include <stdint.h> // for int64_t, uint8_t, uint64_t
++#  ifdef NeXT
++#    include <expat_openstep.h>
++#  else
++#    include <stdint.h> // for int64_t, uint8_t, uint64_t
++#  endif
+ #  include <stdlib.h>
+ #  include "expat_external.h"
+ 
+diff --git a/lib/expat_openstep.h b/lib/expat_openstep.h
+--- /dev/null
++++ b/lib/expat_openstep.h
+@@ -0,0 +1,36 @@
++#ifndef EXPAT_OPENSTEP_H
++#define EXPAT_OPENSTEP_H 1
++
++#include <limits.h>
++#include <stddef.h>
++
++typedef unsigned char bool;
++#ifndef true
++# define true 1
++#endif
++#ifndef false
++# define false 0
++#endif
++#ifndef __bool_true_false_are_defined
++# define __bool_true_false_are_defined 1
++#endif
++
++typedef signed char int8_t;
++typedef unsigned char uint8_t;
++typedef short int16_t;
++typedef unsigned short uint16_t;
++typedef int int32_t;
++typedef unsigned int uint32_t;
++typedef long long int64_t;
++typedef unsigned long long uint64_t;
++typedef long intptr_t;
++typedef unsigned long uintptr_t;
++
++#ifndef SIZE_MAX
++# define SIZE_MAX ((size_t)-1)
++#endif
++#ifndef UINT64_MAX
++# define UINT64_MAX 18446744073709551615ULL
++#endif
++
++#endif
+diff --git a/lib/internal.h b/lib/internal.h
+--- a/lib/internal.h
++++ b/lib/internal.h
+@@ -90,7 +90,12 @@
+ #      define EXPAT_FMT_SIZE_T(midpart) "%" midpart "u"
+ #    endif
+ #  else
+-#    include <inttypes.h> // PRIdPTR, PRIuPTR
++#    ifdef NeXT
++#      define PRIdPTR "d"
++#      define PRIuPTR "u"
++#    else
++#      include <inttypes.h> // PRIdPTR, PRIuPTR
++#    endif
+ #    define EXPAT_FMT_LLX(midpart) "%" midpart "llx"
+ #    define EXPAT_FMT_ULL(midpart) "%" midpart "llu"
+ #    define EXPAT_FMT_PTRDIFF_T(midpart) "%" midpart PRIdPTR
+diff --git a/lib/random_dev_urandom.c b/lib/random_dev_urandom.c
+--- a/lib/random_dev_urandom.c
++++ b/lib/random_dev_urandom.c
+@@ -43,6 +43,13 @@
+ #include <fcntl.h>  // open
+ #include <unistd.h> // close
+ 
++#ifdef NeXT
++#  ifndef O_CLOEXEC
++#    define O_CLOEXEC 0
++#  endif
++typedef long ssize_t;
++#endif
++
+ /* Extract entropy from /dev/urandom */
+ bool
+ writeRandomBytes_dev_urandom(void *target, size_t count) {
+diff --git a/lib/stdbool.h b/lib/stdbool.h
+--- /dev/null
++++ b/lib/stdbool.h
+@@ -0,0 +1,6 @@
++#ifndef EXPAT_STDBOOL_H
++#define EXPAT_STDBOOL_H 1
++
++#include "expat_openstep.h"
++
++#endif
+diff --git a/lib/stdint.h b/lib/stdint.h
+--- /dev/null
++++ b/lib/stdint.h
+@@ -0,0 +1,6 @@
++#ifndef EXPAT_STDINT_H
++#define EXPAT_STDINT_H 1
++
++#include "expat_openstep.h"
++
++#endif
+diff --git a/lib/xmlparse.c b/lib/xmlparse.c
+--- a/lib/xmlparse.c
++++ b/lib/xmlparse.c
+@@ -109,7 +109,15 @@
+ #include <stdint.h> /* SIZE_MAX, UINT64_MAX, uint64_t, uintptr_t */
+ #include <math.h>   /* isnan */
+ #include <errno.h>
+-#include <wchar.h> /* wcsncmp */
++#ifndef NeXT
++#  include <wchar.h> /* wcsncmp */
++#endif
++
++#ifdef NeXT
++#  ifndef isnan
++#    define isnan(x) ((x) != (x))
++#  endif
++#endif
+ 
+ #ifdef _WIN32
+ #  define getpid GetCurrentProcessId
+--- a/lib/expat_external.h
++++ b/lib/expat_external.h
+@@ -128,7 +128,11 @@
+ 
+ /* Marks a function that Expat still provides but that callers should move off
+    of. */
+-#  if defined(__clang__) || defined(__GNUC__)
++#  if defined(__GNUC__) && ! defined(__clang__)                                 \
++      && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 5))
++/* gcc before 4.5 (OPENSTEP's is 4.2) takes no message in the attribute. */
++#    define XML_ATTR_DEPRECATED(message) __attribute__((__deprecated__))
++#  elif defined(__clang__) || defined(__GNUC__)
+ #    define XML_ATTR_DEPRECATED(message)                                       \
+       __attribute__((__deprecated__(message)))
+ #  elif defined(_MSC_VER)

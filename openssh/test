@@ -9,6 +9,9 @@ SSHOUT=/tmp/pkg-openssh-ssh-$$
 
 [ -x "$SSH" ]
 [ -x "$SSHKEYGEN" ]
+# Since 9.8 sshd is split into sshd + sshd-session (+ sshd-auth).
+[ -x "$ROOT_DIR/usr/local/sbin/sshd" ]
+[ -x "$ROOT_DIR/usr/local/libexec/sshd-session" ]
 
 /bin/rm -f "$KEYBASE" "$KEYBASE.pub" "$SSHOUT"
 

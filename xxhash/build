@@ -6,14 +6,61 @@ PATH=/usr/local/bin:/bin:/usr/bin:/usr/ucb
 export PATH
 if test -d "xxHash-$VERSION"; then cd "xxHash-$VERSION"; fi
 patch -p1 < "xxhash-$VERSION-openstep.patch"
-make_xxhash() {
-    /usr/local/bin/gnumake CC=/usr/local/bin/gcc-4.2 SHELL=/usr/local/bin/ksh \
-        CFLAGS='-O2 -march=i486 -DCLOCKS_PER_SEC=CLK_TCK -I/NextDeveloper/Headers/bsd' \
-        DEBUGFLAGS= DISPATCH=0 UNAME=OPENSTEP DEPFLAGS= ARFLAGS=rc \
-        SED_ERE_OPT=-r INSTALL=/usr/local/bin/install "$@"
-}
-make_xxhash libxxhash.a xxhsum
+
+# xxHash's makefile keys its object cache on a hash of the build flags through
+# pattern rules that the SPARC gnumake rejects ("No rule to make target
+# cachedObjs/<hash>/libxxhash.a"), so build and install by hand instead.
+CC=/usr/local/bin/gcc-4.2
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DCLOCKS_PER_SEC=CLK_TCK -I/NextDeveloper/Headers/bsd -I. -Icli'
+# xxHash reads words from byte buffers through a packed-union cast by default
+# on GCC (XXH_FORCE_MEMORY_ACCESS=1).  GCC 4.2 on SPARC does not honour the
+# packing there and emits a plain 4-byte load, which bus-errors on an unaligned
+# address (xxhsum --version, in XXH_read32 via XXH3_64bits_withSeed).  Use the
+# memcpy method, which is safe everywhere.
+if [ "${PKG_ARCH-}" = sparc ]; then
+    CFLAGS="$CFLAGS -DXXH_FORCE_MEMORY_ACCESS=0"
+fi
+PREFIX=/usr/local
+INSTALL=/usr/local/bin/install
+
+$CC $CFLAGS -c xxhash.c -o xxhash.o
+/bin/rm -f libxxhash.a
+/bin/ar rc libxxhash.a xxhash.o
 /bin/ranlib libxxhash.a
-make_xxhash install_libxxhash.a install_libxxhash.includes install_libxxhash.pc \
-    install_xxhsum install_man DESTDIR="$DESTDIR" PREFIX=/usr/local
-/bin/ranlib "$DESTDIR/usr/local/lib/libxxhash.a"
+
+cli_objs=
+for src in cli/*.c; do
+    obj=`echo "$src" | /bin/sed 's/\.c$/.o/'`
+    $CC $CFLAGS -c "$src" -o "$obj"
+    cli_objs="$cli_objs $obj"
+done
+$CC $CFLAGS xxhash.o $cli_objs -o xxhsum
+
+major=`/bin/sed -n '/define XXH_VERSION_MAJOR/s/.*[ 	]\([0-9][0-9]*\).*/\1/p' xxhash.h`
+minor=`/bin/sed -n '/define XXH_VERSION_MINOR/s/.*[ 	]\([0-9][0-9]*\).*/\1/p' xxhash.h`
+release=`/bin/sed -n '/define XXH_VERSION_RELEASE/s/.*[ 	]\([0-9][0-9]*\).*/\1/p' xxhash.h`
+libver=$major.$minor.$release
+test "$libver" = "$VERSION"
+
+/bin/sed -e "s|@PREFIX@|$PREFIX|" \
+    -e 's|@EXECPREFIX@|${prefix}|' \
+    -e 's|@LIBDIR@|${exec_prefix}/lib|' \
+    -e 's|@INCLUDEDIR@|${prefix}/include|' \
+    -e "s|@VERSION@|$libver|" \
+    libxxhash.pc.in > libxxhash.pc
+
+for dir in lib include lib/pkgconfig bin share/man/man1; do
+    $INSTALL -d -m 755 "$DESTDIR$PREFIX/$dir"
+done
+$INSTALL -m 644 libxxhash.a "$DESTDIR$PREFIX/lib/libxxhash.a"
+/bin/ranlib "$DESTDIR$PREFIX/lib/libxxhash.a"
+$INSTALL -m 644 xxhash.h xxh3.h "$DESTDIR$PREFIX/include"
+$INSTALL -m 644 libxxhash.pc "$DESTDIR$PREFIX/lib/pkgconfig/libxxhash.pc"
+$INSTALL -m 755 xxhsum "$DESTDIR$PREFIX/bin/xxhsum"
+$INSTALL -m 644 cli/xxhsum.1 "$DESTDIR$PREFIX/share/man/man1/xxhsum.1"
+for name in xxh32sum xxh64sum xxh128sum xxh3sum; do
+    # OPENSTEP's /bin/ln has no -f.
+    /bin/rm -f "$DESTDIR$PREFIX/bin/$name" "$DESTDIR$PREFIX/share/man/man1/$name.1"
+    /bin/ln -s xxhsum "$DESTDIR$PREFIX/bin/$name"
+    /bin/ln -s xxhsum.1 "$DESTDIR$PREFIX/share/man/man1/$name.1"
+done

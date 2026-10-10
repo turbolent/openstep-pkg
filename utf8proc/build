@@ -18,7 +18,7 @@ patch -p1 < "$PATCHFILE"
 
 gnumake utf8proc.o \
     CC=cc \
-    CFLAGS="-O2 -DNeXT" \
+    CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O2 -DNeXT" \
     PICFLAG= \
     C99FLAG= \
     WCFLAGS= \

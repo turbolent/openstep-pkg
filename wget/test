@@ -11,6 +11,26 @@ case "$output" in
     "GNU Wget $PKG_VERSION"*)
         ;;
     *)
+        echo "wget: unexpected --version output" >&2
         exit 1
         ;;
 esac
+
+# HTTPS support must be compiled in.
+case "$output" in
+    *+ssl/openssl*)
+        ;;
+    *)
+        echo "wget: built without OpenSSL support" >&2
+        exit 1
+        ;;
+esac
+
+[ -f "$ROOT_DIR/usr/local/etc/wgetrc" ] ||
+    echo "wget: note: no wgetrc installed" >&2
+# A request to a closed local port must fail cleanly, not crash.
+if "$WGET" -q -T 5 -t 1 -O /dev/null http://127.0.0.1:1/ 2>/dev/null; then
+    echo "wget: fetching from a closed port succeeded?" >&2
+    exit 1
+fi
+exit 0

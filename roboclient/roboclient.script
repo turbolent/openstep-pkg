@@ -1,0 +1,66 @@
+#!/bin/sh
+# roboclient.script - applies a DHCP lease on OPENSTEP.
+#
+# roboclient runs this with the reason as $1 and the lease in the environment:
+#   interface ip subnet broadcast router dns domain hostname ntpsrv lease serverid
+# Reasons: PREINIT BOUND RENEW EXPIRE TIMEOUT.
+#
+# Settings may be placed in /usr/local/etc/roboclient.conf (shell syntax):
+#   UPDATE_ROUTE=yes   install the default route from the lease (default yes)
+#   UPDATE_RESOLV=no   rewrite /etc/resolv.conf from the lease (default no)
+#   MAC_en0=0:0:c0:12:34:56   hardware address (read by roboclient itself)
+#   HOSTNAME=name             name sent to the server (read by roboclient itself)
+
+PREFIX=/usr/local
+UPDATE_ROUTE=yes
+UPDATE_RESOLV=no
+IFCONFIG=/usr/etc/ifconfig
+ROUTE=/usr/etc/route
+[ -f $PREFIX/etc/roboclient.conf ] && . $PREFIX/etc/roboclient.conf
+[ -n "$ROBOCLIENT_VAR" ] || ROBOCLIENT_VAR=$PREFIX/var/roboclient
+[ -d "$ROBOCLIENT_VAR" ] || mkdir -p "$ROBOCLIENT_VAR" 2>/dev/null
+
+case "$1" in
+PREINIT)
+    # An interface needs an address (even 0.0.0.0) to be able to send.
+    $IFCONFIG $interface 0.0.0.0 up
+    ;;
+BOUND|RENEW)
+    if [ "$1" = BOUND ]; then
+        args="$ip"
+        [ -n "$subnet" ] && args="$args netmask $subnet"
+        [ -n "$broadcast" ] && args="$args broadcast $broadcast"
+        $IFCONFIG $interface $args up
+        if [ "$UPDATE_ROUTE" = yes ] && [ -n "$router" ]; then
+            for gw in $router; do
+                $ROUTE delete default > /dev/null 2>&1
+                $ROUTE add default $gw 1 > /dev/null 2>&1 && break
+            done
+        fi
+    fi
+    if [ "$UPDATE_RESOLV" = yes ] && [ -n "$dns" ]; then
+        {
+            [ -n "$domain" ] && echo "domain $domain"
+            for ns in $dns; do echo "nameserver $ns"; done
+        } > /etc/resolv.conf.roboclient && mv /etc/resolv.conf.roboclient /etc/resolv.conf
+    fi
+    {
+        echo "interface=$interface"
+        echo "ip=$ip"
+        echo "subnet=$subnet"
+        echo "broadcast=$broadcast"
+        echo "router=\"$router\""
+        echo "dns=\"$dns\""
+        echo "domain=\"$domain\""
+        echo "ntpsrv=\"$ntpsrv\""
+        echo "serverid=$serverid"
+        echo "lease=$lease"
+    } > "$ROBOCLIENT_VAR/$interface.info"
+    ;;
+EXPIRE)
+    rm -f "$ROBOCLIENT_VAR/$interface.info"
+    ;;
+TIMEOUT)
+    ;;
+esac
+exit 0

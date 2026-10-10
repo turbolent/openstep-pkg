@@ -1,0 +1,2 @@
+# Users add their own certificates to the bundle.
+/usr/local/ssl/cert.pem

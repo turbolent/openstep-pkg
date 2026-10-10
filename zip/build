@@ -4,9 +4,10 @@ DESTDIR=$1
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 export PATH
 patch -p1 < zip-3.0-openstep.patch
+patch -p1 < zip-3.0-cve.patch
 # OPENSTEP has 32-bit file offsets and no wide-character headers.
 /bin/gnumake -f unix/Makefile zips CC=/usr/local/bin/gcc-4.2 \
-    CFLAGS='-O2 -I. -I/usr/local/include -DUNIX -DNO_UNICODE_SUPPORT -DBZIP2_SUPPORT -DHAVE_SYS_DIR_H' \
+    CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -I. -I/usr/local/include -DUNIX -DNO_UNICODE_SUPPORT -DBZIP2_SUPPORT -DHAVE_SYS_DIR_H' \
     LFLAGS2='-L/usr/local/lib -lbz2'
 for dir in usr usr/local usr/local/bin usr/local/man usr/local/man/man1; do
     test -d "$DESTDIR/$dir" || mkdir "$DESTDIR/$dir"

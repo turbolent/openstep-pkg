@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2'
+export PATH
+
+# roboclient is a single-file, purpose-built client (see roboclient.c): OPENSTEP has no
+# BPF, routing sockets or hardware-address ioctl, which rules out roboclientd and
+# ISC dhclient.  It needs nothing but BSD sockets and select().
+$CC $CFLAGS -DROBOCLIENT_PREFIX='"/usr/local"' -o roboclient roboclient.c
+$CC $CFLAGS -o roboclient-testd roboclient-testd.c
+
+PREFIX="$DESTDIR/usr/local"
+/usr/local/bin/mkdir -p "$PREFIX/sbin" "$PREFIX/share/roboclient" "$PREFIX/man/man8" \
+    "$PREFIX/etc" "$PREFIX/var/roboclient"
+/bin/cp roboclient "$PREFIX/sbin/roboclient"
+/bin/cp roboclient-testd "$PREFIX/share/roboclient/roboclient-testd"
+/bin/cp roboclient.script "$PREFIX/share/roboclient/roboclient.script"
+/bin/cp roboclient.8 "$PREFIX/man/man8/roboclient.8"
+/bin/cp roboclient.conf.dist "$PREFIX/etc/roboclient.conf.dist"
+/bin/cp rc.dhcp "$PREFIX/etc/rc.dhcp"
+/bin/cp README "$PREFIX/share/roboclient/README"
+/bin/chmod 755 "$PREFIX/sbin/roboclient" "$PREFIX/share/roboclient/roboclient-testd" \
+    "$PREFIX/share/roboclient/roboclient.script" "$PREFIX/etc/rc.dhcp"

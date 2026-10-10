@@ -12,4 +12,4 @@ libiconv
 expat
 openssh
 ca-certificates
-python311
+?WITH_PYTHON:python311

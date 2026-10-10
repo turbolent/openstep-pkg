@@ -1736,7 +1736,7 @@ new file mode 100644
 index 0000000..2c4c90b
 --- /dev/null
 +++ b/openstep/netinet/in.h
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,20 @@
 +#ifndef EMACS_OPENSTEP_NETINET_IN_H
 +#define EMACS_OPENSTEP_NETINET_IN_H
 +#include_next <netinet/in.h>
@@ -1746,8 +1746,10 @@ index 0000000..2c4c90b
 +#define BIG_ENDIAN 4321
 +#if defined __i386__
 +#define BYTE_ORDER LITTLE_ENDIAN
++#elif defined __sparc__ || defined __sparc || defined sparc || defined __SPARC__ || defined __BIG_ENDIAN__ || defined _BIG_ENDIAN || defined __m68k__ || defined __mc68000__ || defined __hppa__
++#define BYTE_ORDER BIG_ENDIAN
 +#else
-+#error This compatibility layer currently targets OPENSTEP i386.
++#error This compatibility layer targets OPENSTEP i386 and SPARC.
 +#endif
 +#endif
 +extern unsigned short htons (unsigned short);
@@ -1760,10 +1762,11 @@ new file mode 100644
 index 0000000..ce1f866
 --- /dev/null
 +++ b/openstep/stdint.h
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,130 @@
 +#ifndef EMACS_OPENSTEP_STDINT_H
 +#define EMACS_OPENSTEP_STDINT_H
-+/* Integer types for the OPENSTEP i386 ABI, including configure probes. */
++/* Integer types for the OPENSTEP ABI (ILP32 on i386 and SPARC), including
++   configure probes. */
 +#include <limits.h>
 +typedef signed char int8_t;
 +typedef unsigned char uint8_t;
@@ -3751,3 +3754,32 @@ index 10269e4..9261978 100644
    return speed;
  }
  
+diff --git a/src/pdumper.c b/src/pdumper.c
+index 7415ba7..029228f 100644
+--- a/src/pdumper.c
++++ b/src/pdumper.c
+@@ -4248,6 +4248,10 @@ types.  */)
+ 	   && NILP (ctx->deferred_hash_tables)
+ 	   && NILP (ctx->deferred_symbols)));
+ 
++  /* The vector is aligned when it is written; record its aligned offset,
++     or the loader will read a misaligned vector header on strict-alignment
++     CPUs such as SPARC.  */
++  dump_align_output (ctx, DUMP_ALIGNMENT);
+   ctx->header.hash_list = ctx->offset;
+   dump_hash_table_list (ctx);
+ 
+diff --git a/src/pdumper.c b/src/pdumper.c
+index 029228f..15fb90f 100644
+--- a/src/pdumper.c
++++ b/src/pdumper.c
+@@ -286,7 +286,8 @@ enum
+ 
+    /* The alignment granularity (in bytes) for objects we store in the
+       dump.  Always suitable for heap objects; may be more aligned.  */
+-   DUMP_ALIGNMENT = max (GCALIGNMENT, DUMP_RELOCATION_ALIGNMENT),
++   DUMP_ALIGNMENT = max (max (GCALIGNMENT, DUMP_RELOCATION_ALIGNMENT),
++			 alignof (Lisp_Object)),
+ 
+    DUMP_RELOC_OFFSET_BITS = DUMP_OFF_WIDTH - DUMP_RELOC_TYPE_BITS
+   };

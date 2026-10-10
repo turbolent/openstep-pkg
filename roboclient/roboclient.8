@@ -1,0 +1,58 @@
+.TH ROBOCLIENT 8
+.SH NAME
+roboclient \- IPv4 DHCP client
+.SH SYNOPSIS
+.B roboclient
+[\fB\-fqn\fR] [\fB\-m\fR \fImac\fR] [\fB\-h\fR \fIname\fR] [\fB\-s\fR \fIscript\fR] [\fB\-p\fR \fIpidfile\fR] [\fB\-t\fR \fItries\fR] \fIinterface\fR
+.SH DESCRIPTION
+.B roboclient
+obtains an IPv4 address, netmask, router, DNS servers and domain from a DHCP
+server (dnsmasq, Kea, Microsoft DHCP, ISC dhcpd, ...) and keeps the lease
+renewed.  It talks over an ordinary UDP socket on port 68 and asks the server
+to reply by broadcast, so it needs no BPF or raw sockets.
+.PP
+Once the lease is bound the client runs
+.I /usr/local/share/roboclient/roboclient.script
+with the reason (PREINIT, BOUND, RENEW, EXPIRE or TIMEOUT) as its argument and
+the lease in the environment, then goes to the background.
+.SH OPTIONS
+.TP
+.B \-f
+Stay in the foreground.
+.TP
+.B \-q
+Quit after the first lease is bound instead of renewing it.
+.TP
+.B \-n
+Do not give the interface a 0.0.0.0 address first, even if it has none.
+.TP
+.BI \-m " mac"
+Hardware address of the interface (for example 0:0:c0:12:34:56).  If not given,
+it is read from MAC_\fIinterface\fR in
+.I /usr/local/etc/roboclient.conf
+or looked up in the ARP table.
+.TP
+.BI \-h " name"
+Host name to announce.
+.TP
+.BI \-s " script"
+Use another script.
+.TP
+.BI \-p " file"
+Write the process id to the file.
+.TP
+.BI \-t " n"
+Give up after n DISCOVER attempts (default 3, 0 means keep trying).
+.SH SIGNALS
+.TP
+.B SIGUSR1
+Renew the lease now.
+.TP
+.B SIGTERM
+Exit.  The interface is left configured.
+.SH FILES
+.nf
+/usr/local/etc/roboclient.conf
+/usr/local/etc/rc.dhcp   boot-time wrapper (call it from /etc/rc)
+/usr/local/var/roboclient/\fIinterface\fR.info   the current lease
+.fi

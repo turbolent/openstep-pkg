@@ -1,0 +1,98 @@
+#!/bin/sh
+# rc.dhcp - get an IPv4 address with roboclient at boot, in place of BOOTP.
+#
+# Call it from /etc/rc where the BOOTP step would be (see the README in the
+# roboclient package):
+#
+#     /usr/local/etc/rc.dhcp
+#
+# It runs roboclient on the interface and waits until a lease is bound, then
+# leaves roboclient running in the background to renew it.  Progress and the
+# result are printed, so they show on the console during boot.  If no DHCP server
+# answers it prints an error and returns 1; /etc/rc just carries on.
+#
+# Settings (shell syntax) come from /usr/local/etc/roboclient.conf:
+#   RC_DHCP_INTERFACE=en0     the interface to configure
+#   RC_DHCP_TRIES=3           DISCOVER attempts before giving up (about 4+8+16
+#                             seconds with three); 0 would wait forever
+#   RC_DHCP_OPTS=             extra roboclient options, e.g. "-h myhost"
+#   RC_DHCP_STATUS_CMD=       a command called with each status line as its one
+#                             argument, in addition to printing it
+#   MAC_en0=0:0:c0:12:34:56   hardware address of the interface (required: at
+#                             boot the interface has no address to find it from)
+
+PREFIX=${RC_DHCP_PREFIX:-/usr/local}
+RC_DHCP_INTERFACE=en0
+RC_DHCP_TRIES=3
+RC_DHCP_OPTS=
+RC_DHCP_STATUS_CMD=
+[ -f $PREFIX/etc/roboclient.conf ] && . $PREFIX/etc/roboclient.conf
+
+IF=$RC_DHCP_INTERFACE
+ROBOCLIENT=${ROBOCLIENT:-$PREFIX/sbin/roboclient}
+[ -n "$ROBOCLIENT_VAR" ] || ROBOCLIENT_VAR=$PREFIX/var/roboclient
+PIDFILE=$ROBOCLIENT_VAR/$IF.pid
+LOG=$ROBOCLIENT_VAR/rc.dhcp.log
+
+# Print a status line, and hand it to RC_DHCP_STATUS_CMD when one is set.
+say() {
+    echo "$*"
+    if [ -n "$RC_DHCP_STATUS_CMD" ]; then
+        $RC_DHCP_STATUS_CMD "$*" > /dev/null 2>&1
+    fi
+}
+
+if [ ! -x "$ROBOCLIENT" ]; then
+    say "DHCP: $ROBOCLIENT is not installed; $IF is not configured"
+    exit 1
+fi
+
+[ -d "$ROBOCLIENT_VAR" ] || mkdir -p "$ROBOCLIENT_VAR" 2>/dev/null
+
+# Already running (rc.dhcp run twice)?
+if [ -f "$PIDFILE" ]; then
+    pid=`cat "$PIDFILE" 2>/dev/null`
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        say "DHCP: roboclient is already running on $IF (pid $pid)"
+        exit 0
+    fi
+    rm -f "$PIDFILE"
+fi
+
+# roboclient cannot read the hardware address of an unconfigured interface.
+eval mac=\$MAC_$IF
+if [ -z "$mac" ] && [ -z "$MAC" ]; then
+    say "DHCP: set MAC_$IF in $PREFIX/etc/roboclient.conf; $IF is not configured"
+    exit 1
+fi
+
+say "DHCP: requesting an address on $IF..."
+$ROBOCLIENT -t "$RC_DHCP_TRIES" -p "$PIDFILE" $RC_DHCP_OPTS $IF 2> "$LOG"
+status=$?
+
+if [ $status -ne 0 ]; then
+    reason=`sed -n '$s/^roboclient: //p' "$LOG" 2>/dev/null`
+    [ -n "$reason" ] || reason="roboclient exited with status $status"
+    say "DHCP: ERROR - $IF is not configured: $reason"
+    say "DHCP: continuing without a network address on $IF (see $LOG)"
+    exit 1
+fi
+
+# The roboclient script wrote the lease it applied.
+info=$ROBOCLIENT_VAR/$IF.info
+if [ -f "$info" ]; then
+    (
+        . "$info"
+        msg="DHCP: $IF is $ip"
+        [ -n "$subnet" ] && msg="$msg netmask $subnet"
+        [ -n "$router" ] && msg="$msg, router $router"
+        [ -n "$dns" ] && msg="$msg, dns $dns"
+        [ -n "$lease" ] && msg="$msg, lease ${lease}s"
+        echo "$msg"
+    ) > "$ROBOCLIENT_VAR/rc.dhcp.status"
+    say "`cat "$ROBOCLIENT_VAR/rc.dhcp.status"`"
+    rm -f "$ROBOCLIENT_VAR/rc.dhcp.status"
+else
+    say "DHCP: $IF configured"
+fi
+exit 0

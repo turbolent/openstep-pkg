@@ -5,13 +5,19 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
-CC=/bin/cc
+CC="/bin/cc $PKG_SYSCC_ARCH_FLAGS"
 GREP=/bin/grep
 EGREP=/usr/bin/egrep
 PATCHFILE="gawk-$VERSION-openstep.patch"
 
 export DESTDIR VERSION PATH CC GREP EGREP
 . "$PKG_BUILD_HELPERS"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_obj in build-helpers.sh.  Unsigned definitions are
+# linked into every program (the stock cc ignores the forced -include that
+# pkg_cmp_shim relies on).  Empty on x86.  Used at make time only.
+CMPOBJ=`pkg_cmp_obj "\`pwd\`/openstep-cmp"`
 
 if [ -f "$PATCHFILE" ]; then
     patch -p1 < "$PATCHFILE"
@@ -20,5 +26,5 @@ fi
 ac_cv_func_working_mktime=yes
 export ac_cv_func_working_mktime
 run_configure --disable-nls --prefix=/usr/local
-gnumake
-gnumake install DESTDIR="$DESTDIR"
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ"
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ" install DESTDIR="$DESTDIR"
