@@ -47,9 +47,9 @@ mpg123 have no SPARC result.
 | curl | validated | validated 8.17.0 (rebuilt 2026-10-09 against the rebuilt libcrypto: links with the ostep_* routines from libcrypto.a, installs and tests) |
 | diffutils | validated | validated 2.8.1 (2026-10-09) |
 | duktape | validated | validated (2026-10-10; installed archive needs `ranlib`) |
-| emacs | validated | — |
+| emacs | validated | validated (2026-10-10; needed the pdumper alignment fixes for the 64-bit wide-int Lisp_Object, and a SPARC `netinet/in.h` big-endian branch) |
 | expat | validated | validated 2.9.0 (rebootstrap, 2026-10-08) |
-| ffmpeg | validated | — |
+| ffmpeg | validated | validated (2026-10-10) |
 | findutils | validated | validated 4.2.33 |
 | flex | validated | validated 2.5.39 (rebootstrap, 2026-10-08) |
 | freetype | validated | validated 2.14.3 (2026-10-09) |
@@ -96,7 +96,7 @@ mpg123 have no SPARC result.
 | netsurf-buildsystem | validated | validated 1.10 (rebootstrap, 2026-10-08) |
 | neXtaw | validated | validated (2026-10-10) |
 | nsgenbind | validated | validated 0.9 (2026-10-09; needed `-include stdlib.h -DYYMALLOC=malloc -DYYFREE=free`: the bison skeleton's own malloc prototype clashed with the system's) |
-| ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
+| ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | validated (2026-10-10; builds without `<memory.h>`/NetInfo, `sigsetjmp` mapped onto `setjmp`) |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | validated 10.6p1 (2026-10-09; builds and passes its tests, against the rebuilt libcrypto; needed `PICFLAG=` since the SPARC assembler cannot relocate the position-independent code that openbsd-compat is otherwise compiled as) |
 | openssl | validated | validated 1.1.1w (rebuilt 2026-10-09 with the unsigned memcmp via pkg_cmp_named, which fixed OID lookups by DER bytes: SHA1, AES, SHA-2, secp384r1 and others had failed; the broadened `pkg test` passes: OIDs, digests, EC keys, signatures, chains, AES). The original failure is fixed: a secp384r1 key now round-trips through `openssl ec -pubout`. curl and openssh rebuilt against it link and pass their tests. Still to check on SPARC: `oidtest` recompiled (an old binary carries the old static library) |
 | p7zip | validated | validated (2026-10-10) |
