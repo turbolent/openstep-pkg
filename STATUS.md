@@ -94,7 +94,7 @@ mpg123 have no SPARC result.
 | ncurses | validated | validated 6.5 (rebootstrap, 2026-10-08) |
 | nethack | validated (tty and X11) | validated 3.6.7 (`pkg test` passes, game starts; a stray "pkg: Stock: not found" after the install was a script replaced mid-run, fixed in pkg; rebootstrap, 2026-10-08) |
 | netsurf-buildsystem | validated | validated 1.10 (rebootstrap, 2026-10-08) |
-| neXtaw | validated | — |
+| neXtaw | validated | validated (2026-10-10) |
 | nsgenbind | validated | validated 0.9 (2026-10-09; needed `-include stdlib.h -DYYMALLOC=malloc -DYYFREE=free`: the bison skeleton's own malloc prototype clashed with the system's) |
 | ntp | validated (build, install, test; ntpdate and ntpd run against a server); on a fresh host configure's `setrlimit` check failed (prototype clash with `<sys/resource.h>`), so `ntp/build` supplies a no-op `ntp_rlimit()` (x86 rebuilt with it); `rc.ntp` boot script tested on Linux only | — |
 | openssh | validated (10.6p1: sshd, ssh login by password and key, scp); `rc.sshd` boot script tested on Linux only | validated 10.6p1 (2026-10-09; builds and passes its tests, against the rebuilt libcrypto; needed `PICFLAG=` since the SPARC assembler cannot relocate the position-independent code that openbsd-compat is otherwise compiled as) |
