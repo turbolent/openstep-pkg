@@ -3754,3 +3754,18 @@ index 10269e4..9261978 100644
    return speed;
  }
  
+diff --git a/src/pdumper.c b/src/pdumper.c
+index 7415ba7..029228f 100644
+--- a/src/pdumper.c
++++ b/src/pdumper.c
+@@ -4248,6 +4248,10 @@ types.  */)
+ 	   && NILP (ctx->deferred_hash_tables)
+ 	   && NILP (ctx->deferred_symbols)));
+ 
++  /* The vector is aligned when it is written; record its aligned offset,
++     or the loader will read a misaligned vector header on strict-alignment
++     CPUs such as SPARC.  */
++  dump_align_output (ctx, DUMP_ALIGNMENT);
+   ctx->header.hash_list = ctx->offset;
+   dump_hash_table_list (ctx);
+ 
