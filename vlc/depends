@@ -5,7 +5,7 @@ sed
 grep
 gawk
 coreutils
-pkg-config
+pkgconf
 curl
 ffmpeg
 libiconv

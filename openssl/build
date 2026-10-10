@@ -6,6 +6,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 PATCHFILE="openssl-$VERSION-openstep.patch"
+CVEPATCH="openssl-$VERSION-cve.patch"
 SRCDIR="openssl-$VERSION"
 
 export DESTDIR VERSION PATH
@@ -14,9 +15,35 @@ if [ -d "$SRCDIR" ]; then
     cd "$SRCDIR"
 fi
 
+. "$PKG_BUILD_HELPERS"
+
 patch -p1 < "$PATCHFILE"
-/bin/gnumake CC=/bin/cc CFLAGS="-pipe -O"
-/bin/gnumake CC=/bin/cc CFLAGS="-pipe -O" install_sw DESTDIR="$DESTDIR"
+patch -p1 < "$CVEPATCH"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_named in build-helpers.sh.  Empty on x86.  libcrypto
+# looks object identifiers up by binary search over a table sorted with an
+# unsigned memcmp(), so with the signed one SHA1, the AES and SHA-2 OIDs and
+# the secp384r1 family could not be found: "openssl ec -pubout" failed, and
+# chains using P-384 or SHA-2 names stopped at "unable to verify the first
+# certificate".  The stock cc ignores a forced -include, so the routines are
+# renamed with -D and added to libcrypto.a.
+CC=/bin/cc
+export CC
+CMPFLAGS=`pkg_cmp_named "\`pwd\`/openstep-cmp"`
+
+# Optimisation level.  (SPARC was once built at -O0 on the theory that the
+# stock cc miscompiled P-384; the real cause was the signed memcmp above.)
+# PKG_OPENSSL_OPT overrides it, for example PKG_OPENSSL_OPT=-O0 to compare.
+OPT=${PKG_OPENSSL_OPT-"-O"}
+
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS" build_libs
+if [ -n "$CMPFLAGS" ]; then
+    ar r libcrypto.a openstep-cmp/ostep-cmp-named.o
+    ranlib libcrypto.a
+fi
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS"
+/bin/gnumake CC=/bin/cc CFLAGS="$PKG_SYSCC_ARCH_FLAGS -pipe $OPT $CMPFLAGS" install_sw DESTDIR="$DESTDIR"
 
 test -d "$DESTDIR/usr" || mkdir "$DESTDIR/usr"
 test -d "$DESTDIR/usr/local" || mkdir "$DESTDIR/usr/local"

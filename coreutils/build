@@ -5,15 +5,27 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/bin:/usr/bin:/usr/local/bin:$PATH
-CC=/bin/cc
+CC="/bin/cc $PKG_SYSCC_ARCH_FLAGS"
 PATCHFILE="coreutils-$VERSION-openstep.patch"
 CPPFLAGS='-DMOUNTED=\"/etc/mtab\"'
 
 export DESTDIR VERSION PATH CC PATCHFILE CPPFLAGS
 . "$PKG_BUILD_HELPERS"
 
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp(), strcmp() and
+# strncmp(); see pkg_cmp_obj in build-helpers.sh.  Unsigned definitions are
+# linked into every program (the stock cc ignores the forced -include that
+# pkg_cmp_shim relies on).  Empty on x86.  Used at make time only.
+CMPOBJ=`pkg_cmp_obj "\`pwd\`/openstep-cmp"`
+
 patch -p1 < "$PATCHFILE"
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
-  --disable-nls --prefix=/usr/local
-gnumake
-gnumake install DESTDIR="$DESTDIR"
+# Never use iconv: libiconv depends on coreutils (a cycle), and configure
+# would otherwise find a libiconv that is already installed (a reinstall) and
+# define HAVE_ICONV, but its include directory does not reach the compile
+# ("iconv.h: header file not found" in unicodeio.c).  It is only used there,
+# for \u escapes in printf.
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
+  --disable-nls --prefix=/usr/local \
+  am_cv_func_iconv=no am_cv_lib_iconv=no
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ"
+gnumake LDFLAGS="$LDFLAGS $CMPOBJ" install DESTDIR="$DESTDIR"

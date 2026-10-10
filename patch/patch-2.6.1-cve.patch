@@ -1,0 +1,189 @@
+diff -u a/src/common.h b/src/common.h
+--- a/src/common.h
++++ b/src/common.h
+@@ -128,10 +128,12 @@
+ XTERN char const * volatile TMPINNAME;
+ XTERN char const * volatile TMPOUTNAME;
+ XTERN char const * volatile TMPPATNAME;
++XTERN char const * volatile TMPEDNAME;
+ 
+ XTERN int volatile TMPINNAME_needs_removal;
+ XTERN int volatile TMPOUTNAME_needs_removal;
+ XTERN int volatile TMPPATNAME_needs_removal;
++XTERN int volatile TMPEDNAME_needs_removal;
+ 
+ #ifdef DEBUGGING
+ XTERN int debug;
+diff -u a/src/patch.c b/src/patch.c
+--- a/src/patch.c
++++ b/src/patch.c
+@@ -144,6 +144,7 @@
+     TMPINNAME = make_temp ('i');
+     TMPREJNAME = make_temp ('r');
+     TMPPATNAME = make_temp ('p');
++    TMPEDNAME = make_temp ('e');
+ 
+     /* parse switches */
+     Argc = argc;
+@@ -1580,5 +1581,6 @@
+   remove_if_needed (TMPINNAME, &TMPINNAME_needs_removal);
+   remove_if_needed (TMPOUTNAME, &TMPOUTNAME_needs_removal);
+   remove_if_needed (TMPPATNAME, &TMPPATNAME_needs_removal);
++  remove_if_needed (TMPEDNAME, &TMPEDNAME_needs_removal);
+   remove_if_needed (TMPREJNAME, &TMPREJNAME_needs_removal);
+ }
+diff -u a/src/pch.c b/src/pch.c
+--- a/src/pch.c
++++ b/src/pch.c
+@@ -26,7 +26,9 @@
+ #include <dirname.h>
+ #include <inp.h>
+ #include <quotearg.h>
++#include <quotesys.h>
+ #include <util.h>
++#include <xalloc.h>
+ #undef XTERN
+ #define XTERN
+ #include <pch.h>
+@@ -2059,7 +2061,13 @@
+   return 0;
+ }
+ 
+-/* Apply an ed script by feeding ed itself. */
++/* Apply an ed script by feeding ed itself.  The script is first written to
++   a temporary file and ed reads that file as its standard input, rather than
++   a pipe: ed then gives up at the first invalid command, instead of
++   rejecting it and treating the following lines (which are meant to be text)
++   as new commands, which could run arbitrary shell commands
++   (CVE-2018-1000156).  All names passed to the shell are quoted
++   (CVE-2019-13638).  */
+ 
+ void
+ do_ed_script (FILE *ofp)
+@@ -2067,20 +2075,21 @@
+     static char const ed_program[] = ed_PROGRAM;
+ 
+     register file_offset beginning_of_this_line;
+-    register FILE *pipefp = 0;
++    register FILE *tmpfp = 0;
+     register size_t chars_read;
+ 
+     if (! dry_run && ! skip_rest_of_patch) {
+ 	int exclusive = TMPOUTNAME_needs_removal ? 0 : O_EXCL;
++	int tmpfd;
+ 	assert (! inerrno);
+ 	TMPOUTNAME_needs_removal = 1;
+ 	copy_file (inname, TMPOUTNAME, 0, exclusive, instat.st_mode, true);
+-	sprintf (buf, "%s %s%s", ed_program, verbosity == VERBOSE ? "" : "- ",
+-		 TMPOUTNAME);
+-	fflush (stdout);
+-	pipefp = popen(buf, binary_transput ? "wb" : "w");
+-	if (!pipefp)
+-	  pfatal ("Can't open pipe to %s", quotearg (buf));
++	tmpfd = create_file (TMPEDNAME, O_WRONLY | O_BINARY | O_EXCL,
++			     (mode_t) 0600, true);
++	TMPEDNAME_needs_removal = 1;
++	tmpfp = fdopen (tmpfd, binary_transput ? "wb" : "w");
++	if (! tmpfp)
++	  pfatal ("Can't open stream for file %s", quotearg (TMPEDNAME));
+     }
+     for (;;) {
+ 	char ed_command_letter;
+@@ -2092,14 +2101,14 @@
+ 	}
+ 	ed_command_letter = get_ed_command_letter (buf);
+ 	if (ed_command_letter) {
+-	    if (pipefp)
+-		if (! fwrite (buf, sizeof *buf, chars_read, pipefp))
++	    if (tmpfp)
++		if (! fwrite (buf, sizeof *buf, chars_read, tmpfp))
+ 		    write_fatal ();
+ 	    if (ed_command_letter != 'd' && ed_command_letter != 's') {
+ 	        p_pass_comments_through = true;
+ 		while ((chars_read = get_line ()) != 0) {
+-		    if (pipefp)
+-			if (! fwrite (buf, sizeof *buf, chars_read, pipefp))
++		    if (tmpfp)
++			if (! fwrite (buf, sizeof *buf, chars_read, tmpfp))
+ 			    write_fatal ();
+ 		    if (chars_read == 2  &&  strEQ (buf, ".\n"))
+ 			break;
+@@ -2112,13 +2121,47 @@
+ 	    break;
+ 	}
+     }
+-    if (!pipefp)
++    if (!tmpfp)
+       return;
+-    if (fwrite ("w\nq\n", sizeof (char), (size_t) 4, pipefp) == 0
+-	|| fflush (pipefp) != 0)
++    if (fwrite ("w\nq\n", sizeof (char), (size_t) 4, tmpfp) == 0
++	|| fflush (tmpfp) != 0
++	|| fclose (tmpfp) != 0)
+       write_fatal ();
+-    if (pclose (pipefp) != 0)
+-      fatal ("%s FAILED", ed_program);
++
++    {
++      /* Run "ed [-] OUTNAME < SCRIPT" with every name quoted for the shell.
++	 A name starting with `-' or `!' could be taken for an option.  */
++      char *cmd;
++      char *p;
++
++      if (TMPOUTNAME[0] == '-' || TMPOUTNAME[0] == '!')
++	fatal ("rejecting temporary file name: %s", quotearg (TMPOUTNAME));
++      cmd = xmalloc (quote_system_arg ((char *) 0, ed_program)
++		     + quote_system_arg ((char *) 0, TMPOUTNAME)
++		     + quote_system_arg ((char *) 0, TMPEDNAME)
++		     + 16);
++      p = cmd;
++      p += quote_system_arg (p, ed_program);
++      *p++ = ' ';
++      if (verbosity != VERBOSE)
++	{
++	  *p++ = '-';
++	  *p++ = ' ';
++	}
++      p += quote_system_arg (p, TMPOUTNAME);
++      *p++ = ' ';
++      *p++ = '<';
++      *p++ = ' ';
++      p += quote_system_arg (p, TMPEDNAME);
++      *p = '\0';
++      fflush (stdout);
++      if (systemic (cmd) != 0)
++	fatal ("%s FAILED", ed_program);
++      free (cmd);
++    }
++
++    if (unlink (TMPEDNAME) == 0)
++      TMPEDNAME_needs_removal = 0;
+ 
+     if (ofp)
+       {
+diff -u a/src/util.c b/src/util.c
+--- a/src/util.c
++++ b/src/util.c
+@@ -1204,6 +1204,22 @@
+ 	return 0;
+       }
+ 
++    /* Do not let a malicious patch name files outside the current
++       directory (CVE-2010-4651): reject absolute names and names with a
++       ".." component.  */
++    if (IS_ABSOLUTE_FILE_NAME (name))
++      fatal ("rejecting absolute file name: %s", quotearg (name));
++    for (t = name;  *t;  )
++      {
++	if (*t == '.' && t[1] == '.' && (! t[2] || ISSLASH (t[2])))
++	  fatal ("rejecting file name with \"..\" component: %s",
++		 quotearg (name));
++	while (*t && ! ISSLASH (*t))
++	  t++;
++	while (ISSLASH (*t))
++	  t++;
++      }
++
+     if (pstamp)
+       *pstamp = stamp;
+     if (timestr)

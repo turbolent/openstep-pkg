@@ -15270,7 +15270,7 @@ index 5c88e51..13762f9 100644
  # if defined(OPENSSL_SYS_UEFI) && !defined(ossl_ssize_t)
  #  define ossl_ssize_t INTN
  #  define OSSL_SSIZE_MAX MAX_INTN
-@@ -237,6 +242,14 @@ typedef INT32 int32_t;
+@@ -237,6 +242,19 @@ typedef INT32 int32_t;
  typedef UINT32 uint32_t;
  typedef INT64 int64_t;
  typedef UINT64 uint64_t;
@@ -15280,8 +15280,13 @@ index 5c88e51..13762f9 100644
 +typedef u_int16_t uint16_t;
 +typedef u_int32_t uint32_t;
 +typedef u_int64_t uint64_t;
++/* autoconf-based programs replace a missing socklen_t with a macro */
++#  ifndef socklen_t
 +typedef unsigned int socklen_t;
++#  endif
++#  ifndef in_addr_t
 +typedef u_int32_t in_addr_t;
++#  endif
  # elif (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || \
       defined(__osf__) || defined(__sgi) || defined(__hpux) || \
       defined(OPENSSL_SYS_VMS) || defined (__OpenBSD__)

@@ -5,7 +5,7 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
-CC=/usr/local/bin/gcc-4.2
+CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 GREP=/bin/grep
 EGREP=/usr/bin/egrep
 AWK=/usr/local/bin/gawk
@@ -13,6 +13,9 @@ AWK=/usr/local/bin/gawk
 CONFIG_SHELL=/usr/local/bin/bash
 CPPFLAGS=-I/usr/local/include
 LDFLAGS=-L/usr/local/lib
+# Do not let configure pick up optional libraries that happen to be installed
+# (zstd, brotli): libcurl.a is static, so whatever links it would need them too,
+# and git and ffmpeg failed with undefined ZSTD_* symbols.
 # OPENSTEP's poll() is present but can ignore timeout values. curl's select()
 # fallback preserves -m/--max-time behavior.
 ac_cv_func_poll=no
@@ -25,7 +28,8 @@ export DESTDIR VERSION PATH CC GREP EGREP AWK CONFIG_SHELL CPPFLAGS LDFLAGS ac_c
 patch -p1 < "$PATCHFILE"
 run_configure \
   --disable-docs --disable-ipv6 --disable-ldap --disable-shared \
-  --disable-threaded-resolver --without-libpsl --with-openssl=/usr/local \
+  --disable-threaded-resolver --without-libpsl --without-zstd --without-brotli \
+  --with-openssl=/usr/local \
   --with-ca-bundle=/usr/local/ssl/cert.pem --with-ca-path=/usr/local/ssl/certs \
   --with-zlib=/usr/local \
   --prefix=/usr/local

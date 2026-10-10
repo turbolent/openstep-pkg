@@ -3686,3 +3686,52 @@
        ;;
      builtin)
        echo_builtin=yes
+--- a/configure
++++ b/configure
+@@ -68948,19 +68948,33 @@
+   am_all_modules="`for x in ${am_modules_with_cppflags} ${am_modules_with_cflags} ${am_modules_with_cxxflags} ${am_modules_with_objcflags} ${am_modules_with_ldflags} ${am_modules_with_libs}; do echo $x; done | sort | uniq`"
+ 
+   rm -f vlc-config.in
+-  sed -ne '/#@1@#/q;p' < "${srcdir}/vlc-config.in.in" \
+-    | sed -e "s/@gprof@/${enable_gprof}/" \
+-          -e "s/@cprof@/${enable_cprof}/" \
+-          -e "s/@optim@/${enable_optimizations}/" \
+-          -e "s/@debug@/${enable_debug}/" \
+-          -e "s/@release@/${enable_release}/" \
+-          -e "s/@PLUGINS@/${PLUGINS}/" \
+-          -e "s/@BUILTINS@/${BUILTINS}/" \
+-          -e "s/@CFLAGS_TUNING@/${CFLAGS_TUNING}/" \
+-          -e "s/@CFLAGS_OPTIM_SIZE@/${CFLAGS_OPTIM_SIZE}/" \
+-          -e "s/@CFLAGS_OPTIM_SPEED@/${CFLAGS_OPTIM_SPEED}/" \
+-          -e "s/@CFLAGS_OPTIM_NODEBUG@/${CFLAGS_OPTIM_NODEBUG}/" \
+-          -e "s/@CFLAGS_NOOPTIM@/${CFLAGS_NOOPTIM}/" \
++  # Escape the substituted values (no newlines, and no / \ & for sed).
++  vc_esc() { echo "$1" | tr '\012' ' ' | sed -e 's/[\\/&]/\\&/g'; }
++  vc_enable_gprof=`vc_esc "${enable_gprof}"`
++  vc_enable_cprof=`vc_esc "${enable_cprof}"`
++  vc_enable_optimizations=`vc_esc "${enable_optimizations}"`
++  vc_enable_debug=`vc_esc "${enable_debug}"`
++  vc_enable_release=`vc_esc "${enable_release}"`
++  vc_PLUGINS=`vc_esc "${PLUGINS}"`
++  vc_BUILTINS=`vc_esc "${BUILTINS}"`
++  vc_CFLAGS_TUNING=`vc_esc "${CFLAGS_TUNING}"`
++  vc_CFLAGS_OPTIM_SIZE=`vc_esc "${CFLAGS_OPTIM_SIZE}"`
++  vc_CFLAGS_OPTIM_SPEED=`vc_esc "${CFLAGS_OPTIM_SPEED}"`
++  vc_CFLAGS_OPTIM_NODEBUG=`vc_esc "${CFLAGS_OPTIM_NODEBUG}"`
++  vc_CFLAGS_NOOPTIM=`vc_esc "${CFLAGS_NOOPTIM}"`
++  sed -e '/#@1@#/,$d' < "${srcdir}/vlc-config.in.in" \
++    | sed -e "s/@gprof@/${vc_enable_gprof}/" \
++          -e "s/@cprof@/${vc_enable_cprof}/" \
++          -e "s/@optim@/${vc_enable_optimizations}/" \
++          -e "s/@debug@/${vc_enable_debug}/" \
++          -e "s/@release@/${vc_enable_release}/" \
++          -e "s/@PLUGINS@/${vc_PLUGINS}/" \
++          -e "s/@BUILTINS@/${vc_BUILTINS}/" \
++          -e "s/@CFLAGS_TUNING@/${vc_CFLAGS_TUNING}/" \
++          -e "s/@CFLAGS_OPTIM_SIZE@/${vc_CFLAGS_OPTIM_SIZE}/" \
++          -e "s/@CFLAGS_OPTIM_SPEED@/${vc_CFLAGS_OPTIM_SPEED}/" \
++          -e "s/@CFLAGS_OPTIM_NODEBUG@/${vc_CFLAGS_OPTIM_NODEBUG}/" \
++          -e "s/@CFLAGS_NOOPTIM@/${vc_CFLAGS_NOOPTIM}/" \
+     > vlc-config.in
+ 
+     for x in `echo ${am_all_modules}`

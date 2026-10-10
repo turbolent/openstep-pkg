@@ -1,2 +1,3 @@
 https://mirrors.kernel.org/gnu/emacs/emacs-31.1.tar.gz
 emacs-31.1-openstep.patch emacs-31.1
+emacs-31.1-cve.patch emacs-31.1

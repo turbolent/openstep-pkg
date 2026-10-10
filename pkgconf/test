@@ -1,0 +1,56 @@
+#!/bin/sh
+
+set -e
+
+PREFIX="$ROOT_DIR/usr/local"
+PKGCONF="$PREFIX/bin/pkgconf"
+PKG_CONFIG="$PREFIX/bin/pkg-config"
+PCDIR="/tmp/pkgconf-test.$$"
+trap 'rm -rf "$PCDIR"' 0 1 2 3 15
+
+[ -x "$PKGCONF" ]
+[ -x "$PKG_CONFIG" ]
+[ -f "$PREFIX/share/aclocal/pkg.m4" ]
+
+version=`"$PKGCONF" --version`
+[ "$version" = "$PKG_VERSION" ]
+
+# What autoconf's pkg.m4 asks: 0.9.0 with a separate argument.
+"$PKG_CONFIG" --atleast-pkgconfig-version 0.9.0
+"$PKG_CONFIG" --atleast-pkgconfig-version=0.29
+
+rm -rf "$PCDIR"
+mkdir "$PCDIR"
+cat > "$PCDIR/sample.pc" <<'PCEOF'
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+Name: sample
+Description: sample pc file
+Version: 1.2.3
+Libs: -L${libdir} -lsample
+Cflags: -I${includedir}/sample
+PCEOF
+cat > "$PCDIR/user.pc" <<'PCEOF'
+Name: user
+Description: needs sample
+Version: 2.0
+Requires: sample >= 1.2
+Libs: -luser
+PCEOF
+
+modversion=`PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --modversion sample`
+[ "$modversion" = 1.2.3 ]
+
+flags=`PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --cflags --libs sample`
+[ "$flags" = "-I/usr/local/include/sample -L/usr/local/lib -lsample" ]
+
+# Dependencies are followed, and versions compared.
+flags=`PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --libs user`
+[ "$flags" = "-luser -L/usr/local/lib -lsample" ]
+PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --exists 'sample >= 1.2.0'
+if PKG_CONFIG_PATH="$PCDIR" "$PKG_CONFIG" --exists 'sample >= 1.3'; then
+    echo "pkgconf: sample 1.2.3 satisfied >= 1.3" >&2
+    exit 1
+fi

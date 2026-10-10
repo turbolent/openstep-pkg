@@ -1,0 +1,3 @@
+# Client and server configuration, edited by its users.
+/usr/local/etc/ssh_config
+/usr/local/etc/sshd_config

@@ -1,0 +1,11 @@
+--- a/bzip2recover.c
++++ b/bzip2recover.c
+@@ -402,7 +402,7 @@
+             rbEnd[rbCtr] = bEnd[currBlock];
+             rbCtr++;
+          }
+-         if (currBlock >= BZ_MAX_HANDLED_BLOCKS)
++         if (currBlock >= BZ_MAX_HANDLED_BLOCKS - 1)
+             tooManyBlocks(BZ_MAX_HANDLED_BLOCKS);
+          currBlock++;
+ 

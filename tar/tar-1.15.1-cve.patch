@@ -1,0 +1,85 @@
+diff -ruN a/src/extract.c b/src/extract.c
+--- a/src/extract.c
++++ b/src/extract.c
+@@ -622,6 +622,17 @@
+   decode_header (current_header, &current_stat_info, &current_format,
+                  0 < same_owner_option);
+ 
++  /* Skip members whose names contain a ".." component (CVE-2016-6321,
++     as in GNU tar 1.30).  */
++  if (! absolute_names_option
++      && contains_dot_dot (current_stat_info.file_name))
++    {
++      ERROR ((0, 0, _("%s: Member name contains `..'"),
++	      quotearg_colon (current_stat_info.file_name)));
++      skip_member ();
++      return;
++    }
++
+   if (interactive_option && !confirm ("extract", current_stat_info.file_name))
+     {
+       skip_member ();
+@@ -914,6 +925,14 @@
+ #endif
+ 
+     case LNKTYPE:
++      if (! absolute_names_option
++	  && contains_dot_dot (current_stat_info.link_name))
++	{
++	  ERROR ((0, 0, _("%s: Hard link target contains `..'"),
++		  quotearg_colon (current_stat_info.link_name)));
++	  break;
++	}
++
+       if (! prepare_to_extract (file_name))
+ 	break;
+ 
+@@ -1102,7 +1121,12 @@
+       break;
+ 
+     case GNUTYPE_NAMES:
+-      extract_mangle ();
++      /* Support for type 'N' (mangled names) records has been removed, as
++	 in later GNU tar releases: its implementation could be made to
++	 write through symbolic links (CVE-2006-6097).  */
++      ERROR ((0, 0, _("%s: Cannot extract -- mangled names are not supported"),
++	      quotearg_colon (current_stat_info.file_name)));
++      skip_member ();
+       break;
+ 
+     case GNUTYPE_MULTIVOL:
+diff -ruN a/src/names.c b/src/names.c
+--- a/src/names.c
++++ b/src/names.c
+@@ -1082,7 +1082,9 @@
+ 
+       if (prefix_len)
+ 	{
+-	  char *prefix = alloca (prefix_len + 1);
++	  /* The prefix can be arbitrarily long, so do not put it on the
++	     stack (CVE-2007-4476).  */
++	  char *prefix = xmalloc (prefix_len + 1);
+ 	  memcpy (prefix, file_name, prefix_len);
+ 	  prefix[prefix_len] = '\0';
+ 
+@@ -1095,6 +1097,7 @@
+ 	      };
+ 	      WARN ((0, 0, _(diagnostic[link_target]), prefix));
+ 	    }
++	  free (prefix);
+ 	}
+     }
+ 
+@@ -1152,11 +1155,10 @@
+       if (p[0] == '.' && p[1] == '.' && (ISSLASH (p[2]) || !p[2]))
+ 	return 1;
+ 
+-      do
++      while (! ISSLASH (*p))
+ 	{
+ 	  if (! *p++)
+ 	    return 0;
+ 	}
+-      while (! ISSLASH (*p));
+     }
+ }

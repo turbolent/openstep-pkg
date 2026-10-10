@@ -4,23 +4,65 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -DNeXT'
+# PKG_XML2_OPT overrides the optimization flags (gcc 4.2 on SPARC has
+# miscompiled other packages at -O2).
+xml2_opt=${PKG_XML2_OPT--O2}
+CFLAGS="$PKG_GCC42_ARCH_FLAGS $xml2_opt -std=gnu99"
 CPPFLAGS=-I/usr/local/include
 LDFLAGS=-L/usr/local/lib
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
 AWK=/usr/local/bin/gawk
 SED=/bin/sed
-# configure tests snprintf after choosing its bundled Trio source list.
-NEED_TRIO=1
-export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED NEED_TRIO
+# OPENSTEP has mmap() but no munmap(); xmllint uses both for --memory.
+ac_cv_func_mmap=no
+export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK SED ac_cv_func_mmap
 . "$PKG_BUILD_HELPERS"
-patch -p1 < "libxml2-$VERSION-openstep.patch"
+# xml_snprintf.h (next to this script's sources) supplies snprintf() and
+# vsnprintf(), which OPENSTEP's libc lacks.  It is forced into every file at
+# make time only: configure's own tests do not cope with it.
+SHIM=`pwd`/xml_snprintf.h
+test -f "$SHIM" || { echo "libxml2: xml_snprintf.h is missing" >&2; exit 1; }
+# OPENSTEP has no <stdint.h>.  libxml.h includes it for intptr_t and timsort.h
+# needs uint64_t, so supply a private one at make time (HAVE_STDINT_H makes
+# timsort.h use it).
+/usr/local/bin/mkdir -p openstep
+/bin/cat > openstep/stdint.h <<'SEOF'
+#ifndef OPENSTEP_STDINT_H
+#define OPENSTEP_STDINT_H
+typedef signed char int8_t;
+typedef short int16_t;
+typedef int int32_t;
+typedef long long int64_t;
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
+typedef __PTRDIFF_TYPE__ intptr_t;
+typedef __SIZE_TYPE__ uintptr_t;
+typedef long long intmax_t;
+typedef unsigned long long uintmax_t;
+#define INT32_MAX 2147483647
+#define UINT32_MAX 4294967295U
+#define INT64_MAX 9223372036854775807LL
+#define UINT64_MAX 18446744073709551615ULL
+#endif
+SEOF
+STDINTFLAGS="-I`pwd`/openstep -DHAVE_STDINT_H=1"
+
+# (libxml2 2.15 has no LZMA support at all, so there is no --with-lzma; xz is a
+# dependency only to unpack the .tar.xz source.)
 run_configure --prefix=/usr/local \
-  --build=i386-next-openstep4 --host=i386-next-openstep4 \
+  --build=$PKG_TARGET --host=$PKG_TARGET \
   --disable-shared --enable-static --disable-dependency-tracking \
-  --without-python --with-iconv=/usr/local --with-zlib=/usr/local
-# The shipped Makefile omits trionan from the bundled Trio objects.
-/bin/gnumake 'am__objects_2=triostr.lo trio.lo trionan.lo'
-/bin/gnumake install 'am__objects_2=triostr.lo trio.lo trionan.lo' DESTDIR="$DESTDIR"
+  --without-python --without-threads --without-modules \
+  --without-icu --without-readline --with-iconv=/usr/local --with-zlib=/usr/local
+# Keep make from re-running configure or automake over the extracted tree.
+sleep 1
+/usr/local/bin/touch aclocal.m4 configure Makefile.in config.h.in
+/usr/local/bin/touch config.status Makefile config.h
+# configure adds warning options for gcc (-pedantic, -Wno-array-bounds, ...)
+# that gcc 4.2 rejects as errors; they only affect warnings, so drop them.
+/bin/gnumake AM_CFLAGS= CFLAGS="$CFLAGS $STDINTFLAGS -include $SHIM"
+/bin/gnumake install AM_CFLAGS= CFLAGS="$CFLAGS $STDINTFLAGS -include $SHIM" DESTDIR="$DESTDIR"
 ranlib "$DESTDIR/usr/local/lib/libxml2.a"

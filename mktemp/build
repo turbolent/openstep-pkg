@@ -4,7 +4,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
 CC=/bin/cc
-CFLAGS='-O2 -D_POSIX_SOURCE'
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS "'-O2 -D_POSIX_SOURCE'
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
 export PATH CC CFLAGS GREP EGREP

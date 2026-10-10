@@ -3,7 +3,7 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/bin:/usr/bin:/usr/ucb
-CC=/usr/local/bin/gcc-4.2
+CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS='-I/usr/local/include/ncurses -I/usr/local/include -I/NextDeveloper/Headers/bsd'
 LDFLAGS=-L/usr/local/lib
 AWK=/usr/local/bin/gawk
@@ -14,6 +14,21 @@ export PATH CC CPPFLAGS LDFLAGS AWK CONFIG_SHELL ac_cv_func_poll
 . "$PKG_BUILD_HELPERS"
 if test -d "less-$VERSION"; then cd "less-$VERSION"; fi
 patch -p1 < "less-$VERSION-openstep.patch"
+# <setjmp.h> declares sigsetjmp()/siglongjmp() on every architecture, but on
+# some (SPARC) libc does not define them.  Use them only if a program using them
+# links; otherwise less falls back to _setjmp()/_longjmp() or setjmp().
+cat > probe_sj.c <<'PEOF'
+#include <setjmp.h>
+int main(void) { sigjmp_buf b; if (sigsetjmp(b, 1) == 0) siglongjmp(b, 1); return 0; }
+PEOF
+if $CC $CPPFLAGS probe_sj.c -o probe_sj > /dev/null 2>&1; then
+    echo "less: sigsetjmp links"
+else
+    echo "less: sigsetjmp does not link; using _setjmp/setjmp"
+    ac_cv_have_decl_sigsetjmp=no
+    export ac_cv_have_decl_sigsetjmp
+fi
+rm -f probe_sj.c probe_sj probe_sj.o
 run_configure --prefix=/usr/local
 /bin/gnumake
 /bin/gnumake install DESTDIR="$DESTDIR"

@@ -3,11 +3,16 @@ set -e
 DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
-CC=/usr/local/bin/gcc-4.2
+CC="/usr/local/bin/gcc-4.2 $PKG_GCC42_ARCH_FLAGS"
 export PATH CC
 if test -d "diffutils-$VERSION"; then cd "diffutils-$VERSION"; fi
 patch -p1 < "diffutils-$VERSION-openstep.patch"
 . "$PKG_BUILD_HELPERS"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
+# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
+# time only: configure's own tests do not cope with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
 run_configure --prefix=/usr/local --disable-nls --disable-dependency-tracking
-/bin/gnumake
-/bin/gnumake install DESTDIR="$DESTDIR"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" install DESTDIR="$DESTDIR"

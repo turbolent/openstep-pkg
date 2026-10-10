@@ -15,7 +15,11 @@ CCACHE=
 CC_CAN_BUILD_AND_DEP=no
 CC_CANNOT_DEP=yes
 BUILDDIR=build-openstep
-CFLAGS=-DNeXT
+# The bison skeleton declares its own "void *malloc (YYSIZE_T)" unless stdlib.h
+# came first (EXIT_SUCCESS), and that clashed with the system's malloc on SPARC
+# ("conflicting types for malloc" in nsgenbind-parser.c).  Include stdlib.h first and
+# tell the skeleton to use the real malloc and free.
+CFLAGS="$PKG_GCC42_ARCH_FLAGS -DNeXT -include stdlib.h -DYYMALLOC=malloc -DYYFREE=free"
 
 export DESTDIR VERSION PREFIX PATH NSSHARED CC BUILD_CC MAKE
 export CCACHE CC_CAN_BUILD_AND_DEP CC_CANNOT_DEP BUILDDIR CFLAGS

@@ -3,7 +3,7 @@ set -e
 DESTDIR=$1
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -march=i486 -DNeXT'
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DNeXT'
 CPPFLAGS=-I/usr/local/include
 LDFLAGS=-L/usr/local/lib
 export CPPFLAGS LDFLAGS
@@ -14,7 +14,7 @@ export PATH CC CFLAGS AWK GREP EGREP
 . "$PKG_BUILD_HELPERS"
 if test -d "libmpeg2-$2"; then cd "libmpeg2-$2"; fi
 patch -p1 < "libmpeg2-$2-openstep.patch"
-run_configure --build=i386-next-openstep4 --prefix=/usr/local \
+run_configure --build=$PKG_TARGET --prefix=/usr/local \
     --disable-shared --enable-static --disable-dependency-tracking
 # NeXT ar truncates long names; libtool needs the surviving .o suffix.
 for makefile in libmpeg2/Makefile libmpeg2/convert/Makefile
@@ -23,7 +23,9 @@ do
     /bin/mv "$makefile.tmp" "$makefile"
 done
 /bin/gnumake SHELL="$CONFIG_SHELL"
-/bin/csh -f /usr/local/bin/sdl-fix-macho-i486-subtype src/mpeg2dec
+if [ "$PKG_ARCH" = i386 ]; then
+    /bin/csh -f /usr/local/bin/sdl-fix-macho-i486-subtype src/mpeg2dec
+fi
 /bin/gnumake SHELL="$CONFIG_SHELL" install DESTDIR="$DESTDIR"
 /bin/ranlib "$DESTDIR/usr/local/lib/libmpeg2.a"
 /bin/ranlib "$DESTDIR/usr/local/lib/libmpeg2convert.a"

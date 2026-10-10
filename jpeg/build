@@ -7,7 +7,7 @@ VERSION=$2
 PREFIX=/usr/local
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/bin/cc
-CFLAGS="-O2 -DNeXT"
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O2 -DNeXT"
 SED=/bin/sed
 GREP=/usr/local/bin/grep
 EGREP="/usr/local/bin/grep -E"
@@ -19,7 +19,7 @@ if [ -d "jpeg-$VERSION" ]; then
 fi
 
 /usr/local/bin/ksh ./configure --prefix="$PREFIX" --disable-shared --disable-dependency-tracking
-gnumake -f makefile.ansi CC="$CC" CFLAGS="$CFLAGS" AR="ar rc" AR2=/bin/ranlib
+gnumake -f makefile.ansi CC="$CC" CFLAGS="$PKG_SYSCC_ARCH_FLAGS $CFLAGS" AR="ar rc" AR2=/bin/ranlib
 gnumake -f makefile.ansi test
 /bin/ranlib libjpeg.a
 

@@ -3,13 +3,18 @@ set -e
 DESTDIR=$1
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -march=i486 -DNeXT'
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"' -DNeXT'
 AWK=/usr/local/bin/gawk
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
 export PATH CC CFLAGS AWK GREP EGREP
 . "$PKG_BUILD_HELPERS"
-run_configure --build=i386-next-openstep4 --prefix=/usr/local \
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
+# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
+# time only: configure's own tests do not cope with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
+run_configure --build=$PKG_TARGET --prefix=/usr/local \
     --disable-nls --disable-dependency-tracking
-/bin/gnumake SHELL="$CONFIG_SHELL"
-/bin/gnumake SHELL="$CONFIG_SHELL" install DESTDIR="$DESTDIR"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" SHELL="$CONFIG_SHELL"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" SHELL="$CONFIG_SHELL" install DESTDIR="$DESTDIR"

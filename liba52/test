@@ -19,7 +19,7 @@ int main(void)
     return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -DNeXT -I"$LOCAL_ROOT/include" \
+/usr/local/bin/gcc-4.2 -O2 $PKG_GCC42_ARCH_FLAGS -DNeXT -I"$LOCAL_ROOT/include" \
     "$TMP.c" -L"$LOCAL_ROOT/lib" -la52 -lm -o "$TMP"
 "$TMP"
 echo "liba52 installed-package tests passed"

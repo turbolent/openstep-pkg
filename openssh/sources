@@ -1,2 +1,5 @@
-https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-7.9p1.tar.gz
-openssh-7.9p1-openstep.patch openssh-7.9p1
+https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-10.6p1.tar.gz
+openssh-10.6p1-openstep.patch openssh-10.6p1
+rc.sshd openssh-10.6p1/pkg-files
+rc.sshd.conf.dist openssh-10.6p1/pkg-files
+README openssh-10.6p1/pkg-files

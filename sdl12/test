@@ -36,8 +36,10 @@ EOF
 CFLAGS=`$LOCAL_ROOT/bin/sdl-config --cflags`
 LIBS=`$LOCAL_ROOT/bin/sdl-config --libs`
 
-/bin/cc -m486 $CFLAGS "$TMP.c" $LIBS -o "$TMP"
-/bin/csh -f "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype" "$TMP"
+/bin/cc $PKG_SYSCC_ARCH_FLAGS $CFLAGS "$TMP.c" $LIBS -o "$TMP"
+if [ "$PKG_ARCH" = i386 ]; then
+    /bin/csh -f "$LOCAL_ROOT/bin/sdl-fix-macho-i486-subtype" "$TMP"
+fi
 "$TMP"
 
 /bin/rm -f "$TMP.c" "$TMP"

@@ -6,7 +6,7 @@ index e456758..6a0d3f8 100644
  CFLAGS := -D_BSD_SOURCE -D_DEFAULT_SOURCE \
  	-I$(CURDIR)/include/ -I$(CURDIR)/src \
  	$(WARNFLAGS) $(CFLAGS)
-+ifeq ($(BUILD),i386-next-openstep4)
++ifneq (,$(findstring -next-openstep,$(BUILD)))
 +  CFLAGS := -DNeXT $(CFLAGS)
 +endif
  ifneq ($(GCCVER),2)

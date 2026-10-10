@@ -1,2 +1,3 @@
 https://downloads.sourceforge.net/project/freetype/freetype2/2.14.3/freetype-2.14.3.tar.gz
 freetype-2.14.3-openstep.patch freetype-2.14.3
+freetype-2.14.3-cve.patch freetype-2.14.3

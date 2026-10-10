@@ -42,7 +42,7 @@ int main(void)
     return 0;
 }
 EOF
-/usr/local/bin/gcc-4.2 -O2 -march=i486 -DNeXT -Wno-deprecated-declarations \
+/usr/local/bin/gcc-4.2 -O2 ${PKG_GCC42_ARCH_FLAGS-} -DNeXT -Wno-deprecated-declarations \
     `"$LOCAL_ROOT/bin/libgcrypt-config" --cflags` "$TMP.c" \
     `"$LOCAL_ROOT/bin/libgcrypt-config" --libs` -o "$TMP"
 "$TMP"

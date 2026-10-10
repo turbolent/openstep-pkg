@@ -1,0 +1,48 @@
+#!/bin/sh
+# Link a program against libneXtaw.  No X server is needed: it only references a
+# widget class, so a missing library or header fails here.
+set -e
+
+TMP=/usr/tmp/neXtaw-test.$$
+trap '/bin/rm -f "$TMP.c" "$TMP"' 0
+
+x11_prefix=
+for d in $X11_PREFIX /usr/X11R6; do
+    if test -n "$d" && test -f "$d/include/X11/Intrinsic.h"; then
+        x11_prefix=$d
+        break
+    fi
+done
+test -n "$x11_prefix" || { echo "no X11 development files found" >&2; exit 1; }
+
+cat > "$TMP.c" <<'CEOF'
+#include <X11/Intrinsic.h>
+#include <X11/StringDefs.h>
+#include <X11/neXtaw/Command.h>
+#include <X11/neXtaw/Form.h>
+#include <X11/neXtaw/Label.h>
+
+int main(void)
+{
+    WidgetClass classes[3];
+
+    classes[0] = commandWidgetClass;
+    classes[1] = formWidgetClass;
+    classes[2] = labelWidgetClass;
+    return classes[0] != 0 && classes[1] != 0 && classes[2] != 0 ? 0 : 1;
+}
+CEOF
+
+# libSM and libICE are only there when the X11 install has session management.
+for extra in "-lSM -lICE" ""; do
+    if /usr/local/bin/gcc-4.2 -I"$LOCAL_ROOT/include" -I"$x11_prefix/include" "$TMP.c" -o "$TMP" \
+        -L"$LOCAL_ROOT/lib" -L"$x11_prefix/lib" \
+        -lneXtaw -lXmu -lXt $extra -lXext -lX11 > /dev/null 2>&1; then
+        linked=yes
+        break
+    fi
+done
+test "x$linked" = xyes || { echo "could not link against libneXtaw" >&2; exit 1; }
+"$TMP"
+test -x "$LOCAL_ROOT/bin/neXtclock"
+echo "neXtaw ok"

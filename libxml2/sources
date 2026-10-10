@@ -1,2 +1,2 @@
-https://download.gnome.org/sources/libxml2/2.9/libxml2-2.9.14.tar.xz
-libxml2-2.9.14-openstep.patch libxml2-2.9.14
+https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz
+xml_snprintf.h libxml2-2.15.4

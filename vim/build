@@ -5,7 +5,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -g -std=gnu99'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -g -std=gnu99'
 CPPFLAGS='-I/usr/local/include/ncurses -I/usr/local/include -I/NextDeveloper/Headers/bsd'
 LDFLAGS=-L/usr/local/lib
 GREP=/usr/local/bin/grep
@@ -14,12 +14,22 @@ AWK=/usr/local/bin/gawk
 CONFIG_SHELL=/usr/local/bin/ksh
 # The termios header exists without working functions. Use BSD tty handling.
 ac_cv_header_termios_h=no
+# <sys/utsname.h> exists but declares no struct utsname unless _POSIX_SOURCE is
+# defined; use gethostname() for the host name instead.
+ac_cv_header_sys_utsname_h=no
+# <utime.h> declares struct utimbuf only under _POSIX_SOURCE; use utimes() instead.
+ac_cv_header_utime_h=no
 # OPENSTEP poll timeouts and strcoll are unusable; select/strcmp work.
 ac_cv_func_poll=no
 ac_cv_func_strcoll=no
 export PATH CC CFLAGS CPPFLAGS LDFLAGS GREP EGREP AWK CONFIG_SHELL
-export ac_cv_header_termios_h ac_cv_func_poll ac_cv_func_strcoll
+export ac_cv_header_termios_h ac_cv_header_sys_utsname_h ac_cv_header_utime_h ac_cv_func_poll ac_cv_func_strcoll
 . "$PKG_BUILD_HELPERS"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
+# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
+# time only: configure's own tests do not cope with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
 
 # Old gnutar leaves GitHub's pax_global_header beside the source directory.
 if [ ! -d src ]; then
@@ -27,10 +37,45 @@ if [ ! -d src ]; then
 fi
 patch -p1 < "vim-$VERSION-openstep.patch"
 cd src
+
+# <termios.h> is here but libc has no tcgetattr() or tcsetattr() (the build
+# presets termios off for configure, but 9.2 calls them unconditionally in
+# query_terminal_pixel_size()).  Supply them on top of the BSD ioctls.
+/bin/cat > openstep_termios.c <<'TEOF'
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/file.h>
+#include <termios.h>
+#include <errno.h>
+
+int
+tcgetattr(int fd, struct termios *t)
+{
+    return ioctl(fd, TIOCGETA, (char *) t);
+}
+
+int
+tcsetattr(int fd, int actions, const struct termios *t)
+{
+    switch (actions) {
+    case 0:	/* TCSANOW */
+	return ioctl(fd, TIOCSETA, (char *) t);
+    case 1:	/* TCSADRAIN */
+	return ioctl(fd, TIOCSETAW, (char *) t);
+    case 2:	/* TCSAFLUSH */
+	return ioctl(fd, TIOCSETAF, (char *) t);
+    }
+    errno = EINVAL;
+    return -1;
+}
+TEOF
+$CC $CFLAGS -c openstep_termios.c -o openstep_termios.o
+TERMIOS_OBJ="`pwd`/openstep_termios.o"
+
 run_configure --prefix=/usr/local --with-features=huge \
     --enable-gui=no --without-x --disable-nls --with-tlib=ncurses
-/bin/gnumake SHELL="$CONFIG_SHELL"
-/bin/gnumake install SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" LDFLAGS="$LDFLAGS $TERMIOS_OBJ" SHELL="$CONFIG_SHELL"
+/bin/gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" LDFLAGS="$LDFLAGS $TERMIOS_OBJ" install SHELL="$CONFIG_SHELL" DESTDIR="$DESTDIR"
 
 # vimtutor uses POSIX shell syntax that the stock /bin/sh cannot parse.
 sed '1s|.*|#!/usr/local/bin/ksh|' vimtutor > "$DESTDIR/usr/local/bin/vimtutor"

@@ -1,0 +1,41 @@
+#!/bin/sh
+set -e
+PREFIX="$LOCAL_ROOT"
+SUDO="$PREFIX/bin/sudo"
+VISUDO="$PREFIX/sbin/visudo"
+PATH="$PREFIX/bin:$PREFIX/sbin:/usr/ucb:/bin:/usr/bin"
+export PATH
+WORK=/tmp/pkg-sudo.$$
+mkdir "$WORK"
+trap 'rm -rf "$WORK"' 0 1 2 3 15
+
+[ -x "$SUDO" ]
+[ -x "$VISUDO" ]
+[ -x "$PREFIX/bin/sudoreplay" ]
+"$PREFIX/bin/sudoreplay" -h 2>&1 | grep -i usage > /dev/null
+"$SUDO" -V | grep 'Sudo version 1\.7\.10p9' > /dev/null
+
+# The default policy is shipped as sudoers.dist and must parse.
+[ -f "$PREFIX/etc/sudoers.dist" ]
+"$VISUDO" -c -f "$PREFIX/etc/sudoers.dist" > /dev/null
+
+# visudo accepts a valid file and rejects an invalid one.
+cat > "$WORK/good" <<'GEOF'
+Defaults !lecture
+root ALL=(ALL) ALL
+%wheel ALL=(ALL) NOPASSWD: /bin/echo, /usr/bin/true
+GEOF
+"$VISUDO" -c -f "$WORK/good" > /dev/null
+printf 'this is not (valid sudoers\n' > "$WORK/bad"
+if "$VISUDO" -c -f "$WORK/bad" > /dev/null 2>&1; then
+    echo "visudo accepted a malformed sudoers" >&2
+    exit 1
+fi
+
+# Where we are allowed to, check the real thing: setuid root, and root can
+# run a command as root without a password.
+if [ "`id -u`" = 0 ]; then
+    [ -u "$SUDO" ]
+    [ -f "$PREFIX/etc/sudoers" ]
+    test "`"$SUDO" -n -u root /bin/echo sudo-works`" = sudo-works
+fi

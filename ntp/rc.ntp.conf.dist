@@ -1,0 +1,9 @@
+# Settings for rc.ntp (shell syntax), which sets the clock with ntpdate at boot
+# and then starts ntpd.  See /usr/local/share/ntp/README.
+# Server(s) for ntpdate; the default is the first server or pool in ntpd.conf.
+#RC_NTP_SERVERS=
+# Seconds ntpdate waits for a server's answer.
+#RC_NTP_TIMEOUT=3
+# Extra options for ntpdate and for ntpd.
+#RC_NTP_DATE_OPTS=
+#RC_NTP_OPTS=

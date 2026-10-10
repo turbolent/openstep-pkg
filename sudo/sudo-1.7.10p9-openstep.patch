@@ -1,0 +1,360 @@
+diff -ruN pa/sudo-1.7.10p9/Makefile.in pc/sudo-1.7.10p9/Makefile.in
+--- a/Makefile.in	2015-02-10 17:09:58.000000000 +0000
++++ b/Makefile.in	2026-10-06 01:06:34.596900924 +0000
+@@ -150,7 +150,7 @@
+ 
+ COMMON_OBJS = alias.o alloc.o defaults.o error.o gram.o list.o match.o \
+ 	      pwutil.o timestr.o toke.o toke_util.o redblack.o \
+-	      secure_path.o term.o zero_bytes.o @COMMON_OBJS@
++	      secure_path.o term.o zero_bytes.o glob.o @COMMON_OBJS@
+ 
+ SUDO_OBJS = $(AUTH_OBJS) @SUDO_OBJS@ audit.o boottime.o check.o env.o \
+ 	    exec.o gettime.o goodpath.o fileops.o find_path.o \
+diff -ruN pa/sudo-1.7.10p9/exec.c pc/sudo-1.7.10p9/exec.c
+--- a/exec.c	2015-02-10 17:05:31.000000000 +0000
++++ b/exec.c	2026-10-06 00:40:49.512744456 +0000
+@@ -27,7 +27,7 @@
+ #include <sys/wait.h>
+ #ifdef HAVE_TERMIOS_H
+ # include <termios.h>
+-#else
++#elif defined(HAVE_TERMIO_H)
+ # include <termio.h>
+ #endif /* HAVE_TERMIOS_H */
+ #include <sys/ioctl.h>
+diff -ruN pa/sudo-1.7.10p9/exec_pty.c pc/sudo-1.7.10p9/exec_pty.c
+--- a/exec_pty.c	2015-02-10 17:05:31.000000000 +0000
++++ b/exec_pty.c	2026-10-06 00:40:49.513416543 +0000
+@@ -26,7 +26,7 @@
+ #include <sys/wait.h>
+ #ifdef HAVE_TERMIOS_H
+ # include <termios.h>
+-#else
++#elif defined(HAVE_TERMIO_H)
+ # include <termio.h>
+ #endif /* HAVE_TERMIOS_H */
+ #include <sys/ioctl.h>
+diff -ruN pa/sudo-1.7.10p9/fixman.sh pc/sudo-1.7.10p9/fixman.sh
+--- a/fixman.sh	2015-02-10 17:05:31.000000000 +0000
++++ b/fixman.sh	2026-10-06 02:17:51.292553488 +0000
+@@ -2,7 +2,7 @@
+ 
+ OUTFILE="$1"
+ rm -f "$OUTFILE"
+-> "$OUTFILE"
++: > "$OUTFILE"
+ 
+ # HP-UX friendly header/footer for all man pages
+ if [ X"`uname 2>&1`" = X"HP-UX" ]; then
+diff -ruN pa/sudo-1.7.10p9/fixmdoc.sh pc/sudo-1.7.10p9/fixmdoc.sh
+--- a/fixmdoc.sh	2015-02-10 17:05:31.000000000 +0000
++++ b/fixmdoc.sh	2026-10-06 02:17:51.293004929 +0000
+@@ -2,7 +2,7 @@
+ 
+ OUTFILE="$1"
+ rm -f "$OUTFILE"
+-> "$OUTFILE"
++: > "$OUTFILE"
+ 
+ # Page specific hacks
+ case "$OUTFILE" in
+diff -ruN pa/sudo-1.7.10p9/glob.c pc/sudo-1.7.10p9/glob.c
+--- a/glob.c	2015-02-10 17:05:31.000000000 +0000
++++ b/glob.c	2026-10-06 01:06:34.597680725 +0000
+@@ -99,6 +99,13 @@
+ #include "emul/glob.h"
+ #include "emul/charclass.h"
+ 
++/*
++ * configure never adds glob.o when libc lacks glob(3) (OPENSTEP does), but
++ * match.c then calls the emulation.  Makefile.in always links glob.o, so the
++ * body is only compiled when the system has no glob() of its own.
++ */
++#ifndef HAVE_GLOB
++
+ #define	DOLLAR		'$'
+ #define	DOT		'.'
+ #define	EOS		'\0'
+@@ -951,3 +958,4 @@
+ 	(void)printf("\n");
+ }
+ #endif
++#endif /* !HAVE_GLOB */
+diff -ruN pa/sudo-1.7.10p9/missing.h pc/sudo-1.7.10p9/missing.h
+--- a/missing.h	2015-02-10 17:05:31.000000000 +0000
++++ b/missing.h	2026-10-06 01:44:59.284858401 +0000
+@@ -104,6 +104,26 @@
+ #ifndef S_ISDIR
+ # define S_ISDIR(m)		(((m) & _S_IFMT) == _S_IFDIR)
+ #endif /* S_ISDIR */
++/*
++ * S_ISLNK and friends are not POSIX.1-1990, so OPENSTEP's <sys/stat.h> hides
++ * them under -D_POSIX_SOURCE (and an undefined S_ISLNK() becomes a call to a
++ * missing function).  These are the standard BSD file type bits.
++ */
++#ifndef S_ISCHR
++# define S_ISCHR(m)		(((m) & 0170000) == 0020000)
++#endif
++#ifndef S_ISBLK
++# define S_ISBLK(m)		(((m) & 0170000) == 0060000)
++#endif
++#ifndef S_ISFIFO
++# define S_ISFIFO(m)		(((m) & 0170000) == 0010000)
++#endif
++#ifndef S_ISLNK
++# define S_ISLNK(m)		(((m) & 0170000) == 0120000)
++#endif
++#ifndef S_ISSOCK
++# define S_ISSOCK(m)		(((m) & 0170000) == 0140000)
++#endif
+ 
+ /*
+  * Some OS's may not have this.
+@@ -192,6 +212,45 @@
+ #endif /* HAVE__INNETGR */
+ 
+ /*
++ * With -D_POSIX_SOURCE, OPENSTEP's <net/if.h> hides the interface flags.
++ * These are the 4.3BSD values.
++ */
++#ifndef IFF_UP
++# define IFF_UP		0x1
++#endif
++#ifndef IFF_BROADCAST
++# define IFF_BROADCAST	0x2
++#endif
++#ifndef IFF_DEBUG
++# define IFF_DEBUG	0x4
++#endif
++#ifndef IFF_LOOPBACK
++# define IFF_LOOPBACK	0x8
++#endif
++#ifndef IFF_POINTOPOINT
++# define IFF_POINTOPOINT 0x10
++#endif
++#ifndef IFF_RUNNING
++# define IFF_RUNNING	0x40
++#endif
++#ifndef IFF_NOARP
++# define IFF_NOARP	0x80
++#endif
++
++/*
++ * shutdown(2) "how" values; OPENSTEP's <sys/socket.h> only documents 0, 1, 2.
++ */
++#ifndef SHUT_RD
++# define SHUT_RD	0
++#endif
++#ifndef SHUT_WR
++# define SHUT_WR	1
++#endif
++#ifndef SHUT_RDWR
++# define SHUT_RDWR	2
++#endif
++
++/*
+  * On POSIX systems, O_NOCTTY is the default so some OS's may lack this define.
+  */
+ #ifndef O_NOCTTY
+@@ -200,23 +259,47 @@
+ 
+ /*
+  * Emulate POSIX signals via sigvec(2)
++ *
++ * OPENSTEP's <signal.h> declares sigaction(), sigismember() and friends (with
++ * its own struct sigaction) but libc does not implement them.  Give the
++ * emulation private names, so it cannot clash with those declarations, and
++ * take sigset_t from the system headers.
+  */
+ #ifndef HAVE_SIGACTION
+-# define SA_ONSTACK	SV_ONSTACK
+-# define SA_RESTART	SV_INTERRUPT		/* opposite effect */
+-# define SA_RESETHAND	SV_RESETHAND
++# include <signal.h>		/* for sigset_t and struct sigvec */
++# ifndef SV_RESETHAND
++#  define SV_RESETHAND	0		/* BSD sigvec() cannot reset handlers */
++# endif
++# ifndef SA_ONSTACK
++#  define SA_ONSTACK	SV_ONSTACK
++# endif
++# ifndef SA_RESTART
++#  define SA_RESTART	SV_INTERRUPT		/* opposite effect */
++# endif
++# ifndef SA_RESETHAND
++#  define SA_RESETHAND	SV_RESETHAND
++# endif
++# ifndef SA_INTERRUPT
++#  define SA_INTERRUPT	0			/* sigvec() interrupts by default */
++# endif
+ # define sa_handler	sv_handler
+ # define sa_mask	sv_mask
+ # define sa_flags	sv_flags
+ typedef struct sigvec sigaction_t;
+-typedef int sigset_t;
+-int sigaction __P((int sig, const sigaction_t *act, sigaction_t *oact));
+-int sigemptyset __P((sigset_t *));
+-int sigfillset __P((sigset_t *));
+-int sigaddset __P((sigset_t *, int));
+-int sigdelset __P((sigset_t *, int));
+-int sigismember __P((sigset_t *, int));
+-int sigprocmask __P((int, const sigset_t *, sigset_t *));
++# define sigaction		sudo_sigaction
++# define sigemptyset		sudo_sigemptyset
++# define sigfillset		sudo_sigfillset
++# define sigaddset		sudo_sigaddset
++# define sigdelset		sudo_sigdelset
++# define sigismember		sudo_sigismember
++# define sigprocmask		sudo_sigprocmask
++int sudo_sigaction __P((int sig, const sigaction_t *act, sigaction_t *oact));
++int sudo_sigemptyset __P((sigset_t *));
++int sudo_sigfillset __P((sigset_t *));
++int sudo_sigaddset __P((sigset_t *, int));
++int sudo_sigdelset __P((sigset_t *, int));
++int sudo_sigismember __P((const sigset_t *, int));
++int sudo_sigprocmask __P((int, const sigset_t *, sigset_t *));
+ #endif
+ 
+ /*
+diff -ruN pa/sudo-1.7.10p9/parse_args.c pc/sudo-1.7.10p9/parse_args.c
+--- a/parse_args.c	2015-02-10 17:05:31.000000000 +0000
++++ b/parse_args.c	2026-10-06 03:55:55.193245191 +0000
+@@ -278,6 +278,9 @@
+     }
+     if ((flags & valid_flags) != flags)
+ 	usage(1);
++    /* CVE-2021-3156: sudoedit has no shell mode, and -s/-i must not set it. */
++    if (mode == MODE_EDIT && ISSET(flags, MODE_SHELL | MODE_LOGIN_SHELL))
++	usage(1);
+     if (mode == MODE_EDIT &&
+        (ISSET(flags, MODE_PRESERVE_ENV) || sudo_user.env_vars != NULL)) {
+ 	if (ISSET(mode, MODE_PRESERVE_ENV))
+diff -ruN pa/sudo-1.7.10p9/sigaction.c pc/sudo-1.7.10p9/sigaction.c
+--- a/sigaction.c	2015-02-10 17:05:31.000000000 +0000
++++ b/sigaction.c	2026-10-06 00:31:34.868595605 +0000
+@@ -100,7 +100,7 @@
+ 
+ int
+ sigismember(set, signo)
+-    sigset_t *set;
++    const sigset_t *set;
+     int signo;
+ {
+ 
+diff -ruN pa/sudo-1.7.10p9/sudo.c pc/sudo-1.7.10p9/sudo.c
+--- a/sudo.c	2015-02-10 17:05:31.000000000 +0000
++++ b/sudo.c	2026-10-06 03:55:55.193850719 +0000
+@@ -812,7 +812,7 @@
+ 	    char *to, *from, **av;
+ 	    size_t size, n;
+ 
+-	    if (ISSET(sudo_mode, MODE_SHELL)) {
++	    if (ISSET(sudo_mode, MODE_RUN) && ISSET(sudo_mode, MODE_SHELL)) {
+ 		for (size = 0, av = NewArgv + 1; *av; av++)
+ 		    size += strlen(*av) + 1;
+ 		user_args = emalloc(size);
+@@ -824,7 +824,9 @@
+ 		 */
+ 		for (to = user_args, av = NewArgv + 1; (from = *av); av++) {
+ 		    while (*from) {
+-			if (from[0] == '\\' && !isspace((unsigned char)from[1]))
++			/* CVE-2021-3156: never step over the terminating NUL. */
++			if (from[0] == '\\' && from[1] != '\0' &&
++			    !isspace((unsigned char)from[1]))
+ 			    from++;
+ 			*to++ = *from++;
+ 		    }
+@@ -1250,6 +1252,28 @@
+ }
+ 
+ /*
++ * Returns TRUE if STR is a plain decimal id that is not the reserved -1 /
++ * 4294967295 value (strtoul() wraps "-1" to the same thing).
++ */
++static int
++numeric_id_ok(str)
++    const char *str;
++{
++    char *ep;
++    unsigned long ul;
++
++    if (*str == '\0' || isspace((unsigned char)*str))
++	return FALSE;
++    errno = 0;
++    ul = strtoul(str, &ep, 10);
++    if (*ep != '\0' || errno == ERANGE)
++	return FALSE;
++    if (ul == (unsigned long) -1 || (ul & 0xffffffffUL) == 0xffffffffUL)
++	return FALSE;
++    return TRUE;
++}
++
++/*
+  * Get passwd entry for the user we are going to run commands as
+  * and store it in runas_pw.  By default, commands run as "root".
+  */
+@@ -1260,6 +1284,13 @@
+     if (runas_pw != NULL)
+ 	pw_delref(runas_pw);
+     if (*user == '#') {
++	/* CVE-2019-14287: uid -1 (4294967295) means "do not change" to
++	   setresuid()/setreuid(), which would leave the command running as
++	   root, so refuse it (and anything that is not a plain number). */
++	if (!numeric_id_ok(user + 1)) {
++	    audit_failure(NewArgv, "unknown user: %s", user);
++	    log_fatal(NO_MAIL|MSG_ONLY, "unknown user: %s", user);
++	}
+ 	if ((runas_pw = sudo_getpwuid(atoi(user + 1))) == NULL)
+ 	    runas_pw = sudo_fakepwnam(user, runas_gr ? runas_gr->gr_gid : 0);
+     } else {
+@@ -1281,6 +1312,9 @@
+     if (runas_gr != NULL)
+ 	gr_delref(runas_gr);
+     if (*group == '#') {
++	/* The same goes for gid -1 and setresgid()/setregid(). */
++	if (!numeric_id_ok(group + 1))
++	    log_fatal(NO_MAIL|MSG_ONLY, "unknown group: %s", group);
+ 	if ((runas_gr = sudo_getgrgid(atoi(group + 1))) == NULL)
+ 	    runas_gr = sudo_fakegrnam(group);
+     } else {
+diff -ruN pa/sudo-1.7.10p9/sudoreplay.c pc/sudo-1.7.10p9/sudoreplay.c
+--- a/sudoreplay.c	2015-02-10 17:05:31.000000000 +0000
++++ b/sudoreplay.c	2026-10-06 01:58:20.340902303 +0000
+@@ -770,7 +770,7 @@
+ 	    }
+ 	    matched = rc == REG_NOMATCH ? 0 : 1;
+ #else
+-	    matched = strstr(log.cmd, sn->u.pattern) != NULL;
++	    matched = strstr(log->cmd, sn->u.pattern) != NULL;
+ #endif
+ 	    break;
+ 	case ST_FROMDATE:
+@@ -1208,6 +1208,9 @@
+     int signo;
+ {
+     term_restore(STDIN_FILENO, 0);
+-    if (signo)
++    if (signo) {
++	/* SA_RESETHAND may not exist (BSD sigvec), so reset the handler here. */
++	(void) signal(signo, SIG_DFL);
+ 	kill(getpid(), signo);
++    }
+ }
+diff -ruN pa/sudo-1.7.10p9/tgetpass.c pc/sudo-1.7.10p9/tgetpass.c
+--- a/tgetpass.c	2015-02-10 17:05:31.000000000 +0000
++++ b/tgetpass.c	2026-10-06 03:55:55.194115654 +0000
+@@ -259,12 +259,14 @@
+ 	    break;
+ 	if (feedback) {
+ 	    if (c == term_kill) {
++		/* CVE-2019-18634: give back exactly what was erased; the
++		   write may fail, leaving part of the line in place. */
+ 		while (cp > buf) {
+ 		    if (write(fd, "\b \b", 3) == -1)
+ 			break;
+ 		    --cp;
++		    left++;
+ 		}
+-		left = bufsiz;
+ 		continue;
+ 	    } else if (c == term_erase) {
+ 		if (cp > buf) {

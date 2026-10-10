@@ -2,7 +2,10 @@
 
 set -e
 
-ulimit -d 65536
+# Data and stack limits for the whole build, including the freshly built
+# interpreter that freezes the importlib modules.  PKG_PYTHON_DATA_LIMIT (in KB)
+# overrides the data limit if the build runs out of memory.
+ulimit -d ${PKG_PYTHON_DATA_LIMIT-65536}
 ulimit -s 8192
 
 DESTDIR=$1
@@ -12,7 +15,16 @@ PATCHFILE="python-$VERSION-openstep.patch"
 
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS="-O3 -DNeXT"
+# -O3 works on x86.  On SPARC the freshly built interpreter fails while running
+# the frozen importlib ("name 'RuntimeError' is not defined" although the name
+# exists), which looks like a miscompile of the dictionary or string code by
+# gcc 4.2, so SPARC builds more conservatively.  PKG_PYTHON_OPT overrides it.
+case $PKG_ARCH in
+    sparc) python_opt='-O1 -fno-strict-aliasing -fwrapv' ;;
+    *)     python_opt=-O3 ;;
+esac
+python_opt=${PKG_PYTHON_OPT-$python_opt}
+CFLAGS="$PKG_GCC42_ARCH_FLAGS $python_opt -DNeXT"
 # GCC42 exhausts memory or crashes optimizing the generated deepfreeze unit.
 # Keep the interpreter optimized; only frozen-object initialization uses -O0.
 DEEPFREEZE_CFLAGS="-O0 -g0"
@@ -29,6 +41,11 @@ export DESTDIR VERSION PREFIX PATCHFILE PATH CC CFLAGS CPPFLAGS LDFLAGS
 export DEEPFREEZE_CFLAGS
 export GREP EGREP AWK SED ac_cv_prog_cc_c99 ac_cv_sizeof_wchar_t
 . "$PKG_BUILD_HELPERS"
+
+# OPENSTEP's SPARC libc compares bytes as signed in memcmp() and strcmp(); see
+# pkg_cmp_shim in build-helpers.sh.  Empty on x86.  It is forced in at make
+# time only: configure's own tests do not cope with it.
+CMPFLAGS=`pkg_cmp_shim "\`pwd\`/openstep-cmp"`
 
 if [ -d "Python-$VERSION" ]; then
     cd "Python-$VERSION"
@@ -92,9 +109,9 @@ select selectmodule.c
 _socket socketmodule.c
 EOF
 
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
   --prefix="$PREFIX" --disable-shared --without-ensurepip \
   --disable-test-modules
 
-gnumake SHELL=/usr/local/bin/ksh
-gnumake SHELL=/usr/local/bin/ksh install DESTDIR="$DESTDIR"
+gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" SHELL=/usr/local/bin/ksh
+gnumake CPPFLAGS="$CPPFLAGS $CMPFLAGS" SHELL=/usr/local/bin/ksh install DESTDIR="$DESTDIR"

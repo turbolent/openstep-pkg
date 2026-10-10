@@ -6,7 +6,7 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -g -D_POSIX_SOURCE -D_NEXT_SOURCE'
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2 -D_POSIX_SOURCE -D_NEXT_SOURCE'
 CONFIG_SHELL=/usr/local/bin/ksh
 MAKE=/usr/local/bin/gnumake
 GREP=/usr/local/bin/grep
@@ -24,19 +24,30 @@ if [ -d "emacs-$VERSION" ]; then
     cd "emacs-$VERSION"
 fi
 patch -p1 < "emacs-$VERSION-openstep.patch"
+patch -p1 < "emacs-$VERSION-cve.patch"
+# The release tarball ships precompiled .elc files.  Remove the one for the
+# patched .el so the build (lisp/Makefile compile-main) recompiles it from
+# the patched source whatever the file timestamps say.
+rm -f lisp/progmodes/flymake.elc
 CPPFLAGS="-I`pwd`/openstep -I/usr/local/include"
 export CPPFLAGS
 # The patch updates both configure.ac and its generated configure.
 /usr/bin/touch configure
-run_configure --build=i386-next-openstep4 --host=i386-next-openstep4 \
+run_configure --build=$PKG_TARGET --host=$PKG_TARGET \
     --prefix=/usr/local --infodir="/usr/local/share/info/emacs-$VERSION" \
     --without-x --with-ns --disable-ns-self-contained \
     --without-file-notification --without-modules --without-gnutls \
     --without-native-compilation --with-wide-int
 # Use the complete upstream Info manuals. Texinfo 4.8 cannot regenerate
 # the current Texinfo sources; no documentation sources are changed here.
-"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=:
-"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: install DESTDIR="$DESTDIR"
+# lisp/Makefile compiles in chunks produced by `xargs echo` and passes each
+# chunk as TARGETS="..." to a sub-make, which exports it (twice, with
+# MAKEFLAGS) to every recipe.  OPENSTEP's ARG_MAX is only about 20 KB, and a
+# GNU xargs chunk of up to 128 KB makes execvp fail with "arg list too long".
+XARGS_LIMIT="-n 40"
+"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: XARGS_LIMIT="$XARGS_LIMIT"
+"$MAKE" SHELL="$CONFIG_SHELL" MAKEINFO=: XARGS_LIMIT="$XARGS_LIMIT" \
+    install DESTDIR="$DESTDIR"
 # Upstream ignores some install errors; reject an incomplete image.
 test -f "$DESTDIR/usr/local/share/emacs/$VERSION/lisp/simple.elc"
 test -x "$DESTDIR/usr/local/bin/emacs"

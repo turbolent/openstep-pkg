@@ -3,7 +3,7 @@ set -e
 DESTDIR=$1
 PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin:$PATH
 CC=/usr/local/bin/gcc-4.2
-CFLAGS='-O2 -fno-builtin-memset -march=i486 -DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE'
+CFLAGS="-O2 -fno-builtin-memset ${PKG_GCC42_ARCH_FLAGS-} -DNeXT -D_POSIX_SOURCE -D_NEXT_SOURCE"
 AWK=/usr/local/bin/gawk
 GREP=/usr/local/bin/grep
 EGREP='/usr/local/bin/grep -E'
@@ -11,12 +11,19 @@ CHARSET=ASCII
 CPPFLAGS=-I/usr/local/include
 LIBS="`/usr/local/bin/curl-config --static-libs`"
 ac_cv_func_mmap=no
+# mpi/longlong.h only uses the SPARC V8 umul/udiv instructions when
+# __sparc_v8__ is defined; otherwise it calls __udiv_qrnnd, an assembler
+# routine that --disable-asm leaves out ("undefined symbol __udiv_qrnnd").
+# gcc-4.2 here targets V8 (sun4m) but does not define the macro by default.
+if test "$PKG_ARCH" = sparc; then
+    CFLAGS="$CFLAGS -D__sparc_v8__"
+fi
 export CPPFLAGS LIBS ac_cv_func_mmap
 export PATH CC CFLAGS AWK GREP EGREP CHARSET
 if test -d "libgcrypt-$2"; then cd "libgcrypt-$2"; fi
 patch -p1 < "libgcrypt-$2-openstep.patch"
 . "$PKG_BUILD_HELPERS"
-run_configure --build=i386-next-openstep4 --prefix=/usr/local \
+run_configure --build=$PKG_TARGET --prefix=/usr/local \
     --disable-asm --disable-padlock-support --disable-aesni-support --disable-shared --enable-static --disable-dependency-tracking
 /bin/gnumake SHELL="$CONFIG_SHELL"
 "$CC" $CFLAGS $CPPFLAGS -I. tests/t-openstep.c $LIBS -o tests/t-openstep

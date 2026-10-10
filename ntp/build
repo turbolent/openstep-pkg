@@ -1,0 +1,806 @@
+#!/bin/sh
+set -e
+DESTDIR=$1
+VERSION=$2
+PATH=/usr/local/bin:/usr/ucb:/bin:/usr/bin
+CC=/usr/local/bin/gcc-4.2
+CFLAGS="$PKG_GCC42_ARCH_FLAGS "'-O2'
+SED=/bin/sed
+GREP=/usr/local/bin/grep
+EGREP='/usr/local/bin/grep -E'
+AWK=/usr/local/bin/gawk
+export PATH CC CFLAGS SED GREP EGREP AWK
+if test -d "ntp-$VERSION"; then cd "ntp-$VERSION"; fi
+. "$PKG_BUILD_HELPERS"
+# OPENSTEP has neither <stdint.h> nor <inttypes.h>, and ntp's libopts refuses to
+# configure without one.  Provide both from a private include directory.  The
+# targets are 32-bit: int is 32 bits, long long is 64, and the pointer-sized
+# types come from the compiler.
+/usr/local/bin/mkdir -p openstep
+/bin/cat > openstep/stdint.h <<'SEOF'
+#ifndef OPENSTEP_STDINT_H
+#define OPENSTEP_STDINT_H
+typedef signed char int8_t;
+typedef short int16_t;
+typedef int int32_t;
+typedef long long int64_t;
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
+typedef __PTRDIFF_TYPE__ intptr_t;
+typedef __SIZE_TYPE__ uintptr_t;
+typedef long long intmax_t;
+typedef unsigned long long uintmax_t;
+#define INT8_C(c) c
+#define INT16_C(c) c
+#define INT32_C(c) c
+#define INT64_C(c) c ## LL
+#define UINT8_C(c) c
+#define UINT16_C(c) c
+#define UINT32_C(c) c ## U
+#define UINT64_C(c) c ## ULL
+#define INTMAX_C(c) c ## LL
+#define UINTMAX_C(c) c ## ULL
+typedef signed char int_least8_t;
+typedef short int_least16_t;
+typedef int int_least32_t;
+typedef long long int_least64_t;
+typedef unsigned char uint_least8_t;
+typedef unsigned short uint_least16_t;
+typedef unsigned int uint_least32_t;
+typedef unsigned long long uint_least64_t;
+typedef int int_fast8_t;
+typedef int int_fast16_t;
+typedef int int_fast32_t;
+typedef long long int_fast64_t;
+typedef unsigned int uint_fast8_t;
+typedef unsigned int uint_fast16_t;
+typedef unsigned int uint_fast32_t;
+typedef unsigned long long uint_fast64_t;
+#define INT8_MIN (-128)
+#define INT8_MAX 127
+#define UINT8_MAX 255
+#define INT16_MIN (-32767-1)
+#define INT16_MAX 32767
+#define UINT16_MAX 65535
+#define INT32_MIN (-2147483647-1)
+#define INT32_MAX 2147483647
+#define UINT32_MAX 4294967295U
+#define INT64_MIN (-9223372036854775807LL-1)
+#define INT64_MAX 9223372036854775807LL
+#define UINT64_MAX 18446744073709551615ULL
+#define INTPTR_MIN INT32_MIN
+#define INTPTR_MAX INT32_MAX
+#define UINTPTR_MAX UINT32_MAX
+#define SIZE_MAX UINT32_MAX
+#endif
+SEOF
+/bin/cat > openstep/inttypes.h <<'SEOF'
+#ifndef OPENSTEP_INTTYPES_H
+#define OPENSTEP_INTTYPES_H
+#include <stdint.h>
+#define PRId32 "d"
+#define PRIi32 "i"
+#define PRIu32 "u"
+#define PRIx32 "x"
+#define PRId64 "lld"
+#define PRIi64 "lli"
+#define PRIu64 "llu"
+#define PRIx64 "llx"
+#endif
+SEOF
+# OPENSTEP's <dirent.h> does not provide DIR, and its readdir() returns the BSD
+# "struct direct" (d_name at a different offset from SVID "struct dirent"), so
+# give ntp a <dirent.h> built on <sys/dir.h> that renames the type.
+/bin/cat > openstep/dirent.h <<'SEOF'
+#ifndef OPENSTEP_DIRENT_H
+#define OPENSTEP_DIRENT_H
+#undef _POSIX_SOURCE
+#ifndef _NEXT_SOURCE
+# define _NEXT_SOURCE 1
+#endif
+#include <sys/types.h>
+#include <sys/dir.h>
+#define dirent direct
+#endif
+SEOF
+# <time.h> only forward-declares struct timespec here, and ntp needs the real
+# thing (configure's "struct timespec" test fails for the same reason), so
+# define it in a header forced into every compile.
+/bin/cat > openstep/ntp-compat.h <<'SEOF'
+#ifndef OPENSTEP_NTP_COMPAT_H
+#define OPENSTEP_NTP_COMPAT_H
+#include <sys/types.h>
+#include <time.h>
+struct timespec {
+	time_t	tv_sec;
+	long	tv_nsec;
+};
+/* libntp's realpath and work_fork code use ssize_t, which OPENSTEP lacks. */
+typedef int ssize_t;
+/* <sys/wait.h> here defines the W*() status macros for the BSD "union wait"
+   (members w_T and w_S), but ntpd keeps the status in a plain int.  Replace them
+   with the standard int forms (the BSD wait status layout). */
+#include <sys/wait.h>
+#undef WIFEXITED
+#undef WEXITSTATUS
+#undef WIFSIGNALED
+#undef WTERMSIG
+#undef WIFSTOPPED
+#undef WSTOPSIG
+#undef WCOREDUMP
+#define WIFEXITED(s)	(((s) & 0177) == 0)
+#define WEXITSTATUS(s)	(((s) >> 8) & 0377)
+#define WIFSIGNALED(s)	(((s) & 0377) != 0177 && ((s) & 0177) != 0)
+#define WTERMSIG(s)	((s) & 0177)
+#define WIFSTOPPED(s)	(((s) & 0377) == 0177)
+#define WSTOPSIG(s)	(((s) >> 8) & 0377)
+#define WCOREDUMP(s)	((s) & 0200)
+/* No SSIZE_MAX in <limits.h> here; ssize_t is a 32-bit int. */
+#ifndef SSIZE_MAX
+# define SSIZE_MAX	2147483647
+#endif
+/* ISO C's EILSEQ is missing from <errno.h> here (the BSD value). */
+#include <errno.h>
+#ifndef EILSEQ
+# define EILSEQ	84
+#endif
+/* <sys/resource.h> has no rlim_t; struct rlimit's fields are plain ints here. */
+typedef int rlim_t;
+/* The generated stdnoreturn.h defines "noreturn" as an attribute, but this
+   system's <stdlib.h> declares "abort() __attribute__ ((noreturn))", which that
+   macro would rewrite to an attribute inside an attribute.  Defining noreturn
+   (empty) first makes that header do nothing; _Noreturn is still provided. */
+#ifndef _Noreturn
+# define _Noreturn __attribute__ ((__noreturn__))
+#endif
+#ifndef noreturn
+# define noreturn /* empty */
+#endif
+/* <sys/stat.h> hides the POSIX permission and file-type macros unless
+   _POSIX_SOURCE is defined (the standard BSD values). */
+#include <sys/stat.h>
+#ifndef S_IRUSR
+# define S_IRUSR	0000400
+# define S_IWUSR	0000200
+# define S_IXUSR	0000100
+#endif
+#ifndef S_IRWXU
+# define S_IRWXU	0000700
+#endif
+#ifndef S_IRGRP
+# define S_IRGRP	0000040
+# define S_IWGRP	0000020
+# define S_IXGRP	0000010
+#endif
+#ifndef S_IRWXG
+# define S_IRWXG	0000070
+#endif
+#ifndef S_IROTH
+# define S_IROTH	0000004
+# define S_IWOTH	0000002
+# define S_IXOTH	0000001
+#endif
+#ifndef S_IRWXO
+# define S_IRWXO	0000007
+#endif
+#ifndef S_ISDIR
+# define S_ISDIR(m)	(((m) & 0170000) == 0040000)
+#endif
+#ifndef S_ISREG
+# define S_ISREG(m)	(((m) & 0170000) == 0100000)
+#endif
+#ifndef S_ISLNK
+# define S_ISLNK(m)	(((m) & 0170000) == 0120000)
+#endif
+#ifndef S_ISCHR
+# define S_ISCHR(m)	(((m) & 0170000) == 0020000)
+#endif
+#ifndef S_ISBLK
+# define S_ISBLK(m)	(((m) & 0170000) == 0060000)
+#endif
+#ifndef S_ISFIFO
+# define S_ISFIFO(m)	(((m) & 0170000) == 0010000)
+#endif
+#ifndef S_ISSOCK
+# define S_ISSOCK(m)	(((m) & 0170000) == 0140000)
+#endif
+/* No PATH_MAX here (ntp otherwise falls back to the Windows MAX_PATH); this is
+   MAXPATHLEN. */
+#ifndef PATH_MAX
+# define PATH_MAX	1024
+#endif
+/* ... and in case something still falls back to it. */
+#ifndef MAX_PATH
+# define MAX_PATH	1024
+#endif
+/* wint_t already exists here (a macro in gcc's headers) but libopts' own
+   check cannot see it without <wchar.h>, and its fallback typedef then fails. */
+#ifndef HAVE_WINT_T
+# define HAVE_WINT_T	1
+#endif
+/* Likewise pid_t, which is a macro for int here: the fallback typedef would read
+   "typedef signed int int". */
+#ifndef HAVE_PID_T
+# define HAVE_PID_T	1
+#endif
+/* <net/if.h> hides the interface flags unless _POSIX_SOURCE is undefined (the
+   4.3BSD values). */
+#ifndef IFF_UP
+# define IFF_UP		0x1
+#endif
+#ifndef IFF_BROADCAST
+# define IFF_BROADCAST	0x2
+#endif
+#ifndef IFF_DEBUG
+# define IFF_DEBUG	0x4
+#endif
+#ifndef IFF_LOOPBACK
+# define IFF_LOOPBACK	0x8
+#endif
+#ifndef IFF_POINTOPOINT
+# define IFF_POINTOPOINT 0x10
+#endif
+#ifndef IFF_NOTRAILERS
+# define IFF_NOTRAILERS	0x20
+#endif
+#ifndef IFF_RUNNING
+# define IFF_RUNNING	0x40
+#endif
+#ifndef IFF_NOARP
+# define IFF_NOARP	0x80
+#endif
+#ifndef IFF_PROMISC
+# define IFF_PROMISC	0x100
+#endif
+#ifndef IFF_ALLMULTI
+# define IFF_ALLMULTI	0x200
+#endif
+/* The SPARC libc has no sigsetjmp/siglongjmp (link: undefined symbols).  The
+   BSD setjmp/longjmp here already save and restore the signal mask, which is
+   what sigsetjmp (env, 1) asks for, so map them onto those. */
+#if defined(__sparc__) || defined(__sparc) || defined(sparc)
+# include <setjmp.h>
+# undef sigjmp_buf
+# undef sigsetjmp
+# undef siglongjmp
+# define sigjmp_buf		jmp_buf
+# define sigsetjmp(env, save)	setjmp (env)
+# define siglongjmp(env, val)	longjmp ((env), (val))
+#endif
+#endif
+SEOF
+# mode_t is hidden without _POSIX_SOURCE; typedef it only if the compiler says
+# it is missing.
+/bin/cat > probe_mode.c <<'PEOF'
+#include <sys/types.h>
+#include <sys/stat.h>
+mode_t probe_mode;
+PEOF
+if $CC $CFLAGS -c probe_mode.c -o probe_mode.o > /dev/null 2>&1; then
+    :
+else
+    /bin/cat >> openstep/ntp-compat.h <<'MEOF'
+#ifndef OPENSTEP_MODE_T
+# define OPENSTEP_MODE_T 1
+typedef unsigned short mode_t;
+#endif
+MEOF
+fi
+/bin/rm -f probe_mode.c probe_mode.o
+# ntp's copy of ISC expects an isc/ipv6.h to supply the IPv6 types on systems
+# without them (only the Windows one ships).  Provide the standard stand-ins:
+# struct in6_addr, struct sockaddr_in6 and the address-class macros.  They only
+# make the headers compile; IPv6 itself stays disabled.
+/usr/local/bin/mkdir -p openstep/isc
+/bin/cat > openstep/isc/ipv6.h <<'SEOF'
+#ifndef ISC_IPV6_H
+#define ISC_IPV6_H 1
+
+struct in6_addr {
+	union {
+		unsigned char	_S6_u8[16];
+		unsigned short	_S6_u16[8];
+		unsigned int	_S6_u32[4];
+	} _S6_un;
+};
+#define s6_addr		_S6_un._S6_u8
+#define s6_addr8	_S6_un._S6_u8
+#define s6_addr16	_S6_un._S6_u16
+#define s6_addr32	_S6_un._S6_u32
+
+#define IN6ADDR_ANY_INIT	{{{ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }}}
+#define IN6ADDR_LOOPBACK_INIT	{{{ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 }}}
+
+extern const struct in6_addr in6addr_any;
+extern const struct in6_addr in6addr_loopback;
+
+struct sockaddr_in6 {
+#ifdef ISC_PLATFORM_HAVESALEN
+	unsigned char	sin6_len;
+	unsigned char	sin6_family;
+#else
+	unsigned short	sin6_family;
+#endif
+	unsigned short	sin6_port;
+	unsigned int	sin6_flowinfo;
+	struct in6_addr	sin6_addr;
+	unsigned int	sin6_scope_id;
+};
+#ifdef ISC_PLATFORM_HAVESALEN
+#define SIN6_LEN 1
+#endif
+
+#define IN6_IS_ADDR_UNSPECIFIED(a) \
+	(((a)->s6_addr32[0] == 0) && ((a)->s6_addr32[1] == 0) && \
+	 ((a)->s6_addr32[2] == 0) && ((a)->s6_addr32[3] == 0))
+#define IN6_IS_ADDR_LOOPBACK(a) \
+	(((a)->s6_addr32[0] == 0) && ((a)->s6_addr32[1] == 0) && \
+	 ((a)->s6_addr32[2] == 0) && ((a)->s6_addr32[3] == htonl(1)))
+#define IN6_IS_ADDR_V4COMPAT(a) \
+	(((a)->s6_addr32[0] == 0) && ((a)->s6_addr32[1] == 0) && \
+	 ((a)->s6_addr32[2] == 0) && ((a)->s6_addr32[3] != 0) && \
+	 ((a)->s6_addr32[3] != htonl(1)))
+#define IN6_IS_ADDR_V4MAPPED(a) \
+	(((a)->s6_addr32[0] == 0) && ((a)->s6_addr32[1] == 0) && \
+	 ((a)->s6_addr32[2] == htonl(0x0000ffff)))
+#define IN6_IS_ADDR_MULTICAST(a) ((a)->s6_addr[0] == 0xff)
+#define IN6_IS_ADDR_LINKLOCAL(a) \
+	(((a)->s6_addr[0] == 0xfe) && (((a)->s6_addr[1] & 0xc0) == 0x80))
+#define IN6_IS_ADDR_SITELOCAL(a) \
+	(((a)->s6_addr[0] == 0xfe) && (((a)->s6_addr[1] & 0xc0) == 0xc0))
+
+#endif /* ISC_IPV6_H */
+SEOF
+CPPFLAGS="-I`pwd`/openstep -include `pwd`/openstep/ntp-compat.h"
+export CPPFLAGS
+# No sntp (needs libevent), no OpenSSL (MD5 keys still work; SHA-1 keys and
+# Autokey do not), no ntpsnmpd, no ntp-keygen autokey, no kernel PLL tricks.
+# configure runs sntp/scripts/genHardFlags to pick compiler hardening flags
+# (even with --without-sntp).  It detects the OS with config.guess and uname,
+# getopt and other things OPENSTEP's tools may not provide, and this build wants
+# no hardening flags anyway, so replace it with a script that says so.
+/bin/cat > sntp/scripts/genHardFlags <<'GHEOF'
+#! /bin/sh
+echo "GENHARDFLAGFILE=harden/default"
+echo "NTP_HARD_CFLAGS=''"
+echo "NTP_HARD_CPPFLAGS=''"
+echo "NTP_HARD_LDFLAGS=''"
+echo GENHARDFLAG=OK
+exit 0
+GHEOF
+/bin/chmod 755 sntp/scripts/genHardFlags
+# configure also runs sntp/scripts/genLocInfo to learn where each program and
+# man page installs.  It has the same OS-detection and getopt dependencies, so
+# supply its output for the "legacy" layout (everything in bin, section 1) as
+# generated by the real script from loc/legacy.
+/bin/cat > sntp/scripts/genLocInfo <<'GLEOF'
+#! /bin/sh
+/bin/cat <<'GLDATA'
+GENLOCINFOFILE=loc/legacy
+MANTAGFMT=man
+CALC_TICKADJ_DB=calc_tickadj
+CALC_TICKADJ_DL=
+CALC_TICKADJ_DS=
+CALC_TICKADJ_NI=
+CALC_TICKADJ_MS=1
+NTP_KEYGEN_DB=ntp-keygen
+NTP_KEYGEN_DL=
+NTP_KEYGEN_DS=
+NTP_KEYGEN_NI=
+NTP_KEYGEN_MS=1
+NTP_WAIT_DB=ntp-wait
+NTP_WAIT_DL=
+NTP_WAIT_DS=
+NTP_WAIT_NI=
+NTP_WAIT_MS=1
+NTPD_DB=ntpd
+NTPD_DL=
+NTPD_DS=
+NTPD_NI=
+NTPD_MS=1
+NTPDATE_DB=ntpdate
+NTPDATE_DL=
+NTPDATE_DS=
+NTPDATE_NI=
+NTPDATE_MS=1
+NTPDC_DB=ntpdc
+NTPDC_DL=
+NTPDC_DS=
+NTPDC_NI=
+NTPDC_MS=1
+NTPDSIM_DB=ntpdsim
+NTPDSIM_DL=
+NTPDSIM_DS=
+NTPDSIM_NI=
+NTPDSIM_MS=1
+NTPQ_DB=ntpq
+NTPQ_DL=
+NTPQ_DS=
+NTPQ_NI=
+NTPQ_MS=1
+NTPSNMPD_DB=ntpsnmpd
+NTPSNMPD_DL=
+NTPSNMPD_DS=
+NTPSNMPD_NI=
+NTPSNMPD_MS=1
+NTPSWEEP_DB=
+NTPSWEEP_DL=
+NTPSWEEP_DS=
+NTPSWEEP_NI=ntpsweep
+NTPSWEEP_MS=1
+NTPTIME_DB=ntptime
+NTPTIME_DL=
+NTPTIME_DS=
+NTPTIME_NI=
+NTPTIME_MS=1
+NTPTRACE_DB=ntptrace
+NTPTRACE_DL=
+NTPTRACE_DS=
+NTPTRACE_NI=
+NTPTRACE_MS=1
+SNTP_DB=sntp
+SNTP_DL=
+SNTP_DS=
+SNTP_NI=
+SNTP_MS=1
+TICKADJ_DB=tickadj
+TICKADJ_DL=
+TICKADJ_DS=
+TICKADJ_NI=
+TICKADJ_MS=1
+TIMETRIM_DB=timetrim
+TIMETRIM_DL=
+TIMETRIM_DS=
+TIMETRIM_NI=
+TIMETRIM_MS=1
+UPDATE_LEAP_DB=update-leap
+UPDATE_LEAP_DL=
+UPDATE_LEAP_DS=
+UPDATE_LEAP_NI=
+UPDATE_LEAP_MS=1
+GENLOCINFO=OK
+GLDATA
+exit 0
+GLEOF
+/bin/chmod 755 sntp/scripts/genLocInfo
+# --disable-all-clocks: no radio/GPS/modem reference-clock drivers (they need
+# hardware, sys/ipc.h and more that OPENSTEP lacks); the network is the time
+# source, with the local clock driver kept as a fallback.
+# --disable-thread-support: configure finds <cthreads.h> and then cannot link
+# Mach CThreads; ntpd copes without threads (name lookups use a child process).
+# Everything stays under /usr/local; configuration is /usr/local/etc/ntpd.conf
+# (start ntpd with -c /usr/local/etc/ntpd.conf).
+# ntp wants arc4random_buf() (and strdup, which this libc lacks) for random numbers when OpenSSL is absent, and
+# otherwise falls back to libevent's copy -- but the libevent tearoff does not
+# compile here (no IPv6 types) and nothing else needs it.  Supply a small
+# arc4random_buf(): an RC4 keystream keyed from the system clock, process ids
+# and /dev/random or /dev/urandom when they exist.  The configure step is told
+# the function exists, the libevent directory is left unbuilt, and ntp-keygen
+# and ntpd link this object instead.
+/bin/cat > openstep_rand.c <<'REOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static unsigned char rc4_s[256];
+static unsigned char rc4_i, rc4_j;
+static int rc4_ready;
+static unsigned long rc4_count;
+
+static void
+rc4_seed(void)
+{
+    unsigned char key[256];
+    struct timeval tv;
+    unsigned long mix;
+    int i, j, n;
+    unsigned char t;
+    FILE *fp;
+    static const char *devs[] = { "/dev/urandom", "/dev/random", 0 };
+
+    memset(key, 0, sizeof(key));
+    n = 0;
+    for (i = 0; devs[i] != 0 && n == 0; i++) {
+	fp = fopen(devs[i], "r");
+	if (fp != 0) {
+	    n = (int)fread(key, 1, 128, fp);
+	    fclose(fp);
+	}
+    }
+    gettimeofday(&tv, (struct timezone *)0);
+    mix = (unsigned long)tv.tv_sec ^ ((unsigned long)tv.tv_usec << 12)
+	^ ((unsigned long)getpid() << 5) ^ (unsigned long)clock()
+	^ (unsigned long)(char *)&tv ^ (unsigned long)getppid();
+    for (i = 0; i < 16; i++) {
+	key[128 + i] ^= (unsigned char)(mix >> ((i & 3) * 8));
+	mix = mix * 1103515245UL + 12345UL;
+    }
+    for (i = 0; i < 256; i++)
+	rc4_s[i] = (unsigned char)i;
+    j = 0;
+    for (i = 0; i < 256; i++) {
+	j = (j + rc4_s[i] + key[i]) & 255;
+	t = rc4_s[i]; rc4_s[i] = rc4_s[j]; rc4_s[j] = t;
+    }
+    rc4_i = rc4_j = 0;
+    for (i = 0; i < 3072; i++) {	/* discard the weak start of the stream */
+	rc4_i++;
+	rc4_j += rc4_s[rc4_i];
+	t = rc4_s[rc4_i]; rc4_s[rc4_i] = rc4_s[rc4_j]; rc4_s[rc4_j] = t;
+    }
+    rc4_ready = 1;
+    rc4_count = 0;
+}
+
+/* OPENSTEP's libc has no strdup(). */
+char *
+strdup(const char *str)
+{
+    size_t n = strlen(str) + 1;
+    char *p = (char *)malloc(n);
+
+    if (p != 0)
+	memcpy(p, str, n);
+    return p;
+}
+
+void
+arc4random_buf(void *buf, size_t nbytes)
+{
+    unsigned char *p = (unsigned char *)buf;
+    unsigned char t;
+
+    if (!rc4_ready || rc4_count > 1600000UL)
+	rc4_seed();
+    while (nbytes-- > 0) {
+	rc4_i++;
+	rc4_j += rc4_s[rc4_i];
+	t = rc4_s[rc4_i]; rc4_s[rc4_i] = rc4_s[rc4_j]; rc4_s[rc4_j] = t;
+	*p++ = rc4_s[(unsigned char)(rc4_s[rc4_i] + rc4_s[rc4_j])];
+	rc4_count++;
+    }
+}
+REOF
+$CC $CFLAGS -c openstep_rand.c -o openstep_rand.o
+# Link the shim as a library: libtool refuses a bare .o in LIBS when it builds
+# libopts.la ("cannot build libtool library from non-libtool objects").
+# POSIX functions this libc lacks: getcwd (via getwd), waitpid (via wait4) and
+# the termios calls (via the BSD ioctls).  ntp_refclock.c and ntpd use them even
+# with no hardware clocks configured.
+/bin/cat > openstep_posix.c <<'PXEOF'
+/* The header's prototypes for the two speed setters use a parameter type I cannot
+   see from here, and other headers (<sys/ioctl.h>) pull <sys/termios.h> in early.
+   Rename the names before anything is included so the header declares its copies
+   under other names, and define ours with a plain integer. */
+#define cfsetispeed hdr_cfsetispeed
+#define cfsetospeed hdr_cfsetospeed
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/file.h>
+#include <termios.h>
+#undef cfsetispeed
+#undef cfsetospeed
+#include <errno.h>
+#include <string.h>
+
+extern char *getwd();
+extern int wait4();
+
+char *
+getcwd(char *buf, size_t size)
+{
+    char tmp[1024];
+
+    if (buf == 0 || size == 0) {
+	errno = EINVAL;
+	return 0;
+    }
+    if (getwd(tmp) == 0)
+	return 0;
+    if (strlen(tmp) >= size) {
+	errno = ERANGE;
+	return 0;
+    }
+    strcpy(buf, tmp);
+    return buf;
+}
+
+int
+waitpid(int pid, int *status, int options)
+{
+    return wait4(pid, (void *) status, options, (void *) 0);
+}
+
+int
+tcgetattr(int fd, struct termios *t)
+{
+    return ioctl(fd, TIOCGETA, (char *) t);
+}
+
+int
+tcsetattr(int fd, int actions, const struct termios *t)
+{
+    switch (actions) {
+    case 0:	/* TCSANOW */
+	return ioctl(fd, TIOCSETA, (char *) t);
+    case 1:	/* TCSADRAIN */
+	return ioctl(fd, TIOCSETAW, (char *) t);
+    case 2:	/* TCSAFLUSH */
+	return ioctl(fd, TIOCSETAF, (char *) t);
+    }
+    errno = EINVAL;
+    return -1;
+}
+
+int
+tcflush(int fd, int queue)
+{
+    int what;
+
+    switch (queue) {
+    case 1:	/* TCIFLUSH */
+	what = FREAD;
+	break;
+    case 2:	/* TCOFLUSH */
+	what = FWRITE;
+	break;
+    case 3:	/* TCIOFLUSH */
+	what = FREAD | FWRITE;
+	break;
+    default:
+	errno = EINVAL;
+	return -1;
+    }
+    return ioctl(fd, TIOCFLUSH, (char *) &what);
+}
+
+#ifdef HAVE_TERMIOS_SPEED_FIELDS
+int
+cfsetispeed(struct termios *t, unsigned long speed)
+{
+    t->c_ispeed = speed;
+    return 0;
+}
+
+int
+cfsetospeed(struct termios *t, unsigned long speed)
+{
+    t->c_ospeed = speed;
+    return 0;
+}
+#else
+int
+cfsetispeed(struct termios *t, unsigned long speed)
+{
+    return 0;
+}
+
+int
+cfsetospeed(struct termios *t, unsigned long speed)
+{
+    return 0;
+}
+#endif
+PXEOF
+# Does struct termios here carry c_ispeed/c_ospeed?
+/bin/cat > probe_ts.c <<'PEOF'
+#include <sys/types.h>
+#include <termios.h>
+int probe_f(struct termios *t) { t->c_ispeed = 0; t->c_ospeed = 0; return 0; }
+PEOF
+nx_tsdef=
+if $CC $CFLAGS -c probe_ts.c -o probe_ts.o > /dev/null 2>&1; then
+    nx_tsdef=-DHAVE_TERMIOS_SPEED_FIELDS
+fi
+/bin/rm -f probe_ts.c probe_ts.o
+$CC $CFLAGS $nx_tsdef -c openstep_posix.c -o openstep_posix.o
+/bin/rm -f libopenstepntp.a
+# configure's setrlimit() check fails here (its own declaration clashes with the
+# one in <sys/resource.h>, which ntp-compat.h pulls in), so HAVE_SETRLIMIT is
+# unset and ntp_config.c omits ntp_rlimit() -- but its callers are guarded by
+# RLIMIT_* and still reference it.  Supply a no-op, in its own archive member so
+# it is only linked when ntp_config.o really lacks the function.  The "rlimit"
+# directive of ntpd.conf is its only user; it is accepted and ignored.
+/bin/cat > openstep_rlimit.c <<'RLEOF'
+void
+ntp_rlimit(int rl_what, int rl_value, int rl_scale, const char *rl_sstr)
+{
+}
+RLEOF
+$CC $CFLAGS -c openstep_rlimit.c -o openstep_rlimit.o
+/bin/ar rc libopenstepntp.a openstep_rand.o openstep_posix.o openstep_rlimit.o
+/bin/ranlib libopenstepntp.a
+LIBS="-L`pwd` -lopenstepntp"
+ac_cv_func_arc4random_buf=yes
+# configure's link tests declare each function themselves, which clashes with
+# the prototypes the forced header drags in (the same thing happened with
+# setrlimit).  A failed settimeofday check leaves ntp with no way to set the
+# clock at all: ntpdate then reports "step-systime: error 0" (ntp_set_tod
+# fails with errno still 0) and ntpd cannot step.  OPENSTEP has both, so say so.
+ac_cv_func_settimeofday=yes
+ac_cv_func_adjtime=yes
+export LIBS ac_cv_func_arc4random_buf ac_cv_func_settimeofday ac_cv_func_adjtime
+# On SPARC <netinfo/ni.h> does not declare ni_id and friends under the flags
+# ntp is built with, so the NetInfo configuration lookup in ntpd/ntp_config.c
+# fails to compile ("static declaration of free_netinfo_config follows
+# non-static", "unknown storage size").  ntpd reads its configuration file
+# anyway; leave NetInfo out there.
+if test "$PKG_ARCH" = sparc; then
+    ac_cv_header_netinfo_ni_h=no
+    export ac_cv_header_netinfo_ni_h
+fi
+
+run_configure --prefix=/usr/local --sysconfdir=/usr/local/etc \
+    --build=$PKG_TARGET --host=$PKG_TARGET \
+    --without-crypto --without-sntp --without-ntpsnmpd --disable-debugging \
+    --disable-thread-support --disable-dependency-tracking \
+    --disable-all-clocks --enable-LOCAL-CLOCK
+# <memory.h> here declares memcpy/memcmp/memset the old way ("char *memcpy()"),
+# which conflicts with the ANSI prototypes in <string.h> that ntp includes
+# right after it.  <string.h> provides everything, so stop ntp using it.
+# (configure itself insists the header exists, so this is done afterwards.)
+for cfg in `/usr/bin/find . -name config.h -print`
+do
+    /bin/sed 's|^#define HAVE_MEMORY_H 1|/* #undef HAVE_MEMORY_H */|' "$cfg" > "$cfg.new"
+    /bin/mv "$cfg.new" "$cfg"
+done
+# libopts includes <memory.h> unconditionally; <string.h> follows it.
+/bin/sed 's|^#include <memory.h>|/* #include <memory.h> */|' \
+    sntp/libopts/compat/compat.h > sntp/libopts/compat/compat.h.new
+/bin/mv sntp/libopts/compat/compat.h.new sntp/libopts/compat/compat.h
+# Leave the libevent tearoff unbuilt (see above).
+/bin/sed 's|cd $(top_builddir)/sntp/libevent && $(MAKE) $(AM_MAKEFLAGS)|: libevent is not needed|' \
+    libntp/Makefile > libntp/Makefile.new
+/bin/mv libntp/Makefile.new libntp/Makefile
+/bin/sed 's|^am__append_1 = libevent$|am__append_1 =|' sntp/Makefile > sntp/Makefile.new
+/bin/mv sntp/Makefile.new sntp/Makefile
+/bin/gnumake LDADD_LIBEVENT=
+/bin/gnumake install DESTDIR="$DESTDIR" LDADD_LIBEVENT=
+
+# ntp installs the daemon into bin; it belongs in sbin.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/sbin"
+/bin/mv "$DESTDIR/usr/local/bin/ntpd" "$DESTDIR/usr/local/sbin/ntpd"
+
+# Ship the default configuration as ntpd.conf.dist; post-install copies it to
+# ntpd.conf only when there is none, so a reinstall never replaces the
+# administrator's file.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/etc" "$DESTDIR/usr/local/var/db"
+/bin/cat > "$DESTDIR/usr/local/etc/ntpd.conf.dist" <<'CEOF'
+# ntpd configuration.  Start with: /usr/local/sbin/ntpd -c /usr/local/etc/ntpd.conf
+server 0.pool.ntp.org iburst
+server 1.pool.ntp.org iburst
+server 2.pool.ntp.org iburst
+server 3.pool.ntp.org iburst
+
+driftfile /usr/local/var/db/ntp.drift
+
+# Answer time queries from this machine only; never let others change or
+# query the daemon.
+restrict default nomodify notrap nopeer noquery
+restrict 127.0.0.1
+CEOF
+
+# Never ship a configuration file: a reinstall would replace the administrator's.
+for stray in etc usr/lib; do
+    if test -e "$DESTDIR/$stray"; then
+        echo "ntp: the image contains $stray outside /usr/local; refusing to ship it" >&2
+        exit 1
+    fi
+done
+test -x "$DESTDIR/usr/local/sbin/ntpd"
+# The boot-time script, its default settings and the README.
+/usr/local/bin/mkdir -p "$DESTDIR/usr/local/share/ntp"
+/bin/cp pkg-files/rc.ntp "$DESTDIR/usr/local/etc/rc.ntp"
+/bin/cp pkg-files/rc.ntp.conf.dist "$DESTDIR/usr/local/etc/rc.ntp.conf.dist"
+/bin/cp pkg-files/README "$DESTDIR/usr/local/share/ntp/README"
+/bin/chmod 755 "$DESTDIR/usr/local/etc/rc.ntp"
+
+test -f "$DESTDIR/usr/local/etc/ntpd.conf.dist"
+test ! -e "$DESTDIR/usr/local/etc/ntpd.conf"

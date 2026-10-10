@@ -14,7 +14,7 @@ if [ ! -f gram.y ]; then
 fi
 
 test -d derived_src || mkdir derived_src
-test -d obj-i386-opt || mkdir obj-i386-opt
+test -d obj-$PKG_ARCH-opt || mkdir obj-$PKG_ARCH-opt
 
 (
     cd derived_src
@@ -23,9 +23,9 @@ test -d obj-i386-opt || mkdir obj-i386-opt
 cp derived_src/y.tab.h gram.h
 cp derived_src/y.tab.c gram.c
 
-OBJDIR=obj-i386-opt
-OBJCFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe -ObjC"
-CFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe"
+OBJDIR=obj-$PKG_ARCH-opt
+OBJCFLAGS="$PKG_SYSCC_ARCH_FLAGS -O -Wmost -g -fno-common -I. -I./derived_src -arch $PKG_ARCH -pipe -ObjC"
+CFLAGS="$PKG_SYSCC_ARCH_FLAGS -O -Wmost -g -fno-common -I. -I./derived_src -arch $PKG_ARCH -pipe"
 
 /bin/cc $OBJCFLAGS -c -o "$OBJDIR/MappedFile.o" MappedFile.m
 /bin/cc $OBJCFLAGS -c -o "$OBJDIR/ObjcCategory.o" ObjcCategory.m
@@ -42,7 +42,7 @@ CFLAGS="-O -Wmost -g -fno-common -I. -I./derived_src -arch i386 -pipe"
 
 /bin/cc -o class-dump \
     -L"`pwd`/$OBJDIR" \
-    -arch i386 \
+    -arch $PKG_ARCH \
     "$OBJDIR/MappedFile.o" \
     "$OBJDIR/ObjcCategory.o" \
     "$OBJDIR/ObjcClass.o" \

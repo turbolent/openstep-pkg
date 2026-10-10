@@ -4,8 +4,8 @@ DESTDIR=$1
 VERSION=$2
 PATH=/usr/local/bin:/bin:/usr/bin:/usr/ucb
 CC=/usr/local/bin/gcc-4.2
-CXX=/usr/local/bin/g++-4.2
-CFLAGS='-O2 -march=i486'
+CXX="/usr/local/bin/g++-4.2 $PKG_GCC42_ARCH_FLAGS"
+CFLAGS='-O2 '"$PKG_GCC42_ARCH_FLAGS"
 CPPFLAGS='-D_POSIX_SOURCE -I./openstep -I/usr/local/include -I/NextDeveloper/Headers/bsd'
 # Bind executable imports eagerly on OPENSTEP.
 LDFLAGS='-L/usr/local/lib -Wl,-bind_at_load'
@@ -25,7 +25,7 @@ $CC $CFLAGS $CPPFLAGS $LDFLAGS openstep/poll-test.c \
 source_root=`pwd`
 LIBS="$source_root/openstep/poll.o $source_root/openstep/compat.o -liconv"
 export LIBS
-run_configure --prefix=/usr/local --build=i386-next-openstep4 \
-    --host=i386-next-openstep4 --disable-idn
+run_configure --prefix=/usr/local --build=$PKG_TARGET \
+    --host=$PKG_TARGET --disable-idn
 /bin/gnumake SHELL=/usr/local/bin/ksh
 /bin/gnumake SHELL=/usr/local/bin/ksh install DESTDIR="$DESTDIR"

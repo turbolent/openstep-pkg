@@ -13,7 +13,7 @@ fi
 
 patch -p1 < libwapcaplet-0.4.3-openstep.patch
 
-gnumake Q= CC=cc CCACHE= WARNFLAGS= \
+gnumake Q= CC="cc $PKG_SYSCC_ARCH_FLAGS" CCACHE= WARNFLAGS= \
 	PREFIX=/usr/local \
 	NSSHARED=/usr/local/share/netsurf-buildsystem
 
@@ -21,7 +21,7 @@ for lib in build-*-release-lib-static/libwapcaplet.a; do
 	ranlib "$lib"
 done
 
-gnumake Q= CC=cc CCACHE= WARNFLAGS= \
+gnumake Q= CC="cc $PKG_SYSCC_ARCH_FLAGS" CCACHE= WARNFLAGS= \
 	INSTALL=/usr/bin/install \
 	INSTALLFLAGS=-c \
 	PREFIX=/usr/local \
